@@ -153,6 +153,31 @@ async function syncSlipStatus(settings) {
  * 실패하면 탭을 남겨 두어 패널의 "탭 보기"로 이어서 할 수 있게 한다. 제한 시간(5분) 안에 보고가 없으면 실패로 표시 */
 const RND_MAIN = 'https://rnd.krs.co.kr/rderp_layoutMain.act';
 const PREP_RUN_TIMEOUT = 5 * 60000;
+const PREP_RUN_TIMEOUT_MEETING = 30 * 60000;   // 회의비(회의록 종류): 사용자가 회의록 팝업을 채우는 동안 기다림
+/* 세목 빠른 선택 항목("표시이름=항목명=청구종류=종류") 중 준비 항목의 청구종류(표시이름)에 해당하는 것 (lib/prep.js parsePicks 와 같은 규칙) */
+async function pickInfo(label) {
+  const s = await KRX_SETTINGS.load();
+  for (const line of (s.claimHelper && s.claimHelper.quickPicks) || []) {
+    const parts = String(line || '').split('=').map((x) => x.trim());
+    if (parts[0] && parts[0] === label) return { label: parts[0], kw: parts[1] || parts[0], type: parts[2] || '', kind: parts[3] || '' };
+  }
+  return null;
+}
+/* 회의록(부가증빙)이 필요한 청구종류: 코드 17 회의비, 또는 종류가 식비·다과. "청구서 작성"은 탭을 앞에 열어 사용자가 회의록 팝업을 채우게 하고(content/rnd-claim.js waitMinutes) 저장되면 내역 추가로 이어 간다 */
+const isMeetingPick = (p) => !!p && (String(p.type) === '17' || p.kind === '식비' || p.kind === '다과');
+/* 참석자 카드(패널)용 과제 참여인력·회의록 규칙 — 과제별 1시간 캐시 (서비스워커가 잠들면 비워짐) */
+const meetingInfoCache = new Map();
+async function meetingInfo(prjNo, date, force) {
+  if (!prjNo) return { ok: false, error: '과제번호가 없습니다' };
+  const ck = prjNo + '|' + String(date || '').replace(/\D/g, '').slice(0, 8);
+  const c = meetingInfoCache.get(ck);
+  if (c && !force && Date.now() - c.ts < 3600000) return { ok: true, info: c.info, cached: true };
+  try {
+    const info = await KRX_API.fetchMeetingInfo(prjNo, date, await KRX_SETTINGS.load());
+    meetingInfoCache.set(ck, { ts: Date.now(), info });
+    return { ok: true, info };
+  } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다 (eClass 의 R&D ERP 메뉴로 로그인)' : d.message }; }
+}
 const wasSaved = (run) => !!(run && (run.saved || run.state === 'done' || run.state === 'saved' || run.state === 'applied'));   // 'done' 은 이전 버전(0.6.9)의 "내역 추가됨" 상태 이름
 async function prepRun(key, mode) {
   const m = await KRX_PREP_STORE.loadMeta();
@@ -161,11 +186,16 @@ async function prepRun(key, mode) {
   const steps = new Set(String(mode || 'add').split(/[,+\s]+/).filter(Boolean));
   if (steps.has('delete')) { steps.clear(); steps.add('delete'); }
   if (!steps.has('add') && !steps.has('apply') && !steps.has('delete')) steps.add('add');
-  const auto = ['add', 'apply', 'delete'].filter((s) => steps.has(s)).join(',');
+  const auto = ['add', 'apply', 'delete', 'dry'].filter((s) => steps.has(s)).join(',');   // dry: 회의록 등록 직전까지만(payload 검증, 서버에 보내지 않음 — 진단용)
   if (steps.has('add') && !e.type) return { ok: false, error: '청구종류를 먼저 고르세요' };
   if (!steps.has('add') && !wasSaved(e.run)) return { ok: false, error: steps.has('delete') ? '내역 추가된 항목이 아닙니다' : '먼저 청구서를 작성(내역 추가)하세요' };
   if (steps.has('delete') && e.run && e.run.state === 'applied') return { ok: false, error: '이미 신청된 결의서는 삭제할 수 없습니다 (R&D ERP 에서 신청 취소 후)' };
-  if (e.run && e.run.state === 'running' && Date.now() - e.run.ts < PREP_RUN_TIMEOUT) return { ok: false, error: '이미 진행 중입니다' };
+  const pk = steps.has('add') ? await pickInfo(e.type) : null;
+  // 회의록이 필요한 청구종류: 패널 회의록 카드에 회의내용이 있으면 청구서 도우미가 팝업 없이 회의록을 등록하므로 백그라운드 탭으로,
+  // 없으면 탭을 앞에 열어 사용자가 회의록 팝업을 채우게 하고 제한 시간을 늘린다
+  const meeting = isMeetingPick(pk) && !(pk && pk.kind && e.minutes && e.minutes.content);
+  const timeout = meeting ? PREP_RUN_TIMEOUT_MEETING : PREP_RUN_TIMEOUT;
+  if (e.run && e.run.state === 'running' && Date.now() - e.run.ts < (e.run.meeting ? PREP_RUN_TIMEOUT_MEETING : PREP_RUN_TIMEOUT)) return { ok: false, error: '이미 진행 중입니다' };
   if (e.run && e.run.tabId != null) { try { await chrome.tabs.remove(e.run.tabId); } catch (x) {} }   // 지난 실행이 남겨 둔 탭
   const req = { open: 'rexpe_0083_01.act', title: '청구서(카드)', menuId: 'menu_id_362', q: 'PRJ_NO=' + encodeURIComponent(e.prjNo || ''), card: e.card4, auto };
   if (steps.has('add')) req.appr = e.appr;
@@ -179,17 +209,17 @@ async function prepRun(key, mode) {
     req.q += '&REQ_CNT=' + encodeURIComponent(reqCnt) + '&APPR_DIV_CD=40';
   }
   let tab = null;
-  try { tab = await chrome.tabs.create({ url: RND_MAIN + '#krext=' + encodeURIComponent(JSON.stringify(req)), active: false }); }
+  try { tab = await chrome.tabs.create({ url: RND_MAIN + '#krext=' + encodeURIComponent(JSON.stringify(req)), active: meeting }); }
   catch (x) { return { ok: false, error: '탭을 열지 못했습니다: ' + String((x && x.message) || x) }; }
   const prev = e.run || {};
-  await KRX_PREP_STORE.setRun(key, { state: 'running', stage: steps.has('add') ? 'add' : steps.has('delete') ? 'delete' : 'apply', mode: auto, ts: Date.now(), tabId: tab.id, msg: '', saved: wasSaved(prev), reqNo: String(prev.reqNo || ''), reqCnt: String(prev.reqCnt || '') });
+  await KRX_PREP_STORE.setRun(key, { state: 'running', stage: steps.has('add') ? 'add' : steps.has('delete') ? 'delete' : 'apply', mode: auto, ts: Date.now(), tabId: tab.id, msg: meeting ? '회의록 팝업을 채우고 저장하면 이어서 내역 추가합니다' : '', saved: wasSaved(prev), reqNo: String(prev.reqNo || ''), reqCnt: String(prev.reqCnt || ''), meeting });
   setTimeout(async () => {
     try {
       const cur = (await KRX_PREP_STORE.loadMeta())[key];
       if (cur && cur.run && cur.run.state === 'running' && cur.run.tabId === tab.id) await KRX_PREP_STORE.setRun(key, Object.assign({}, cur.run, { state: 'failed', ts: Date.now(), msg: '제한 시간 안에 끝나지 않았습니다 — 탭에서 확인하세요' }));
     } catch (x) {}
-  }, PREP_RUN_TIMEOUT);
-  return { ok: true, tabId: tab.id };
+  }, timeout);
+  return { ok: true, tabId: tab.id, meeting };
 }
 /* rnd-claim.js 의 보고 { key, appr, state: saved|applied|deleted|failed, final, msg, alerts, saved, reqNo, reqCnt }. 이전 버전(0.6.9)의 { ok } 만 있는 보고도 받는다.
  * deleted(임시저장 삭제됨): run 을 지워 준비 항목을 작성 전 상태로 돌리고 미청구 목록을 다시 조회한다(거래가 돌아옴).
@@ -213,7 +243,7 @@ async function prepRunResult(msg, sender) {
   const saved = !!msg.saved || state === 'saved' || state === 'applied' || wasSaved(prev);
   if (cur) {
     await KRX_PREP_STORE.setRun(key, { state: final ? state : 'running', stage: final ? '' : 'apply', mode: String(prev.mode || ''), ts: Date.now(), tabId, msg: text, saved,
-      reqNo: String(msg.reqNo || prev.reqNo || ''), reqCnt: String(msg.reqCnt || prev.reqCnt || '') });
+      reqNo: String(msg.reqNo || prev.reqNo || ''), reqCnt: String(msg.reqCnt || prev.reqCnt || ''), meeting: !!prev.meeting });
   }
   if (final && state !== 'failed' && tabId != null) setTimeout(() => { try { chrome.tabs.remove(tabId).catch(() => {}); } catch (x) {} }, 2500);
   // 내역 추가된 거래는 미청구 목록에서 빠지므로 다시 조회 (신청 실패라도 임시저장은 됐음). 이미 저장된 상태에서 신청만 실패한 경우는 목록이 그대로라 건너뜀
@@ -515,6 +545,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // 청구 준비 (lib/prep.js 패널 ↔ lib/prep-store.js ↔ content/rnd-claim.js 청구서)
       case 'prepSetType': return { ok: true, entry: await KRX_PREP_STORE.setType(String(msg.key || ''), msg.meta || {}, msg.value) };
       case 'prepSetPtcl': return { ok: true, entry: await KRX_PREP_STORE.setPtcl(String(msg.key || ''), msg.meta || {}, msg.value) };   // 청구내역(적요) 글
+      case 'prepSetAttendees': return { ok: true, entry: await KRX_PREP_STORE.setAttendees(String(msg.key || ''), msg.meta || {}, msg.attendees || {}) };   // 회의록 참석자 카드 (식사비)
+      case 'prepSetMinutes': return { ok: true, entry: await KRX_PREP_STORE.setMinutes(String(msg.key || ''), msg.meta || {}, msg.minutes || {}) };   // 회의록 카드의 회의 내용
+      case 'prepMeetingInfo': return await meetingInfo(String(msg.prjNo || '').trim(), String(msg.date || ''), !!msg.force);   // 회의록 카드: 과제 참여인력 목록 + 회의록 규칙 + 회의사전신청 목록 + 휴일 여부 (1시간 캐시)
+      case 'prepPersonSearch': try { return { ok: true, list: await KRX_API.searchPerson(msg.name) }; } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message }; }   // 내부참석자 검색
       case 'prepAddFiles': return { ok: true, entry: await KRX_PREP_STORE.addFiles(String(msg.key || ''), msg.meta || {}, msg.files || []) };
       case 'prepRemoveFile': return { ok: true, entry: await KRX_PREP_STORE.removeFile(String(msg.key || ''), String(msg.id || '')) };
       case 'prepClear': await KRX_PREP_STORE.clear(String(msg.key || '')); return { ok: true };

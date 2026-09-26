@@ -377,6 +377,7 @@
     $('chEnabled').checked = ch.enabled !== false;
     $('chDefaultBudget').value = ch.defaultBudget || '';
     $('chDefaultRcms').value = ch.defaultRcms || '';
+    $('chMeetingPlace').value = ch.meetingPlace == null ? (S.DEFAULTS.claimHelper.meetingPlace || '') : ch.meetingPlace;
     $('chDragDrop').checked = ch.dragDrop !== false;
     $('chQuickPicks').value = (Array.isArray(ch.quickPicks) ? ch.quickPicks : []).join('\n');
     toggleClaimBox();
@@ -457,6 +458,7 @@
         enabled: $('chEnabled').checked,
         defaultBudget: $('chDefaultBudget').value.trim(),
         defaultRcms: $('chDefaultRcms').value.trim(),
+        meetingPlace: $('chMeetingPlace').value.trim(),
         dragDrop: $('chDragDrop').checked,
         quickPicks: $('chQuickPicks').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
       },

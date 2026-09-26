@@ -41,11 +41,12 @@
     return (Array.isArray(list) ? list : String(list || '').split(/\r?\n/)).map((line) => {
       const s = String(line || '').trim();
       if (!s || s.startsWith('#')) return null;
-      const parts = s.split('=').map((x) => x.trim());   // 표시이름=세목 항목명=청구종류(코드 또는 이름)
+      const parts = s.split('=').map((x) => x.trim());   // 표시이름=세목 항목명=청구종류(코드 또는 이름)=종류(식비|다과 — 회의록 팝업용, lib/prep.js 와 동일)
       const label = parts[0];
       const kw = parts[1] || label;
       const type = parts[2] || '';
-      return label ? { label, kw, type } : null;
+      const kind = parts[3] || '';
+      return label ? { label, kw, type, kind } : null;
     }).filter(Boolean);
   }
   async function loadCfg() {
@@ -83,6 +84,7 @@
 .krext-prep-bar .krext-prep-st{color:#1a7f37}
 .krext-prep-bar .krext-prep-st.krext-err{color:#b3261e}
 .krext-prep-bar .krext-prep-btns{display:inline-flex;gap:4px;margin-left:auto}
+.krext-prep-bar .krext-prep-btns button.krext-prep-primary{background:#1f4e9c;border-color:#1f4e9c;color:#fff;font-weight:700}
 .krext-prep-bar button{font:12px/1.2 "Malgun Gothic","맑은 고딕",sans-serif;padding:3px 9px;border:1px solid #9db3d6;border-radius:12px;background:#fff;color:#1f4e9c;cursor:pointer;white-space:nowrap}
 .krext-prep-bar button:hover{background:#e2ecfa}
 .krext-prep-bar button:disabled{opacity:.5;cursor:default}
@@ -277,11 +279,65 @@
           if (hit.radio) { if (!hit.radio.checked) hit.radio.click(); }
           else setOption(hit.select, hit.opt);
           log('청구종류', type, '→', hit.radio ? radioLabel(hit.radio).trim() : hit.opt.text);
+          setTimeout(() => { fillMeetingPlace().catch(() => {}); }, 900);   // 회의비(17)면 화면이 RCMS 회의장소(도/시) 칸을 보이므로 기본값을 채운다
           return;
         }
         await sleep(250);
       }
     } finally { if (run === typeRun) typeApplying = false; }
+  }
+
+  /* "내역 추가" 직전 확인: 준비한 청구종류 코드의 라디오(또는 option)가 실제로 골라져 있는지 보고 아니면 고른다.
+   * 화면은 세목이 바뀔 때 라디오를 다시 만들며 숨은 "(90) 기타"를 체크해 두고, "내역 추가" 검증은 보이는 라디오 중 체크된 것을 요구한다 */
+  async function ensureClaimType(type) {
+    if (!type) return true;
+    for (let i = 0; i < 12 && !stopped; i++) {
+      const f = (current && current.typeRow && current.typeRow.isConnected) ? current : (current = findForm() || current);
+      const row = f && f.typeRow;
+      const hit = row ? findClaimTypeControl(row, type) : null;
+      if (hit && hit.radio) {
+        if (hit.radio.checked && visible(hit.radio.closest('label') || hit.radio)) return true;
+        hit.radio.click(); log('청구종류 다시 선택', type);
+        await sleep(600); continue;
+      }
+      if (hit && hit.select) {
+        if (hit.select.value === hit.opt.value) return true;
+        setOption(hit.select, hit.opt); await sleep(600); continue;
+      }
+      await sleep(500);
+    }
+    return false;
+  }
+  /* RCMS 통합 과제(PRJ_CARD_DIV_CD 150)에서 청구종류 회의비(17)를 고르면 RCMS 부가정보에 회의장소(도/시) 칸(#RCMS_ALOC_CTY_SE·#RCMS_ALOC_CTY_SE_NM, 화면 필수값 i_notnull)이 나타난다 —
+   * 비어 있으면 설정 meetingPlace("시/도 구/군")로 채운다. 도/시 팝업(rcomm_0219_02)과 같은 서비스 rcomm_0219_02_r001 {SEARCH_NM} → REC[{REGION_CD, REGION_NM, UP_REGION_CD, UP_REGION_NM}] 에서
+   * 이름이 맞는 행을 골라 팝업 콜백(uf_rcomm_0219_02Params)이 넣는 값(코드, "시/도 구/군")을 그대로 넣는다. 국내외구분(#RCMS_DMEX_SE_CD)은 화면 기본값 A(국내) */
+  let placeBusy = false, placeFailed = '';
+  async function fillMeetingPlace() {
+    const want = cfg && String(cfg.meetingPlace || '').trim();
+    if (!want || placeBusy || stopped || placeFailed === want) return false;
+    const cd = document.getElementById('RCMS_ALOC_CTY_SE'), nm = document.getElementById('RCMS_ALOC_CTY_SE_NM');
+    if (!cd || !nm || !visible(nm) || cd.value || nm.value) return false;
+    const label = ((document.getElementById('RCMS_AL_TXT') || {}).textContent || '').trim();
+    if (!/회의장소/.test(label)) return false;
+    placeBusy = true;
+    try {
+      const toks = want.split(/\s+/).filter(Boolean);
+      // 지역 서비스는 시/도 이름(UP_REGION_NM)으로만 찾는다("강서구" 0건, "부산" 17건 — 2026-09-26 실측) → 첫 토큰(시/도의 앞 글자)으로 받아 나머지 토큰으로 고른다
+      const key = toks[0].replace(/(특별시|광역시|특별자치시|특별자치도|도)$/, '') || toks[0];
+      let recs = (await jct('rcomm_0219_02_r001', { SEARCH_NM: key })).REC || [];
+      if (!recs.length && toks.length > 1) recs = (await jct('rcomm_0219_02_r001', { SEARCH_NM: toks[toks.length - 1] })).REC || [];
+      const full = (r) => `${r.UP_REGION_NM || ''} ${r.REGION_NM || ''}`.trim();
+      const nw = norm(want);
+      const best = recs.find((r) => norm(full(r)) === nw) || recs.find((r) => toks.every((t) => full(r).includes(t)))
+        || (toks.length === 1 ? (recs.find((r) => String(r.REGION_NM || '') === toks[0]) || recs.find((r) => String(r.UP_REGION_NM || '').includes(toks[0]))) : null);
+      if (!best) { placeFailed = want; toast(`회의장소 "${want}" 을 지역 목록에서 찾지 못했습니다 — 도/시 선택 버튼으로 고르세요`, 4000); log('회의장소 못 찾음', want, recs.length); return false; }
+      cd.value = String(best.REGION_CD || ''); nm.value = full(best);
+      for (const el of [cd, nm]) el.dispatchEvent(new Event('change', { bubbles: true }));
+      log('회의장소', want, '→', full(best), best.REGION_CD);
+      toast(`회의장소 → ${full(best)}`, 2000);
+      return true;
+    } catch (e) { log('회의장소 조회 실패', e); return false; }
+    finally { placeBusy = false; }
   }
 
   /* ---------- 기본값 채우기 ---------- */
@@ -314,7 +370,14 @@
       while (Date.now() - started < 5000 && !stopped) {
         if (!f.sel2 || !f.sel2.isConnected) f = current = findForm() || f;
         const opt = f.sel2 ? matchOption(f.sel2, item.kw) : null;
-        if (opt) { setOption(f.sel2, opt); toast(`${item.label} → ${opt.text.trim()}`, 1800); return true; }
+        if (opt) {
+          setOption(f.sel2, opt);
+          toast(`${item.label} → ${opt.text.trim()}`, 1800);
+          // 청구종류 코드는 여기서 바로 고른다 — 세목 변경 감시(watchClaimType)는 새로 찾은 폼의 현재 값을 기준으로만 삼아 시점에 따라 건너뛰고,
+          // 화면은 세목이 바뀌면 숨은 "(90) 기타" 라디오를 체크한 채 두므로 "내역 추가"가 "청구종류는 필수항목입니다."로 막혔다 (2026-09-26 자동 작성 실패 원인)
+          if (item.type) { lastSel2Key = sel2Key(f.sel2); applyClaimType(item.type); }
+          return true;
+        }
         await sleep(200);
       }
       toast(`'${item.kw}' 항목을 세목 목록에서 찾지 못했습니다.\n예산(비목)을 먼저 골랐는지 확인하세요.`);
@@ -674,6 +737,7 @@
   const hasStep = (s) => prepSteps.has(s);
   const noRowMode = () => !!prepAuto && (!hasStep('add') || !!prepSaved);   // 신청만·삭제(미청구 카드 행 선택 없음), 또는 내역 추가가 끝나 행 선택이 풀린 뒤 — 이때 비목 기본값을 넣으면 화면이 되돌리며 alert
   let prepRunning = false, prepTypeDone = false, prepPtclDone = false, prepAttachDone = false, prepReported = false;
+  let minutesWaiting = false;   // 회의비: 회의록 팝업 저장(CFRC_SEQ_NO)을 기다리는 중 — 안내 막대에 "회의록 [신규등록] 열기" 버튼
   let prepSaved = null;       // 내역 추가가 끝난 결의서 { reqNo(청구번호 REQ_SEQ_NO), reqCnt(결의서 차수 REQ_CNT) } — 신청 실패 보고에 "임시저장은 됨" 표시
   let prepAlerts = [];        // 자동 처리 중 화면이 띄우려던 alert 문구
   let addWaiter = null, applyWaiter = null, deleteWaiter = null, alertTimer = null;   // "내역 추가" / "신청" / "삭제" 결과 대기
@@ -741,6 +805,11 @@
       alerts: prepAlerts.slice(0, 5), saved: !!prepSaved || state === 'saved' || state === 'applied' }, extra || {}));
   }
   const reportRun = (ok, msg) => report(ok ? 'saved' : 'failed', msg);
+  /* 화면의 <a href="javascript:"> 링크 누르기: 화면 핸들러(jQuery, 먼저 붙어 먼저 실행)는 그대로 두고 javascript: URL 이동만 막는다 — 안 막으면 확장 CSP 위반이 기록됨(2026-09-26) */
+  function clickLink(el) {
+    try { el.addEventListener('click', (e) => { if (/^javascript:/i.test(String(el.getAttribute('href') || ''))) e.preventDefault(); }, { once: true }); } catch (e) {}
+    el.click();
+  }
   function mkBtn(text, fn) { const b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); fn(); }); return b; }
   function ensurePrepBar(f) {
     if (!prep) return;
@@ -754,7 +823,8 @@
     const names = (prep.files || []).map((x) => x.name).join(', ');
     const modeNm = !prepAuto ? '' : hasStep('delete') ? ' · 자동 삭제' : !hasStep('add') ? ' · 자동 신청' : hasStep('apply') ? ' · 자동 작성+신청' : ' · 자동 작성';
     let html = `<span class="krext-prep-ttl">eClass 패널에서 준비한 항목</span><span class="krext-prep-dim">승인번호 ${esc(prep.appr)}${modeNm}</span>`;
-    if (prep.type) html += `<span>청구종류 <b>${esc(prep.type)}</b> ${st('type')}</span>`;
+    const pk0 = prepPick();
+    if (prep.type) html += `<span>청구종류 <b>${esc(prep.type)}</b>${isMeetingPick(pk0) ? ` <span class="krext-prep-dim">(회의록${pk0 && pk0.kind ? ' · ' + esc(pk0.kind) : ''}${prep.attendees ? ` · 참석자 ${(prep.attendees.part || []).length + (prep.attendees.inner || []).length + (prep.attendees.outer || []).length}명` : ''}${prep.minutes && prep.minutes.content ? ' · 회의 내용 있음' : ''})</span>` : ''} ${st('type')}</span>`;
     if (prep.ptcl) html += `<span>청구내역 <b title="${esc(prep.ptcl)}">${esc(prep.ptcl.length > 30 ? prep.ptcl.slice(0, 30) + '…' : prep.ptcl)}</b> ${st('ptcl')}</span>`;
     if ((prep.files || []).length) html += `<span>첨부 <b>${prepFiles.length}개</b> <span class="krext-prep-dim">${esc(names)}</span> ${st('files')}</span>`;
     if ((prepAuto && hasStep('add')) || prepSt.add) html += `<span>내역 추가 ${st('add')}</span>`;
@@ -766,6 +836,14 @@
     if (prep.type) { const b = mkBtn('청구종류 적용', () => applyPrepType()); b.disabled = prepRunning; btns.appendChild(b); }
     if (prep.ptcl) { const b = mkBtn('청구내역 적용', () => applyPrepPtcl()); b.disabled = prepRunning; btns.appendChild(b); }
     if (prepFiles.length && cfg && cfg.dragDrop) { const b = mkBtn(prepAttachDone ? '파일 다시 첨부' : '파일 첨부', () => attachPrep(true)); b.disabled = prepRunning; btns.appendChild(b); }
+    if (pk0 && pk0.kind && prep.minutes && prep.minutes.content && !hidVal('CFRC_SEQ_NO') && !prepAuto) {   // 직접 연 청구서: 카드의 회의 내용으로 회의록을 팝업 없이 등록
+      const b = mkBtn('회의록 등록 (패널 내용)', async () => { if (prepRunning) return; prepRunning = true; renderPrepBar(); try { await registerMinutes(pk0); } finally { prepRunning = false; renderPrepBar(); } });
+      b.disabled = prepRunning; btns.appendChild(b);
+    }
+    if (minutesWaiting) {   // 회의록 대기 중: 사용자 클릭 안에서 화면의 증빙 [신규등록]을 눌러 팝업을 연다 (스크립트 클릭은 팝업 차단에 걸림)
+      const b = mkBtn('회의록 [신규등록] 열기', () => { const l = document.getElementById('btn_addEvid2'); if (l && visible(l)) clickLink(l); else toast('증빙 [신규등록] 링크가 없습니다 — 청구종류 (17) 회의비가 골라졌는지 확인하세요', 4000); });
+      b.className = 'krext-prep-primary'; btns.appendChild(b);
+    }
     btns.appendChild(mkBtn('준비 항목 지우기', clearPrep));
     prepBar.appendChild(btns);
   }
@@ -795,12 +873,19 @@
       const f = await waitForm(20000);
       if (!f) { setSt('type', '청구내역 폼을 찾지 못했습니다', true); if (prepAuto) reportRun(false, '청구내역 폼을 찾지 못했습니다'); return; }
       await sleep(800);   // 행 선택 뒤 화면이 폼을 채우고 기본값(비목·RCMS)이 들어갈 시간
+      const pk = prepPick();
+      const meeting = isMeetingPick(pk);   // 회의비(회의록 종류): "내역 추가" 전에 회의록(부가증빙)이 등록돼야 한다
       if (prep.type && !prepTypeDone) {
         const ok = await applyPrepType();
         if (!ok && prepAuto) { reportRun(false, `청구종류 "${prep.type}" 을 세목 목록에서 찾지 못했습니다`); return; }
-        const st = Date.now();   // 세목 변경 → 청구종류 라디오 선택(watchClaimType, tick 700ms)이 끝날 때까지
+        const st = Date.now();   // 세목 변경 → 청구종류 라디오 선택(applyClaimType)이 끝날 때까지
         await sleep(1200);
         while (typeApplying && !stopped && Date.now() - st < 8000) await sleep(250);
+        if (pk && pk.type) {
+          const okType = await ensureClaimType(pk.type);
+          if (!okType) setSt('type', `청구종류 ${pk.type} 라디오를 찾지 못했습니다 — 화면에서 직접 고르세요`, true);
+          else if (meeting) await fillMeetingPlace();
+        }
       }
       if (prep.ptcl && !prepPtclDone) await applyPrepPtcl();   // 칸을 못 찾아도 계속 — 그러면 화면 검증 alert("청구내역이 입력되지 않았습니다.")가 실패 사유로 보고된다
       if (prepFiles.length && !prepAttachDone && cfg.dragDrop) {
@@ -812,12 +897,152 @@
         }
       }
       if (hasStep('add')) {   // 첨부·세목 처리 중 화면이 적요를 되돌렸으면 다시 넣고 저장, 이어서(add,apply) 결의서 신청
-        await sleep(1000); if (prep.ptcl) await applyPrepPtcl(true);
+        if (meeting) { const ok = await registerMinutes(pk); if (!ok) return; }   // 회의록: 카드에 회의 내용이 있으면 팝업 없이 등록, 없으면 팝업(사용자가 채움) 저장을 기다림
+        await sleep(1000);
+        if (pk && pk.type) await ensureClaimType(pk.type);
+        // 회의록 콜백(fn_evidCallback → setReqDivInfo4Ptcl)은 적요를 "회의일자:… / 회의장소:… / 회의목적:… / 참석인원:N명"으로 바꾼다 — 회의비는 그 문구를 두고, 비어 있을 때만 패널 글을 넣는다
+        if (prep.ptcl && (!meeting || !String((findPtclField() || {}).value || '').trim())) await applyPrepPtcl(true);
         const saved = await addLine();
         if (saved && hasStep('apply')) await applyStep();
       }
     } catch (e) { log('runPrep 오류', e); if (prepAuto) reportRun(false, String((e && e.message) || e)); }
     finally { prepRunning = false; if (prepAuto) autoMode(0); renderPrepBar(); }
+  }
+  const prepPick = () => prep && prep.type && cfg ? (cfg.picks.find((p) => p.label === prep.type) || cfg.picks.find((p) => norm(p.label) === norm(prep.type)) || null) : null;
+  const isMeetingPick = (p) => !!p && (String(p.type) === '17' || p.kind === '식비' || p.kind === '다과');   // 회의록(부가증빙)이 필요한 청구종류 (lib/prep.js 와 동일)
+  /* 회의비(회의록 종류) 자동 작성: 청구종류 17 의 청구건은 신청 때 부가증빙 검사(rexpe_0084_01_check_evid — RD_EXP_REQ_PTCL.CFRC_SEQ_NO)를 받으므로 "내역 추가" 전에 회의록이 등록돼야 한다.
+   * 회의록 팝업(rcomm_0071_01.act)은 그대로 사용자가 쓴다 — content/rnd-meeting.js 가 식비 여부·금액·참석자를 미리 넣고, 회의시간·장소·목적·내용은 사용자가 적는다.
+   * 여기서는 증빙 [신규등록](#btn_addEvid2, fn_callAddEvidPop2)을 한 번 눌러 팝업을 열어 주고(팝업이 차단되면 안내), 팝업 저장 → 화면 콜백 fn_evidCallback 이 채우는 hidden #CFRC_SEQ_NO 를 최대 30분 기다린다.
+   * 기다리는 동안은 화면 확인창을 자동으로 누르지 않는다(사용자가 팝업을 다루는 중) */
+  async function waitMinutes(pk) {
+    const kindNm = pk && pk.kind === '식비' ? '식비 예' : pk && pk.kind === '다과' ? '식비 아니오·다과비' : '회의비';
+    const cfrc = () => hidVal('CFRC_SEQ_NO');
+    if (cfrc()) { setSt('add', `회의록 등록됨 (${cfrc()})`); return true; }
+    await sleep(800);
+    const btn = document.getElementById('btn_addEvid2');
+    let opened = false;
+    if (btn && visible(btn)) {
+      const blocked = new Promise((res) => {
+        const h = () => { document.removeEventListener('krext-popup-blocked', h); res(true); };
+        document.addEventListener('krext-popup-blocked', h);
+        setTimeout(() => { document.removeEventListener('krext-popup-blocked', h); res(false); }, 1500);
+      });
+      try { clickLink(btn); } catch (e) {}
+      opened = !(await blocked);
+    }
+    const guide = `회의록 팝업에 ${kindNm}·참석자가 자동으로 들어갑니다. 회의시간·장소·목적·내용을 적고 저장하면 이어서 내역 추가합니다`;
+    minutesWaiting = true;
+    setSt('add', opened ? `회의록 팝업을 열었습니다 — ${guide}` : `아래 "회의록 [신규등록] 열기" 버튼(또는 증빙의 [신규등록])을 눌러 회의록을 등록하세요 — ${guide}`, !opened);
+    log('회의록 대기', opened ? '팝업 열림' : '팝업을 열지 못함(차단 또는 버튼 없음) → 사용자 클릭 대기');
+    autoMode(0);
+    prepAlerts = [];   // 팝업 차단 alert 문구는 실패 사유가 아님
+    const st = Date.now();
+    while (!stopped && Date.now() - st < 30 * 60000) { if (cfrc()) break; if (!prep) { minutesWaiting = false; return false; } await sleep(700); }
+    minutesWaiting = false;
+    if (!cfrc()) {
+      setSt('add', '회의록이 등록되지 않아 내역 추가를 하지 않았습니다', true);
+      report('failed', '30분 안에 회의록이 등록되지 않았습니다 — 탭에서 증빙 [신규등록]으로 회의록을 등록한 뒤 내역 추가·신청하세요');
+      return false;
+    }
+    autoMode(300000);
+    setSt('add', `회의록 등록됨 (${cfrc()}) — 내역 추가 중…`);
+    log('회의록 등록됨', cfrc());
+    await sleep(800);
+    return true;
+  }
+  /* 회의록 등록(팝업 없이): 패널 회의록 카드(prep.minutes·prep.attendees)로 회의록 팝업의 save() 와 같은 입력을 만들어 rcomm_0071_01_c001 에 보내고, 응답의 CFRC_SEQ_NO 로 팝업이 하던 대로
+   * 화면 콜백 ctl.fn_evidCallback(POP_KEY, input) 을 부른다(POP_KEY = 폼의 임시 청구번호 input#REQ_SEQ_NO — 콜백이 같아야만 처리). 콜백이 hidden #CFRC_SEQ_NO·청구액·적요를 채운다.
+   * 검증은 팝업 save() 의 규칙을 그대로(필수값·글자수·휴일 사유·참석자 규칙·1인당 한도·회의사전신청 필수). 카드에 회의내용이 없으면 팝업 경로(waitMinutes).
+   * krext_auto 에 dry 가 있으면 입력을 만들고 검증만 한 뒤 콘솔에 남기고 멈춘다(서버에 보내지 않음, 진단용) */
+  async function registerMinutes(pk) {
+    if (hidVal('CFRC_SEQ_NO')) { setSt('add', `회의록 등록됨 (${hidVal('CFRC_SEQ_NO')})`); return true; }
+    const m = prep.minutes || null;
+    if (!pk || !pk.kind || !m || !m.content) return waitMinutes(pk);
+    setSt('add', '회의록 등록 중…');
+    prepAlerts = [];   // 행 선택 전에 화면이 띄운 alert(청구할 카드사용내역을 먼저 선택…)는 회의록과 무관 — 실패 사유에 섞이지 않게
+    const att = prep.attendees || {}; const part = (att.part || []).filter((x) => x.empNo), inner = (att.inner || []).filter((x) => x.empNo), outer = (att.outer || []).filter((x) => x.name);
+    const mealY = pk.kind === '식비';
+    const get = async (path) => { const r = await pageGet(path); return r.ok && r.value != null ? String(r.value) : ''; };
+    const popKey = hidVal('REQ_SEQ_NO'), prjNo = hidVal('PRJ_NO') || prep.prjNo || '', expDt = hidVal('EXP_DT'), usedTime = hidVal('USED_TIME') || '00:00:00', buyWhere = hidVal('BUY_WHERE');
+    const amt = Math.abs(Number(String((document.getElementById('REQ_AMT') || {}).value || '').replace(/[^\d.-]/g, '')) || 0) || Math.abs(Number(prep.amount) || 0);
+    const userNm = (await get('user.USER_NM')) || '';
+    const flag = async (k) => (await get('PRJ_INFO_DOM.' + k)).trim();
+    const rules = { outRequired: await flag('CFRC_OUT_ATTNTS_MARK_YN'), partRequired: (await flag('CFRC_PART_ATTNTS_YN')) === 'Y', limitYn: (await flag('CFRC_LIMITED_YN')) === 'Y', limitAmt: Number(await flag('CFRC_LIMITED_AMT')) || 0,
+      preApplRequired: (await flag('CFRC_PRE_APPL_ESST_YN')) === 'Y', contentMin: Number(await flag('CFRC_CONTENT_LENGTH_LIMITED')) || 20, rchSt: (await flag('RCH_ST_DT')).replace(/\D/g, ''), rchEnd: (await flag('RCH_END_DT')).replace(/\D/g, '') };
+    const bytesOf = (t) => { let n = 0; for (const ch of String(t || '')) n += ch.charCodeAt(0) > 127 ? 2 : 1; return n; };
+    const timeOk = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(t || ''));
+    const fmtNum = (n) => String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const dashed = (d8) => { const d = String(d8 || '').replace(/\D/g, ''); return d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : String(d8 || ''); };
+    let cfrcDt = expDt || dashed(prep.usedDate), st = String(m.stDtm || ''), en = String(m.endDtm || ''), place = String(m.place || ''), purpose = String(m.purpose || ''), content = String(m.content || '');
+    let outerRows = outer.slice(), modYn = 'N', modReason = String(m.preApplModReason || ''), preCnt = String(m.preApplReqCnt || '');
+    const errs = [];
+    // 회의사전신청(사용+필수 과제의 식비): 고른 사전신청의 일자·시간·장소·목적·내용·외부참석자를 쓴다 (팝업 uf_rcomm_0071_03Params 와 동일). 참석자 수가 다르면 사전신청수정 + 사유
+    if (preCnt) {
+      try {
+        const pa = await jct('rtask_0142_02_r001', { USEFAC_SEQ_NO: cfg.usefacSeqNo || '10', PRJ_NO: prjNo, REQ_CNT: preCnt });
+        const dup = await jct('rtask_0142_01_r002', { PRJ_NO: prjNo, REQ_CNT: preCnt }).catch(() => null);
+        if (dup && Number(dup.CNT) > 0) errs.push('다른 회의록에 연결된 회의사전신청입니다');
+        const paDt = dashed(pa.CFRC_DT);
+        if (paDt && paDt !== cfrcDt) modYn = 'Y';   // 카드 사용일과 다르면 카드일로 두고 사전신청수정
+        st = String(pa.CFRC_ST_DTM || st); en = String(pa.CFRC_END_DTM || en); place = String(pa.CFRC_PLCE || place); purpose = String(pa.CFRC_PURS || purpose); content = String(pa.CFRC_CONT || content);
+        if (Array.isArray(pa.REC) && pa.REC.length) outerRows = pa.REC.map((r) => ({ name: String(r.EMP_NM || ''), dept: String(r.DEPT_NM || '') })).filter((x) => x.name);
+        if (part.length !== (Number(pa.PART_HM_CNT) || 0) || inner.length !== (Number(pa.IN_ATTNTS_CNT) || 0)) modYn = 'Y';
+        if (modYn === 'Y' && !modReason) errs.push('참석자 수(또는 회의일자)가 회의사전신청과 달라 사전신청 수정 사유가 필요합니다');
+      } catch (e) { errs.push(`회의사전신청 조회 실패: ${(e && e.message) || e}`); }
+    } else if (mealY && rules.preApplRequired) errs.push('회의사전신청 사용+필수 과제: 식비 청구는 승인된 회의사전신청을 골라야 합니다 (없으면 다과비로)');
+    const snack = mealY ? 0 : (m.snack == null ? amt : Number(m.snack) || 0), etc = mealY ? 0 : (Number(m.etc) || 0), meal = mealY ? amt : 0;
+    const cost = meal + snack + etc;
+    // 팝업 save() 검증
+    if (!cfrcDt) errs.push('회의일자 없음');
+    else {
+      const d8 = cfrcDt.replace(/\D/g, '');
+      let addEvi = false; try { const a = await jct('rtask_0011_01_r001', { PRJ_NO: prjNo }); addEvi = String(a.ADD_EVI_YN || '') === 'Y'; } catch (e) {}
+      if (rules.rchSt && rules.rchEnd && !(rules.rchSt <= d8 && rules.rchEnd >= d8) && !addEvi) errs.push(`회의일자가 연구기간(${dashed(rules.rchSt)} ~ ${dashed(rules.rchEnd)}) 밖`);
+      let holiday = false;
+      try { const dow = new Date(Number(d8.slice(0, 4)), Number(d8.slice(4, 6)) - 1, Number(d8.slice(6, 8))).getDay(); holiday = dow === 0 || dow === 6; if (!holiday) { const h = await jct('rbase_0016_01_r003', { HOLIDAY_DT: d8 }); holiday = (Number(h.CNT) || 0) > 0; } } catch (e) {}
+      if (holiday && !String(m.rmk || '').trim()) errs.push('회의일자가 휴일 — 휴일 집행사유(비고)가 필요합니다');
+    }
+    if (!timeOk(st)) errs.push('회의시작시간(HH:MM)'); if (!timeOk(en)) errs.push('회의종료시간(HH:MM)'); if (timeOk(st) && timeOk(en) && en <= st) errs.push('종료시간이 시작시간보다 늦어야 합니다');
+    if (!place.trim()) errs.push('회의장소'); else if (bytesOf(place) > 100) errs.push('회의장소는 한글50자 이내');
+    if (!purpose.trim()) errs.push('회의목적'); else if (bytesOf(purpose) > 2000) errs.push('회의목적은 한글1000자 이내');
+    if (!content.trim()) errs.push('회의내용'); else if (content.length < rules.contentMin) errs.push(`회의내용 ${rules.contentMin}자 이상`); else if (bytesOf(content) > 2000) errs.push('회의내용은 한글1000자 이내');
+    if (!buyWhere) errs.push('거래처(카드사용처) 없음'); if (!(cost > 0)) errs.push('회의소요경비가 0원');
+    if (bytesOf(m.mcUser || '') > 30) errs.push('진행자는 한글15자 이내');
+    if (rules.partRequired && !part.length) errs.push('참여인력 1명 이상 필수'); if (part.some((x) => !x.dept)) errs.push('참여인력 소속 없음');
+    if (rules.outRequired === 'Y' && !outerRows.length) errs.push('외부참석자 1명 이상 필수'); if (rules.outRequired === 'Z' && !outerRows.length && !inner.length) errs.push('내부 또는 외부참석자 1명 이상 필수');
+    for (const x of outerRows) { if (x.name.trim().length < 2) errs.push(`외부참석자 성명 2자 이상: ${x.name}`); if (/^\d+$/.test(x.name.trim())) errs.push(`외부참석자 성명이 숫자만: ${x.name}`); if (!x.dept.trim()) errs.push(`외부참석자 소속 없음: ${x.name}`); }
+    if (part.some((x) => inner.some((y) => y.empNo === x.empNo))) errs.push('참여인력과 내부참석자에 같은 사람이 있습니다');
+    if (rules.limitYn && rules.limitAmt > 0) { const n = part.length + inner.length + outerRows.length; if (n * rules.limitAmt < meal + snack) errs.push(`한도액 ${fmtNum(n * rules.limitAmt)}원 초과 (참석자 ${n}명 × ${fmtNum(rules.limitAmt)}원 < ${mealY ? '식비' : '다과'} ${fmtNum(meal + snack)}원)`); }
+    if (!mealY && Math.round(snack + etc) !== Math.round(amt)) errs.push(`다과(B)+기타(C) ${fmtNum(snack + etc)}원이 청구액 ${fmtNum(amt)}원과 다릅니다`);
+    if (errs.length) {
+      const msg = '회의록 규칙에 걸림: ' + errs.join(' / ');
+      setSt('add', msg, true); log('회의록 검증 실패', errs);
+      report('failed', msg + ' — 패널 회의록 카드를 고치고 다시 작성하세요'); return false;
+    }
+    const REC = part.map((x) => ({ CFRC_IN_EMP_NO: x.empNo, CFRC_IN_EMP_NM: x.name, DEPT_NM: x.dept, IN_COUNT: String(part.length), ATTENDER_DIV: '10' }))
+      .concat(inner.map((x) => ({ CFRC_IN_EMP_NO: x.empNo, CFRC_IN_EMP_NM: x.name, CFRC_OUT_EMP_NM: x.name, DEPT_NM: x.dept, OUT_COUNT: String(inner.length), ATTENDER_DIV: '20', ANTI_GRAFT_TRGT_YN: 'N' })))
+      .concat(outerRows.map((x) => ({ CFRC_OUT_EMP_NM: x.name.trim(), DEPT_NM: x.dept.trim(), OUT_COUNT: String(outerRows.length), ATTENDER_DIV: '30', ANTI_GRAFT_TRGT_YN: 'N' })));
+    const cardUseSite = `${buyWhere}(사용일:${cfrcDt} ${usedTime})`.slice(0, 100);   // 팝업 hidden CARD_USE 와 같은 형식
+    const payload = { CFRC_SEQ_NO: '', CFRC_DT: cfrcDt, REQ_DIV_CD: '17', CFRC_ST_DTM: st, CFRC_END_DTM: en, CFRC_PLCE: place, CFRC_PURS: purpose, CFRC_CONT: content, CFRC_COST: fmtNum(cost), MEAL_COST: String(meal), ETC_COST: String(etc), SNACK_COST: String(snack),
+      COST_PTCL: String(m.costPtcl || ''), CARD_USE_SITE: cardUseSite, RMK: String(m.rmk || ''), WRT_USER: userNm, PRJ_NO: prjNo, MC_USER: String(m.mcUser || ''), REGION_REASON: '', PRE_APPL_REQ_CNT: preCnt || null, PRE_APPL_MOD_YN: modYn, PRE_APPL_MOD_REASON: modYn === 'Y' ? modReason : '', MEAL_REQ_YN: mealY ? 'Y' : 'N', REC };
+    log('회의록 입력', JSON.stringify(payload));
+    if (hasStep('dry')) { setSt('add', '회의록 입력 검증만 함 (dry) — 서버에 보내지 않음'); report('failed', '진단(dry): 회의록 입력을 만들고 검증만 했습니다 — 콘솔 [krext claim] 회의록 입력 참고'); return false; }
+    let data;
+    try { data = await jct('rcomm_0071_01_c001', payload); }
+    catch (e) { const msg = `회의록 등록 실패: ${(e && e.message) || e}`; setSt('add', msg, true); report('failed', msg); return false; }
+    const seq = String(data.CFRC_SEQ_NO || '').trim();
+    if (!seq) { setSt('add', '회의록 등록 응답에 회의록번호가 없습니다', true); report('failed', '회의록 등록 응답에 CFRC_SEQ_NO 가 없습니다'); return false; }
+    // 팝업 save() 가 콜백에 넘기는 것과 같은 객체
+    const cb = Object.assign({}, payload, { BAL_AMT: String(cost), CFRC_SEQ_NO: seq, POP_KEY: popKey, REQ_SEQ_NO: popKey, REQ_DIV_CD: '17', REQ_TYP_CD: '', CFRC_CNT: REC.length });
+    const r = await pageCall('ctl.fn_evidCallback', [popKey, cb]);
+    if (!r.ok) log('fn_evidCallback 실패', r.error);
+    for (let i = 0; i < 20 && hidVal('CFRC_SEQ_NO') !== seq; i++) await sleep(250);
+    if (hidVal('CFRC_SEQ_NO') !== seq) { const h = document.getElementById('CFRC_SEQ_NO'); if (h) h.value = seq; log('CFRC_SEQ_NO 를 직접 넣음', seq); }
+    setSt('add', `회의록 등록됨 (${seq}) — 내역 추가 중…`);
+    log('회의록 등록됨', seq, '참석자', REC.length);
+    toast(`회의록 등록됨 (${seq})`, 2500);
+    await sleep(800);
+    return true;
   }
   async function applyPrepType() {
     const want = norm(prep.type);
@@ -1027,7 +1252,7 @@
   /* 화면과 같은 규약으로 .jct 서비스 호출 (이 프레임의 세션): POST _JSON_=encodeURIComponent(encodeURIComponent(JSON)), 응답 euc-kr JSON. 오류(COMMON_HEAD.ERROR)는 예외 */
   async function jct(service, input) {
     const res = await fetch(`/${service}.jct`, { method: 'POST', credentials: 'include', cache: 'no-store',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest', 'charset': 'utf-8' },   // charset 헤더가 없으면 서버가 한글 입력을 EUC-KR 로 풀어 검색이 0건 (2026-09-26 실측, lib/rnd-api.js 와 동일)
       body: '_JSON_=' + encodeURIComponent(encodeURIComponent(JSON.stringify(input || {}))) });
     if (!res.ok) throw new Error(`${service} HTTP ${res.status}`);
     const data = await readJson(res);

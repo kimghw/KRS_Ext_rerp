@@ -126,13 +126,16 @@
       <div class="grid">
         <label>예산(비목) 기본값 <input type="text" id="chDefaultBudget" placeholder="예) 연구활동비 (비우면 채우지 않음)"></label>
         <label>RCMS 사용금액구분 기본값 <input type="text" id="chDefaultRcms" placeholder="예) 본예산 (비우면 채우지 않음)"></label>
+        <label>RCMS 회의장소 기본값 <input type="text" id="chMeetingPlace" placeholder="예) 부산광역시 강서구 (비우면 채우지 않음)"></label>
         <label class="check wide"><input type="checkbox" id="chDragDrop"> 첨부문서 칸에 파일 드래그 앤 드롭 (파일등록 팝업을 열어 파일을 넣고 "업로드"까지 자동으로 누름. 파일등록 팝업의 규칙(허용 확장자·용량·개수)에 맞지 않는 파일은 제외하고 사유를 알려 줌)</label>
-        <label class="wide">세목 빠른 선택 버튼 (한 줄에 하나, <code>표시이름=세목 목록의 항목명=청구종류</code> 형식. 항목명은 일부만 적어도 되고 생략하면 표시이름으로 찾음.
-          청구종류는 <code>83</code>처럼 코드 또는 이름이며, 적어 두면 세목이 그 항목으로 바뀔 때 청구종류 라디오를 그것으로 고름)
-          <textarea id="chQuickPicks" rows="7" placeholder="연구실 운영비=연구실운영비&#10;회의비=회의비=17&#10;외부전문가 활용비=외부 전문기술=83"></textarea></label>
+        <label class="wide">세목 빠른 선택 버튼 (한 줄에 하나, <code>표시이름=세목 목록의 항목명=청구종류=종류</code> 형식. 항목명은 일부만 적어도 되고 생략하면 표시이름으로 찾음.
+          청구종류는 <code>83</code>처럼 코드 또는 이름이며, 적어 두면 세목이 그 항목으로 바뀔 때 청구종류 라디오를 그것으로 고름.
+          넷째 값 <code>식비</code>/<code>다과</code>는 회의비(17)의 회의록 종류: 회의록 팝업의 "회의비(식비) 청구여부"와 금액 칸(식비 A / 다과 B)을 정하고, <code>식비</code>면 패널 청구 준비 줄 밑에 참석자 카드가 붙음)
+          <textarea id="chQuickPicks" rows="9" placeholder="연구실 운영비=연구실운영비&#10;회의비=회의비=17&#10;식사비=회의비=17=식비&#10;다과비=회의비=17=다과&#10;외부전문가 활용비=외부 전문기술=83"></textarea></label>
       </div>
       <p class="help"><b>청구 준비</b>: 패널의 카드미청구 거래 행 밑 줄에서 위 목록의 청구종류를 고르고 첨부 파일을 끌어다 놓아 두면(이 브라우저에만 저장), 그 거래를 클릭해 청구서를 열 때 세목·청구종류를 고르고 파일을 첨부 목록에 올립니다.
         <b>청구서 작성</b> 버튼은 청구서를 백그라운드 탭으로 열어 "내역 추가"까지 누릅니다 (결재요청은 하지 않음).
+        회의비·식사비·다과비(회의록이 필요한 청구종류)는 탭을 앞에 열어 증빙 [신규등록] 회의록 팝업을 띄우고(식비 여부·금액·참석자·RCMS 회의장소 자동 입력), 팝업을 저장하면 이어서 "내역 추가"를 누릅니다.
         <span id="prepStats" class="muted"></span> <button type="button" id="btnPrepClear">청구 준비 모두 지우기</button> <span id="prepStatus" class="status"></span></p>
     </div>
   </section>

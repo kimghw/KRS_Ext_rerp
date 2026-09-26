@@ -345,6 +345,35 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-prep-btn.krext-prep-del:hover:not(:disabled) { background: #fbf1ea; border-color: #d9b59a; }
 .krext-prep-x { border: 0; background: transparent; color: #8a919c; cursor: pointer; padding: 0 4px; font-family: inherit; font-size: 11px; line-height: 18px; border-radius: 4px; }
 .krext-prep-x:hover { background: #e6e9ee; color: #4b5563; }
+.krext-prep-kind { padding: 0 6px; border: 1px solid #e0cbb8; border-radius: 10px; background: #fbf1ea; color: #8a4b1f; line-height: 18px; white-space: nowrap; font-size: 10.5px; }   /* 회의록이 필요한 청구종류 표시 (식사비·다과비·회의비) */
+/* 참석자 카드 (render.js attRow, 식사비): 거래 행 밑 셋째 줄 — 참여인력 체크 · 내부참석자 검색 · 외부참석자 직접 입력 · 규칙 안내 */
+.krext-cards tr.krext-att td { background: #fbf8f3; border-bottom: 1px solid #eef1f5; padding: 3px 6px 5px; font-size: 11px; color: #4b5563; }
+.krext-att-in { display: flex; flex-direction: column; gap: 3px; }
+.krext-att-grp { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 20px; }
+.krext-att-ttl { font-weight: 700; color: #8a4b1f; white-space: nowrap; cursor: help; }
+.krext-att-lbl { min-width: 60px; color: #6b7480; font-weight: 600; white-space: nowrap; }
+.krext-att-chk { display: inline-flex; align-items: center; gap: 2px; padding: 0 7px 0 4px; border: 1px solid #d5dbe5; border-radius: 10px; background: #fff; line-height: 18px; white-space: nowrap; cursor: pointer; }
+.krext-att-chk input { margin: 0; vertical-align: middle; }
+.krext-att-chk.krext-on { background: #eaf1ff; border-color: #b7cdf0; color: #245fbd; font-weight: 600; }
+.krext-att-chip { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 7px; border: 1px solid #d9d2f2; border-radius: 10px; background: #f1edfc; color: #4a3d8f; line-height: 18px; white-space: nowrap; }
+.krext-att-chip button { border: 0; background: transparent; color: #8a919c; cursor: pointer; padding: 0 3px; font-size: 12px; line-height: 16px; border-radius: 4px; font-family: inherit; }
+.krext-att-chip button:hover { background: #e6e0fa; color: #4a3d8f; }
+.krext-att-inp { height: 20px; width: 110px; padding: 0 5px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #222; font-family: inherit; font-size: 11px; }
+.krext-att-inp.krext-att-inp-w { width: 160px; }
+.krext-att-inp:focus { outline: none; border-color: #4d8fe6; box-shadow: 0 0 0 2px rgba(77,143,230,.2); }
+.krext-att-in .krext-prep-btn { height: 20px; padding: 0 7px; }
+.krext-att-res { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 2px 4px; border: 1px dashed #c9d1dc; border-radius: 6px; background: #fff; }
+.krext-att-res button[data-act="prep-att-add-inner"] { height: 20px; padding: 0 7px; border: 1px solid #b7cdf0; border-radius: 10px; background: #f3f7fd; color: #1f4e9c; font-family: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.krext-att-res button[data-act="prep-att-add-inner"]:hover { background: #e2ecfa; }
+.krext-att-hint { display: flex; flex-wrap: wrap; gap: 2px 10px; color: #8a4b1f; font-size: 10.5px; }
+.krext-att-lbl.krext-att-lbl-s { min-width: 0; margin-left: 4px; }
+.krext-att-inp.krext-att-inp-s { width: 72px; }
+.krext-att-inp.krext-num { text-align: right; font-variant-numeric: tabular-nums; }
+.krext-att-grp.krext-att-grp-top { align-items: flex-start; }
+.krext-att-ta { flex: 1 1 320px; min-width: 200px; max-width: 640px; min-height: 36px; padding: 2px 5px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #222; font-family: inherit; font-size: 11px; line-height: 1.4; resize: vertical; }
+.krext-att-ta:focus { outline: none; border-color: #4d8fe6; box-shadow: 0 0 0 2px rgba(77,143,230,.2); }
+.krext-att-ok { color: #1a7f37; font-weight: 600; white-space: nowrap; }
+.krext-att-miss { color: #b3261e; }
 .krext-prj-prep { margin-left: 4px; font-size: 10.5px; font-weight: 600; color: #6b5cc4; }
 .krext-cards tr.krext-prep-has td { border-bottom: 0; }
 /* 신청 대기 목록 (render.js pendingBlock): 내역 추가(임시저장)가 끝나 미청구 목록에서 빠진 거래 — 상태와 "신청" 버튼. 카드미청구 구역 맨 아래 */
