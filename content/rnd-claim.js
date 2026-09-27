@@ -25,7 +25,7 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const visible = (el) => !!el && el.isConnected && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
   const log = (...a) => { try { console.debug('[krext claim]', ...a); } catch (e) {} };
-  const OURS = '.krext-qp,.krext-drop-hint,.krext-toast,.krext-prep-bar';
+  const OURS = '.krext-qp,.krext-drop-hint,.krext-toast,.krext-prep-bar,.krext-prj-sel,.krext-prj-toast';   // 뒤의 둘은 과제 드롭다운(content/rnd-prjpick.js)의 요소 — "예산" 라벨 근처 select 탐색에서 제외
 
   /* ---------- 상태 ---------- */
   let cfg = null;          // settings.claimHelper (+ picks: 파싱된 빠른 선택 목록)
@@ -111,7 +111,7 @@
 
   /* ---------- 화면 요소 찾기 (라벨 문구 기준) ---------- */
   const INLINE = /^(BR|IMG|I|EM|B|STRONG|SPAN|FONT|U|A|LABEL|SUP|SUB)$/;
-  const isOurs = (el) => !!(el.classList && (el.classList.contains('krext-qp') || el.classList.contains('krext-drop-hint') || el.classList.contains('krext-toast') || el.classList.contains('krext-prep-bar')));
+  const isOurs = (el) => !!(el.classList && (el.classList.contains('krext-qp') || el.classList.contains('krext-drop-hint') || el.classList.contains('krext-toast') || el.classList.contains('krext-prep-bar') || el.classList.contains('krext-prj-sel') || el.classList.contains('krext-prj-toast')));
   /* 우리가 넣은 요소를 빼고 "글자만 가진" 요소인지 */
   const isLeaf = (el) => Array.from(el.children).every((c) => isOurs(c) || (INLINE.test(c.tagName) && !c.children.length));
   /* 우리가 넣은 요소를 뺀 글자 */
@@ -142,13 +142,13 @@
   function rowFor(labelEl, needSelect) {
     const tr = labelEl.closest('tr');
     if (tr) {
-      const sels = Array.from(tr.querySelectorAll('select')).filter((s) => !labelEl.contains(s));
+      const sels = Array.from(tr.querySelectorAll('select')).filter((s) => !labelEl.contains(s) && !isOurs(s));
       return (!needSelect || sels.length) ? { box: tr, sels } : null;
     }
     let box = labelEl.parentElement;
     for (let i = 0; i < 3 && box && box !== document.body; i++) {
       if (/^(TABLE|FORM|BODY)$/.test(box.tagName)) break;
-      const sels = Array.from(box.querySelectorAll('select')).filter((s) => !labelEl.contains(s));
+      const sels = Array.from(box.querySelectorAll('select')).filter((s) => !labelEl.contains(s) && !isOurs(s));   // 과제 드롭다운(.krext-prj-sel)은 비목 select 가 아님 (과제정보 화면의 "예산" 탭 근처에서 오인했던 사례)
       if (!needSelect || sels.length) return { box, sels };
       box = box.parentElement;
     }

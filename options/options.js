@@ -374,6 +374,7 @@
     $('projectStatusKeyword').value = s.projectStatusKeyword == null ? '진행' : s.projectStatusKeyword;
     $('rndUrl').value = s.rndUrl || '';
     $('rndAutoLogin').checked = s.rndAutoLogin !== false;
+    $('prjPicker').checked = s.prjPicker !== false;
     const ch = Object.assign({}, S.DEFAULTS.claimHelper, s.claimHelper || {});
     $('chEnabled').checked = ch.enabled !== false;
     $('chDefaultBudget').value = ch.defaultBudget || '';
@@ -456,6 +457,7 @@
       myName: $('myName').value.trim(),
       rndUrl: $('rndUrl').value.trim() || S.DEFAULTS.rndUrl,
       rndAutoLogin: $('rndAutoLogin').checked,
+      prjPicker: $('prjPicker').checked,
       claimHelper: {
         enabled: $('chEnabled').checked,
         defaultBudget: $('chDefaultBudget').value.trim(),

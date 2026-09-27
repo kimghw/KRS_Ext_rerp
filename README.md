@@ -166,6 +166,22 @@ R&D ERP 의 카드 청구는 두 단계입니다: 청구서(카드) 화면에서
 - 청구서 화면 흐름(정적 JS `rexpe_0083_01.js` 로 확인): 미청구 카드 그리드(`#myGrid2`) 행 클릭 → 폼 채움, `#btn_listAdd` → `fn_saveChkValid` → `uf_submit(3)` → `uf_checkParam(3)` 검증(alert) → 결제일자 확인(`rexpe_0034_01_r0001`) → `confirm("청구내역을 추가하시겠습니까?")` → `rexpe_0083_01_c001` → 목록 다시 읽기(`rexpe_0001_01_r018`).
   신청: `#btn_apprProc` → 검증 → `uf_checkParam(5)` → `ctl.call_Appl_Popup()`(결재선 팝업) → `uf_rcomm_0043_01Params(popKey, {APPR_USER_GB, APPR_USER_ID, APPR_DEPT_CD, ONLINE_APPR_YN, APPL_CONT})` → `uf_submit(5)` → `rexpe_0001_01_c003 {PRJ_NO, REQ_CNT, BASE_APPRLINE_STGUP, APPR_USER_ID, APPR_DEPT_CD, PROC_TYP_CD, APPL_CONT, ONLINE_APPR_YN, CARD_REQ_SLIP_DT, SLIP_DT, TOT_REQ_AMT}` → 토스트 "정상적으로 처리되었습니다.".
 
+## 과제 화면의 내 참여 과제 드롭다운 (0.7.3)
+
+R&D ERP 의 과제정보 · 과제예산신청 · 참여인력신청 · 회의사전신청 · 청구서 등 **과제책임자/과제명**(또는 **과제번호**) 검색 칸(입력란 + 돋보기)이 있는 화면에서 `content/rnd-prjpick.js` 가 입력란 앞에 **내 참여 과제** 드롭다운을 넣습니다 (설정 `prjPicker`, 기본 켜짐).
+칸은 화면 요소 ID 가 아니라 라벨 문구(`th` 에 "과제명"/"과제번호", 총괄·대표과제 칸 제외)와 돋보기 버튼(`.btn_s_search`)으로 찾습니다.
+넓은 칸(입력란 420px 이상)에서는 입력란 폭의 45%(최대 300px)를 드롭다운이 차지하고 입력란을 그만큼 줄여 같은 줄에 두며, 좁은 칸(회의사전신청의 과제번호 칸)에서는 칸 맨 위에 한 줄로 놓습니다. 아직 보이지 않는 프레임(폭 0)에는 붙이지 않고 2초 뒤 다시 봅니다.
+
+- **목록**: eClass 패널이 저장한 참여 과제(`storage.local.projectList` — "내 참여 과제만 보기"로 참여인력에 본인이 있는 진행 과제, 패널 조회 시각 기준)를 `책임자 · 과제명 (과제번호)` 로 보여 줍니다. 목록이 비어 있으면 백그라운드에 조회를 요청하고 채워지는 대로 갱신합니다.
+- **고르면 바로 적용**: 입력란에 과제명을 적고 화면의 돋보기 처리기를 실행합니다. 처리기는 `rderp.common.popPrjInfo(params)` 또는 `popPrjInfo_ones(params)` 로 과제 검색 팝업(`rcomm_0009_03.act`)을 여는데,
+  MAIN world 훅(`content/rnd-hook.js` prjPick)이 두 함수를 가로채 팝업의 조회 서비스 `rcomm_0009_03_r003` 을 같은 입력(`SEARCH_NM` 에 과제번호, `SEARCH_GB` 진행(10), `GUBUN`·`PRJ_AUTH`·`DSQL` 등은 화면이 넘긴 값, `MENU_SEQ` 는 화면의 `rderp_menu_seq`)으로 불러
+  과제번호가 같은 행을 화면 콜백(`params.RTN_FUNC`, 기본 `uf_rcomm_0009_01Params(POP_KEY, 행)`)에 넘깁니다 — 팝업에서 행을 고르고 확인을 누른 것과 같은 결과입니다 (`popPrjInfo_ones` 가 검색어 1건일 때 하는 즉시 적용과 같은 경로).
+  행이 없으면(진행상태 전체로 한 번 더 조회) 과제명을, 연차가 여러 건이면 과제번호를 검색어로 채워 원래 팝업을 열고, 화면에 콜백이 없거나 다른 팝업을 쓰는 화면이면 팝업이 그대로 열립니다(토스트로 안내).
+- **기존 조회 유지**: 돋보기·Enter 로 여는 과제 검색 팝업은 그대로 씁니다.
+- **화면이 정한 과제 반영**: 메인화면 과제현황에서 과제명을 눌러 연 과제정보(`rtask_0008_t00_01.act?PRJ_NO=…`, 화면이 `rcomm_0102_01_r001` 로 받아 콜백 호출), 패널 딥링크, 팝업 선택처럼 다른 경로로 과제가 정해지면
+  hidden/readonly `#PRJ_NO` 를 1초마다 보고 드롭다운을 그 과제로 맞추고 입력란에 과제명을 적어 둡니다(목록에 없는 과제는 `현재: …` 항목, 이름은 hidden `P_PRJ_NM`/`PRJ_NM`/`PRJ_NM_H` 또는 상단 과제정보 문구에서).
+  그래서 메인화면에서 고른 과제가 과제책임자/과제명 칸에 바로 보이고, 돋보기를 누르면 그 과제명으로 조회합니다. 입력란에 커서가 있으면 값을 바꾸지 않습니다.
+
 ## 과제 참여율
 
 미승인내역 아래 **과제 참여율** 줄은 본인의 계상률(참여율) 합계를 막대와 `NN% / 100%`로 보여주고, 클릭하면 과제별 표(과제: 한 글자 역할 태그 책·참·보 + 과제명 한 줄(넘치면 …, 전체 이름·책임자·역할은 툴팁) / 참여율 / 기간 + ＋(참여 계획), 합계와 여유)가 펼쳐집니다. 과제 칸이 남는 폭을 모두 차지합니다. 과제명을 누르면 R&D ERP 과제정보 › 참여인력 탭(`TAB_ID=03`)이 열립니다.
@@ -270,9 +286,10 @@ lib/prep-store.js      청구 준비 저장소 (백그라운드 전용): 메타 
 lib/panel.css          패널 스타일 (krext- 접두어)
 lib/format.js, lib/settings.js
 content/eclass.js      eClass 홈에 패널 삽입
-content/rnd-hook.js    rnd.krs.co.kr MAIN world: XHR/fetch 훅으로 .jct 호출 기록, #krext 딥링크로 레이아웃 탭 열기·행 자동 선택, 자동 처리용 confirm/alert 가로채기·결재선 팝업 가로채기(krext-appr-popup)·화면 함수 호출 브리지(krext-call)·팝업 차단 알림
+content/rnd-hook.js    rnd.krs.co.kr MAIN world: XHR/fetch 훅으로 .jct 호출 기록, #krext 딥링크로 레이아웃 탭 열기·행 자동 선택, 자동 처리용 confirm/alert 가로채기·결재선 팝업 가로채기(krext-appr-popup)·화면 함수 호출 브리지(krext-call)·팝업 차단 알림·과제 드롭다운 선택 적용(krext-prj-pick: popPrjInfo 가로채기 → rcomm_0009_03_r003 → 화면 콜백)
 content/rnd-bridge.js  rnd.krs.co.kr: 기록 전달 + 미승인내역 위젯 DOM 스냅샷 + 로그인 사용자 식별(사번·이름·부서코드)
 content/rnd-claim.js   rnd.krs.co.kr: 청구서(카드) 입력 도우미 (예산·RCMS 기본값·회의장소, 세목 빠른 선택(청구종류 코드 확인), 첨부 드래그 앤 드롭, 패널 청구 준비 적용·백그라운드 내역 추가·결의서 신청(결재선 팝업 대체), 회의비는 회의록 저장 대기)
+content/rnd-prjpick.js rnd.krs.co.kr: 과제책임자/과제명 칸의 내 참여 과제 드롭다운 (storage.local.projectList, 고르면 팝업 없이 화면 콜백에 적용, hidden #PRJ_NO 동기화로 메인화면에서 연 과제도 반영)
 content/rnd-meeting.js rnd.krs.co.kr 회의록 등록 팝업(rcomm_0071_01.act): 패널 청구 준비의 회의록 종류(식비/다과)·금액·참석자 카드를 팝업에 미리 넣고 규칙 안내 (저장은 사용자)
 content/hr-pay.js      hr.krs.co.kr(최상위 프레임): 백그라운드 hrCollect 요청(직접 호출 실패 시 대체 경로)을 받아 급여명세서 API 수집을 실행해 hrPay 로 보냄
 lib/hr-api.js          HR System 급여명세서 API 클라이언트 (직원 정보·직급, 급여지급내역 목록, 달별 지급내역 → hrPay patch). 백그라운드(setBase 로 절대 경로)와 HR 탭 공용
@@ -287,6 +304,11 @@ popup/                 툴바 팝업
 - 과제 목록: `rcomm_0009_01_r001` `{SEARCH_NM:"", SEARCH_GB:"10", GUBUN:"A", PRJ_AUTH:""}` → `REC[].PRJ_NO, ANL, PRJ_NM, PRJ_RSPR_EMP_NM, RCH_ST_DT, RCH_END_DT, PROG_STS_NM`
   `SEARCH_GB`는 진행상태 코드(콤보 RD0008: 10 진행, 30 완료, 빈값 전체), `PRJ_AUTH`는 과제권한(1 본인과제, 2 담당과제, 9 전체). **서버는 최대 500건만 돌려주므로** 기본값은 진행(10)만 조회하고, 전체로 받아 500건이 되면 진행만 한 번 더 받아 합칩니다 (2026-09-24 실측: 전체 조회가 정확히 500건이라 진행 중인 과제가 목록에서 빠져 패널에 보이지 않았음). 이전 기본값(전체)이 저장돼 있으면 자동으로 바뀝니다.
   (과제정보 화면의 과제책임자/과제명 검색 팝업 `rcomm_0009_01.act`와 동일)
+- 과제책임자/과제명 검색 팝업(2026-09-27 실측): 화면의 돋보기는 `rderp.common.popPrjInfo(params)`(참여인력신청·과제예산신청·회의사전신청·일반청구) 또는 `popPrjInfo_ones(params)`(과제정보) → `gw.common.jexNewWin("/rcomm_0009_03.act", …, params)`.
+  팝업의 조회는 `rcomm_0009_03_r003` `{SEARCH_NM, SEARCH_GB(진행상태, 기본 10), GUBUN, PRJ_AUTH(GUBUN2=Y 면 99), DEPT_AUTH, PRJ_CATE_CD, SEARCH_GB1:"1", MENU_SEQ, BIZ_NO, CFRC_YN, DSQL}` 이고 `SEARCH_NM` 에 과제번호를 넣으면 그 과제 1건이 온다(행에 `PRJ_RSPR_EMP_DEPT_NM`·`PRJ_DTL_LVL`·`RND_PRJ_YN`·`SUMUP_PRJ_NO`·`USEFAC_SEQ_NO` 등 화면 콜백이 쓰는 필드 포함).
+  확인을 누르면 `opener[RTN_FUNC](POP_KEY, 행)`(기본 `uf_rcomm_0009_01Params`, 일반청구는 `ctl.uf_rcomm_0009_01Params`). `popPrjInfo_ones` 는 `SEARCH_NM` 이 있으면 같은 서비스로 먼저 조회해 1건이면 팝업 없이 콜백을 부른다.
+  메인화면 과제현황의 과제명 클릭은 `fnPage(탭, 과제번호, …)` → `parent.openTab("menu_id_80", "과제정보", "/rtask_0008_t00_01.act?PRJ_NO=…&TAB_ID=…")` 이고, 과제정보 화면은 `PRJ_NO` 가 있으면 `rcomm_0102_01_r001` 로 상세를 받아 `uf_rcomm_0009_01Params(1, data)` 를 부른다(검색 입력란 `#SEARCH_NM` 은 비어 있음 → 확장이 과제명을 채움).
+  메뉴: 과제정보 `menu_id_80`(rtask_0008_t00_01), 과제예산신청 `menu_id_357`(rtask_0125_01), 참여인력신청 `menu_id_358`(rtask_0126_01), 회의사전신청 `menu_id_1508`(rtask_0142_01), 일반청구 `menu_id_685`(rexpe_0084_01), 카드청구 `menu_id_677`(rexpe_0083_01)
 - 과제 목록(대체): `rmain_0005_01_r001` `{SEARCH_GB:"D", STD_DT:yyyyMMdd}` → 종료 90일 이내 진행과제만 반환하므로 주 경로로는 부적합
 - 카드 사용내역: `rtask_0008_t05_01_r001` `{USEFAC_SEQ_NO:"10", PRJ_NO, SEARCH_GB:"1"(미청구), CARD_DATE_GBN:"1"(사용일자), START_DATE, END_DATE, CARD_NO:""}`
   → `REC[].CARD_NO, USER_NM, USED_DATE, USED_TIME, SHOP_NAME, USED_COST, APPRNO, PRJ_CARD_DIV_NM, APPR_PLAN_DATE`

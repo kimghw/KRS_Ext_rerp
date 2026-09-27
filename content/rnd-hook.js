@@ -218,6 +218,106 @@
     } catch (e) {}
   })();
 
+  /* ---- 과제책임자/과제명 드롭다운(content/rnd-prjpick.js)에서 고른 과제를 팝업 없이 화면에 적용 ----
+   * 화면의 돋보기(조회) 버튼은 rderp.common.popPrjInfo(params) 또는 popPrjInfo_ones(params) 로 과제 검색 팝업(rcomm_0009_03.act)을 열고,
+   * 팝업은 고른 행(조회 서비스 rcomm_0009_03_r003 의 REC 행 그대로)을 opener 의 RTN_FUNC(기본 uf_rcomm_0009_01Params)(POP_KEY, 행) 으로 돌려준다.
+   * popPrjInfo_ones 는 SEARCH_NM 이 있으면 먼저 같은 서비스를 불러 1건이면 팝업 없이 콜백을 부른다 (2026-09-27 rderp_common.js 실측).
+   * 드롭다운이 고르면(krext-prj-pick, 조회 버튼 요소에 발생, detail = JSON {id, prjNo, prjNm}) 그 버튼을 눌러 화면 처리기가 만든 params(GUBUN·PRJ_AUTH·DSQL·RTN_FUNC …)를
+   * 두 함수 가로채기로 받고, _ones 와 같은 입력(SEARCH_NM 은 과제번호 — 서비스가 번호 검색을 지원하며 회의사전신청 화면도 그렇게 쓴다)으로 rcomm_0009_03_r003 을 불러
+   * 과제번호가 같은 행이 딱 하나면 RTN_FUNC 에 넘긴다. 없으면(진행상태 전체로 한 번 더) 과제명을, 연차가 여러 건이면 과제번호를 검색어로 채워 원래 팝업을 연다.
+   * 결과는 krext-prj-pick-result(detail = JSON {id, ok, error, prjNo, prjNm}) */
+  (function prjPick() {
+    try {
+      let pending = null;   // { id, prjNo, prjNm, until }
+      let wrapped = false;
+      const reply = (id, ok, error, row) => { try { document.dispatchEvent(new CustomEvent('krext-prj-pick-result', { detail: JSON.stringify({ id, ok, error: error ? String(error) : '', prjNo: row ? String(row.PRJ_NO || '') : '', prjNm: row ? String(row.PRJ_NM || '') : '' }) })); } catch (e) {} };
+      const isnull = (v, d) => (v == null || v === '') ? (d == null ? '' : d) : String(v);   // 화면 공통 gfn_isnull(값, 기본값)
+      const resolve = (path) => { let ctx = window, fn = window; for (const p of String(path || '').split('.')) { ctx = fn; fn = fn == null ? undefined : fn[p]; } return typeof fn === 'function' ? { fn, ctx } : null; };
+      function wrap() {
+        if (wrapped) return true;
+        const c = window.rderp && window.rderp.common;
+        if (!c || typeof c.popPrjInfo !== 'function') return false;
+        wrapped = true;
+        for (const name of ['popPrjInfo', 'popPrjInfo_ones']) {
+          const orig = c[name];
+          if (typeof orig !== 'function') continue;
+          c[name] = function (params) {
+            const p = pending;
+            if (p && now() < p.until) {
+              pending = null;
+              const ctx = this;
+              params = params || {};
+              lookup(p, params, (ps) => orig.call(ctx, ps));
+              return;
+            }
+            return orig.apply(this, arguments);
+          };
+        }
+        return true;
+      }
+      /* 팝업의 조회 서비스를 화면의 jex.web.Ajax 로 호출 (비동기 "2"). cb(행 배열 | null(오류) | 'timeout') */
+      function query(web, input, cb) {
+        let done = false;
+        const finish = (v) => { if (!done) { done = true; cb(v); } };
+        try {
+          web.Ajax('rcomm_0009_03_r003', input, (data) => {
+            try { if (web.isError(data)) return finish(null); finish(Array.isArray(data && data.REC) ? data.REC : []); } catch (e) { finish(null); }
+          }, 'jct', '2');
+        } catch (e) { finish(null); }
+        setTimeout(() => finish('timeout'), 20000);
+      }
+      function lookup(p, params, openPopup) {
+        const fallback = (why, searchNm) => { try { params.SEARCH_NM = searchNm; params.SEARCH_YN = 'Y'; } catch (e) {} reply(p.id, false, why); try { openPopup(params); } catch (e) {} };
+        const rtnName = isnull(params.RTN_FUNC) || 'uf_rcomm_0009_01Params';
+        const target = resolve(rtnName);
+        if (!target) return fallback('화면에 콜백 ' + rtnName + ' 이(가) 없어 팝업을 엽니다', p.prjNm);
+        const web = window.jex && window.jex.web;
+        if (!web || typeof web.Ajax !== 'function' || typeof web.isError !== 'function') return fallback('화면 공통 jex.web 이 없어 팝업을 엽니다', p.prjNm);
+        const base = {   // rderp.common.popPrjInfo_ones 의 즉시 조회 입력과 동일 (SEARCH_NM 만 과제번호)
+          SEARCH_NM: p.prjNo, SEARCH_GB: isnull(params.SEARCH_GB, isnull(params.SEL_MODE) === 'C' ? '30' : '10'), GUBUN: isnull(params.GUBUN),
+          PRJ_AUTH: isnull(params.GUBUN2) === 'Y' ? '99' : isnull(params.PRJ_AUTH), DEPT_AUTH: isnull(params.DEPT_AUTH), PRJ_CATE_CD: isnull(params.PRJ_CATE_CD),
+          SEARCH_GB1: '1', MENU_SEQ: isnull(window.rderp_menu_seq), BIZ_NO: isnull(params.BIZ_NO), CFRC_YN: isnull(params.CFRC_YN),
+          DSQL: isnull(params.DSQL) + ' ' + isnull(params.DSQL2) + ' ' + (isnull(params.PRE_SCREEN) === 'rtask_0013_09' ? " AND A.BGT_STD_CD <> '20'" : '')
+        };
+        const match = (recs) => (recs || []).filter((r) => String(r.PRJ_NO || '').trim() === p.prjNo);
+        const apply = (rows) => {
+          if (rows.length > 1) return fallback('연차가 여러 건이라 팝업에서 골라 주세요', p.prjNo);
+          const row = rows[0];
+          const key = params.POP_KEY;
+          const popKey = (key == null || key === '') ? undefined : (/^\d+$/.test(String(key)) ? Number(key) : String(key));   // _ones 는 eval 로 숫자 그대로 넘긴다
+          try { target.fn.call(target.ctx, popKey, row); }
+          catch (e) { reply(p.id, false, '화면 콜백(' + rtnName + ') 오류: ' + ((e && e.message) || e), row); return; }
+          reply(p.id, true, '', row);
+        };
+        query(web, base, (recs) => {
+          if (recs === 'timeout') return reply(p.id, false, '과제 조회 응답이 없습니다');
+          if (recs === null) return fallback('과제 조회 오류 — 팝업을 엽니다', p.prjNm);
+          const hit = match(recs);
+          if (hit.length) return apply(hit);
+          if (base.SEARCH_GB === '') return fallback('과제를 찾지 못해 팝업을 엽니다', p.prjNm);
+          query(web, Object.assign({}, base, { SEARCH_GB: '' }), (recs2) => {   // 진행이 아닌 과제(완료 등)면 진행상태 전체로 한 번 더
+            if (recs2 === 'timeout') return reply(p.id, false, '과제 조회 응답이 없습니다');
+            const hit2 = match(recs2 === null ? [] : recs2);
+            if (!hit2.length) return fallback('과제를 찾지 못해 팝업을 엽니다', p.prjNm);
+            apply(hit2);
+          });
+        });
+      }
+      document.addEventListener('krext-prj-pick', (ev) => {
+        let req = null;
+        try { req = JSON.parse(String((ev && ev.detail) || '')); } catch (e) { return; }
+        if (!req || !req.prjNo) return;
+        const btn = ev.target;
+        if (!wrap()) { reply(req.id, false, '화면 공통 스크립트(rderp.common.popPrjInfo)가 없습니다'); return; }
+        pending = { id: req.id, prjNo: String(req.prjNo).trim(), prjNm: String(req.prjNm || ''), until: now() + 10000 };
+        try { if (!btn || typeof btn.click !== 'function') throw new Error('조회 버튼 없음'); btn.click(); }
+        catch (e) { pending = null; reply(req.id, false, (e && e.message) || e); return; }
+        // 버튼 처리기가 두 함수 중 하나를 불렀으면 pending 이 비워졌다. 아니면(다른 팝업을 쓰는 화면·처리기 없음) 해제하고 알린다
+        setTimeout(() => { if (pending && pending.id === req.id) { pending = null; reply(req.id, false, '이 화면의 조회 버튼은 과제 검색 팝업(popPrjInfo)을 쓰지 않습니다'); } }, 1000);
+      });
+    } catch (e) {}
+  })();
+
   const MAX_REQ = 3000, MAX_RES = 8000;
   const isJct = (u) => /\.jct(\?|$)/i.test(String(u || ''));
   const svcOf = (u) => String(u || '').split('?')[0].split('/').pop().replace(/\.jct$/i, '');
