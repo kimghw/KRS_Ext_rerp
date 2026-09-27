@@ -3,6 +3,8 @@
 eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https://rnd.krs.co.kr`)의
 **미승인내역(보완요청/신청)** 과 **과제별 카드미청구 내역**, HR System(`https://hr.krs.co.kr`) 급여명세서의 **기본연봉·올해 연구수당(직급별 한도·잔여)** 을 패널로 표시합니다.
 
+> 기능·요구사항 사양은 [SPEC.md](SPEC.md) 에 요구사항 ID 단위로 정리돼 있습니다. 이 README 는 설치·구조·분석 메모(실측 기록)와 기능 설명을 함께 담고 있습니다.
+
 ## 설치 (압축해제된 확장 프로그램)
 
 1. Chrome 주소창에 `chrome://extensions` 입력 → 우측 상단 **개발자 모드** 켜기
@@ -39,8 +41,9 @@ eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https:/
 (예: 결제일 8월 2일이면 9월 2일까지는 9·10·11·12월의 4회, 9월 3일부터는 3회). 항목 줄에는 `월간 2일` 태그와 남은 횟수가 표시되고 −/＋ 버튼은 없습니다 (결제일을 바꾸려면 ✎ 수정). 31일처럼 짧은 달에 없는 날은 그 달 말일로 봅니다. 예상 항목이 있는 과제는 표 머리글 **비목** 옆에 눈 아이콘(감추기/보이기)과 저장 아이콘이 붙습니다.
 예상 항목은 **기본으로 감춰져** 있어 표에는 ERP 값만 나오고 접힌 과제 행의 잔액 밑 **예상 잔액**만 보입니다. 눈 아이콘을 누르면 그 과제의 ＋ 버튼·항목 줄·예상 반영 행이 나타나고, 다시 누르면 감춥니다. 보이기 상태는 저장하지 않으므로 패널을 다시 열면 다시 감춰집니다 (항목이 없는 과제는 ＋ 버튼이 항상 보임).
 항목은 입력·수정·삭제 때마다 확장 저장소(`chrome.storage.local`)에 자동 저장되어 브라우저를 다시 시작해도 남으며, 저장 아이콘은 지금 한 번 더 저장하고 "저장됨"을 잠깐 표시합니다 (툴팁에 저장 건수와 마지막 저장 시각).
+**확장 Plus**(0.8.0, 아래 절)를 켜면 원노트 `RERP` 섹션(없으면 고른 노트북에 만듦) 안의 과제별 페이지와 예상 비용이 저절로 동기화되고, 저장 아이콘 옆에 **원노트에서 가져오기(⬇) · 원노트로 내보내기(⬆) · 열기(↗)** 아이콘이 붙습니다(눈 아이콘으로 예상 비용을 펼친 동안만). 같은 노트북의 같은 섹션을 쓰는 사람들과 예상 비용을 공유합니다. 켜기는 툴바 팝업 아래 줄에서 바로 할 수 있습니다.
 설정에서 제외한 비목(예: 연구수당)에 예상 비용을 적으려면 먼저 **과제집행비율 비목 선택**에서 그 비목을 켜 표에 보이게 하세요. 표에서 사라진 비목에 남은 항목은 "표에 없는 비목" 묶음으로 보여 주고 합계의 예상 반영에는 넣습니다.
-이 값은 R&D ERP 에 보내지 않고 확장 저장소(`chrome.storage.local`의 `plannedExpenses`, 이 브라우저 프로필)에만 저장되며, 툴바 팝업과 eClass 패널이 같은 값을 씁니다.
+이 값은 R&D ERP 에 보내지 않고 확장 저장소(`chrome.storage.local`의 `plannedExpenses`, 이 브라우저 프로필)에만 저장되며, 툴바 팝업과 eClass 패널이 같은 값을 씁니다 (확장 Plus 동기화를 켜면 과제별 원노트 페이지에도 씀).
 
 패널은 기본적으로 eClass 본문의 "Popup Notice" 카드 위에 삽입되며, 설정의 **eClass 표시**에서 우측 상단 띄우기로 바꾸거나 eClass 홈에는 표시하지 않고(`eclassPanel`) 툴바 아이콘 팝업으로만 볼 수 있습니다 (끄면 열려 있는 eClass 화면에서도 바로 사라지고, 배지·자동 갱신은 그대로).
 제목 줄(버튼 제외) 아무 곳이나 클릭하면 접고 펼 수 있으며, 접힘 상태는 기억됩니다.
@@ -271,14 +274,43 @@ HR 탭을 열어 둘 필요는 없고 HR 로그인 세션 쿠키가 살아 있�
 - 건이 있으면 개인결재함(`rappr_0002_01`) 결재대기함 목록 `rappr_0001_01_r015`(화면 `uf_setParam()` 과 같은 입력: `APPRBOX_GB` 2, `APPR_USER_GB` 2, `DRAFT_FR_DT`/`DRAFT_TO_DT` 신청일 최근 1개월, `DATE_GB1` 2, 나머지 빈값)를 받아 `DRAFT_USER_NM` 신청자 · `PROC_TYP_NM` 업무구분 · `PRJ_NM` 대표과제명 · `REQ_AMT` 금액 · `APPL_CONT` 대표적요 · `DOC_NO` 문서번호 · `DRAFT_DATE` 신청일시 · `APPR_STS_NM` 상태를 목록으로 보입니다. 결재 자체는 R&D ERP 개인결재함에서 합니다(확장은 조회만).
 - 이 기관의 대시보드에는 결재대기 표시 요소(`#userApprCnt`)가 없어 R&D ERP 화면에서는 개인결재함에 들어가야 보이는 값입니다. 알림 목록(`rmain_0006_01_r001`)은 아직 쓰지 않습니다.
 
+## 확장 Plus: 과제별 원노트 페이지와 예상 비용 동기화 (0.8.0)
+
+과제집행비율의 **예상 비용**을 원노트 **`RERP` 섹션 안의 과제별 페이지 한 장**과 맞춰, 같은 노트북의 같은 섹션을 쓰는 사람들끼리 같은 예상 비용을 보고 고치는 선택 기능입니다.
+확장이 Microsoft 에 직접 로그인하지 않고, **이 PC 에서 도는 외부 MCP 서버**([KR_MS365_mcp](E:/dev/KR_MS365_mcp) 의 onenote 서버, 기본 `http://localhost:5005/mcp`)에 기대므로 "Plus"로 분리했습니다.
+동기화하는 사람마다 확장 + MCP 서버(각자의 Microsoft 계정 인증)가 필요하고, 섹션은 공유 노트북(Teams/SharePoint)에 두고 각자 OneNote 에서 그 노트북을 한 번 열어 둬야 노트북·섹션 목록에 나옵니다.
+
+**켜기** (툴바 팝업 아래 줄 `원노트 동기화 (Plus)`): 체크하면 백그라운드가 설정의 섹션 이름(기본 `RERP`, 대소문자 무시)의 섹션을 내 노트북들에서 찾아 바로 동기화합니다. 그 이름의 섹션이 없거나 여러 노트북에 있으면 그 자리에 노트북 드롭다운이 나오고, 고르면 그 노트북에 섹션을 만들어(또는 그 노트북 것을 써서) 동기화합니다 (`popup/popup.js`, 설정 `plus.enabled` · `plus.notebookId`). 찾은 섹션은 `storage.local.plusSection` 에 캐시하고 이름·노트북이 바뀌면 다시 찾습니다(`background.js ensurePlusSection`, `lib/plus-onenote.js ensureSection`). MCP 서버가 안 떠 있으면 그 자리에 연결 실패 이유가 보입니다. Graph 에는 섹션 삭제가 없으므로 잘못 만든 섹션은 OneNote 에서 지웁니다.
+**설정 페이지 › 확장 Plus**(같은 값을 더 자세히): MCP 주소 · **연결 확인**(도구 목록에서 `write_onenote` 의 `replace` 와 `read_onenote` 의 `include_ids` 가 있는지 알려 줌) · **섹션 이름**(기본 RERP) · **노트북 불러오기 → 섹션을 둘 노트북** · **섹션 찾기 / 만들기** · **지금 동기화**(책임자인 과제는 페이지가 없으면 자동으로 만듦) · **내가 책임자인 과제 페이지 모두 만들기**(같은 일) · 과제별 페이지 표(열기 링크). MCP 주소는 이 PC(`localhost`/`127.0.0.1`, manifest 호스트 권한)만 됩니다.
+
+**동작** (`lib/plan-sync.js`, 배선은 `background.js planSync`):
+- 페이지: `RERP` 섹션 안에 과제마다 `[예상 비용] {과제번호} {과제명}` 한 장. 제목의 과제번호로 찾으므로 동료 확장도 같은 노트북의 같은 섹션이면 같은 페이지를 씁니다. **페이지는 과제 책임자만 만듭니다** — 참여인력 역할에 "책임"이 있거나 과제책임자 이름이 본인(참여인력 행 이름 · 설정/자동 감지 이름 · R&D ERP 로그인 이름)인 과제(패널 참여율 표의 "책" 태그와 같은 규칙, `background.js leadPrjNos`). 책임자인 과제는 항목이 없어도 동기화 때 **자동으로** 페이지를 만들고(페이지가 공유의 단위라 늘 있어야 링크를 줄 수 있음), 책임자가 아니면 페이지가 생길 때까지 아이콘 툴팁·설정 표에 "책임자 생성 대기"(`noPage`)로 표시하고 기다립니다(오류 아님, 로컬 항목은 그대로). 만들기 전(과 책임자가 아닌 사람이 페이지를 못 찾았을 때)에는 `sync_onenote_db` 로 MCP 의 페이지 목록을 새로 받아 책임자가 방금 만든 페이지를 놓치지 않습니다(한 번의 동기화에 한 번). 찾은 페이지는 `storage.local.plusPlanPages = { 과제번호: { pageId, title, webUrl, sectionId } }` 에 캐시하고 섹션이 바뀌면 무시합니다.
+- 대상 과제: 로컬에 항목이 있는 과제 + 섹션에 페이지가 있는 내 참여 과제(동료가 적어 둔 것을 가져오기 위해).
+- 패널 비목 머리글의 아이콘(저장 아이콘 옆, 눈 아이콘으로 예상 비용을 펼친 동안만 보임):
+  - **⬆ 원노트로 내보내기** = 이 과제 페이지의 **링크(+ID)를 클립보드에 복사**해 동료에게 전달합니다(복사 글: 웹 링크 한 줄 + `[예상 비용 페이지 ID] 1-…` 한 줄). 페이지가 아직 없으면 백그라운드가 RERP 섹션에 만들고(책임자만) 링크까지 복사합니다(`planExport` — 몇 초 걸려 클릭 권한이 끝나므로 클립보드는 오프스크린 문서 `offscreen/`가 씀).
+  - **⬇ 원노트에서 가져오기** = 동료가 보낸 글을 **붙여 넣는 칸**이 열립니다. Enter/적용하면 그 페이지를 이 과제에 연결(`storage.local.plusPlanPages[과제번호].bound`)하고 항목을 가져옵니다(`background.js planBind` → `lib/plus-onenote.js resolveLink`: ID 가 있으면 바로, 링크뿐이면 페이지 GUID 로 내 페이지 목록의 `web_url` 을 대조 — 공유 노트북은 OneNote 에서 한 번 열어 둬야 함). 연결한 페이지는 RERP 섹션과 무관하게 이후 자동 동기화에 포함되며, 받는 쪽은 RERP 섹션이 없어도 됩니다.
+  - **↗ 원노트에서 열기**(페이지를 알 때만).
+  - Plus 가 꺼져 있으면 이 아이콘들은 아예 보이지 않고 원노트 관련 동작도 없습니다(저장 아이콘만 남음). 툴팁에 마지막 동기화 결과가 보입니다. 저장 아이콘은 늘 로컬 저장입니다.
+- 언제: 패널·팝업을 열 때(`load`, 마지막 성공 뒤 1분 안이면 건너뜀) · 항목을 입력·수정·삭제한 4초 뒤(`edit`, 모아서 한 번) · **저장 아이콘을 누른 직후**(그 과제만, "저장됨 · 원노트에 씀/항목 반영/같음"으로 결과 표시) · **눈 아이콘으로 예상 비용을 펼칠 때**(`view`, 그 과제만) · 자동 갱신 알람 때(`alarm`) · 가져오기 적용·내보내기 준비(그 과제만)나 설정·팝업의 버튼(`manual`). RERP 섹션을 아직 못 정한 사람(노트북 미선택)도 링크로 연결한 페이지는 동기화됩니다(`sectionWarn`). 한 번에 하나만 돌고 결과는 `storage.local.planSyncState = { at, ok, reason, count, errors, waiting, pages: { 과제번호: { title, pageId, webUrl, at, created, pulled, pushed, count, remoteAt, remoteBy, noPage?, error? } } }` 에 남아 가져오기/내보내기 아이콘 툴팁(그 과제의 마지막 동기화 시각 · 페이지 제목 · 페이지를 마지막에 갱신한 사람 · 실패 이유 · 책임자 생성 대기)과 설정 페이지 표에 보입니다. 과제 하나가 실패해도 다른 과제는 계속 진행합니다. 설정의 지금 동기화가 꺼진 이유(Plus 사용 체크 · 섹션 선택 · 동기화 체크 중 빠진 것)를 그대로 알려 줍니다.
+- 페이지 블록: 페이지 안의 **표 하나**(`<table data-id="krx-plan">`) — 제목 줄(과제 · 동기화 시각 · 누가 · 건수 · 합계), 머리글, 항목 줄(비목 · 세목 · 수량 · 단가 · 금액 · 월간 · 작성자), 맨 아래 기계용 한 칸(`krxplan1:` + base64 UTF-8 JSON `{ v, at, by, items:[{ id, prj, key, name, qty, unit, amt, sub?, ts, by? }], del:{ id: 삭제 시각 } }`).
+  기준은 JSON 이고 표는 보기용이라 원노트에서 표를 손으로 고쳐도 다음 동기화 때 덮입니다. 블록이 없으면 본문 끝에 append, 있으면 `include_ids` 로 읽은 그 표의 **생성 id**(`table:{guid}{n}`)를 target 으로 통째로 replace.
+  (2026-09-27 Graph 확인: `div` 는 replace 대상이 아니고("The PATCH target DIV for action replace is not supported"), `#data-id` 를 target 으로 주면 table 은 500, p·ul 은 400 — 생성 id 로 주면 table 이 됨. 그래서 표 하나 + 생성 id.)
+- 병합: 항목은 `id` 별로 `ts`(마지막 수정 시각, 수량 −/＋ 도 갱신)가 큰 쪽이 이깁니다(같으면 로컬). 삭제는 묘비 `storage.local.plannedDeleted = { id: { ts, prj } }` 로 전파해(과제별 페이지에는 그 과제 묘비만) 묘비가 항목보다 새로우면 지우고, 항목이 더 새로우면(다시 고친 것) 항목이 남습니다. 90일 지난 묘비는 버립니다. 병합 결과가 로컬과 다르면 로컬에 쓰고(패널은 `storage.onChanged` 로 바로 반영), 페이지와 다르면 페이지 블록을 다시 씁니다. 작성자(`by`)는 R&D ERP 로그인 이름(`rndUser.userNm`).
+- MCP 호출(`lib/mcp-client.js`): Streamable HTTP — `initialize`(응답 헤더 `mcp-session-id`) → `notifications/initialized` → `tools/call` → `DELETE` 로 세션 종료. 서버가 SSE 로 답하면 `data:` 줄에서 같은 id 의 응답을 고릅니다. 오류 종류: `offline`(서버 안 뜸) · `badurl` · `http` · `rpc` · `tool`(도구 isError, 예: Graph 400/401).
+- 쓰는 MCP 도구(`lib/plus-onenote.js`): `read_onenote list_sections`(섹션·노트북 목록) · `list_pages section_id`(섹션의 페이지, MCP 로컬 DB) · `get_content include_ids` · `sync_onenote_db` · `write_onenote create_section / create_page / append / replace target`. 2026-09-27 KR_MS365_mcp 에 `include_ids` · `list_pages web_url` · `replace`+`target` 을 추가했고 설정의 연결 확인이 이를 검사합니다.
+- 한계: 툴바 팝업은 페이지에 직접 닿지 않고 로컬 저장소(백그라운드가 맞춘 값)를 봅니다. 두 사람이 몇 초 안에 같이 쓰면 나중 쓴 쪽이 남지만 항목별로 병합하므로 다른 항목은 잃지 않습니다. 원노트 표를 손으로 고친 값은 반영되지 않습니다. 과제명이 바뀌어도 페이지 제목은 그대로입니다(과제번호로 찾음).
+
 ## 구조
 
 ```
-manifest.json          MV3 매니페스트
-background.js          서비스워커: 수집/캐시/배지/알람, 캡처 로그 저장, R&D ERP·HR 자동 로그인(rndAutoLogin·hrAutoLogin)
+manifest.json          MV3 매니페스트 (host_permissions 에 localhost·127.0.0.1 — 확장 Plus 의 로컬 MCP 서버 호출용. offscreen·clipboardWrite — 내보내기가 페이지를 만든 뒤 링크를 클립보드에 쓰는 용도)
+background.js          서비스워커: 수집/캐시/배지/알람, 캡처 로그 저장, R&D ERP·HR 자동 로그인(rndAutoLogin·hrAutoLogin), 확장 Plus 예상 비용 동기화 배선(planSync·planSyncQueue·plusProbe·plusSections)
+lib/mcp-client.js      확장 Plus: MCP Streamable HTTP 클라이언트 (initialize/세션/tools/call, SSE 응답 해석, 오류 kind). 도메인 지식 없음
+lib/plus-onenote.js    확장 Plus: OneNote 접근 (섹션·페이지 목록, 페이지 생성, 페이지 HTML 읽기, data-id 블록 찾기·생성 id 로 replace/append, 서버 도구 점검) — KR_MS365_mcp onenote 도구 사용
+lib/plan-sync.js       확장 Plus: 예상 비용 ↔ 과제별 원노트 페이지 동기화 (제목 규칙, 표+JSON 직렬화·해석, id/ts/묘비 병합, 과제별 run 오케스트레이션)
 lib/rnd-api.js         R&D ERP .jct 호출 (_JSON_ 이중 인코딩, EUC-KR 디코딩, 세션 오류 감지) + eClass SSO 재로그인(ssoLogin: loginCheck → sso_login_krs.jct → rderp_layoutMain.act)
 lib/render.js          패널 렌더러 (eClass 삽입 / 팝업 공용)
-lib/plan.js            과제집행비율 예상 비용(세목·수량·단가) 저장소 + 입력 처리 (storage.local.plannedExpenses)
+lib/plan.js            과제집행비율 예상 비용(세목·수량·단가) 저장소 + 입력 처리 (storage.local.plannedExpenses, 삭제 묘비 plannedDeleted, 동기화 상태 planSyncState 표시·요청)
 lib/pay.js             급여·연구수당의 받기 예정 연구수당(메모·금액) 저장소 + 입력 처리 (storage.local.plannedAllowance)
 lib/part.js            과제 참여율의 예비 참여율(참여 계획: 참여율·기간, 달력) 저장소 + 입력 처리 + 계획 반영 합계 계산 (storage.local.plannedParticipation)
 lib/prep.js            카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 첨부 파일 드래그 앤 드롭, 청구서 작성·작성+신청·신청 버튼)와 식사비 참석자 카드(참여인력 체크·내부참석자 검색·외부참석자 입력) 입력 처리 (eClass 패널 / 팝업 공용, 저장은 백그라운드에 요청)
@@ -293,8 +325,9 @@ content/rnd-prjpick.js rnd.krs.co.kr: 과제책임자/과제명 칸의 내 참�
 content/rnd-meeting.js rnd.krs.co.kr 회의록 등록 팝업(rcomm_0071_01.act): 패널 청구 준비의 회의록 종류(식비/다과)·금액·참석자 카드를 팝업에 미리 넣고 규칙 안내 (저장은 사용자)
 content/hr-pay.js      hr.krs.co.kr(최상위 프레임): 백그라운드 hrCollect 요청(직접 호출 실패 시 대체 경로)을 받아 급여명세서 API 수집을 실행해 hrPay 로 보냄
 lib/hr-api.js          HR System 급여명세서 API 클라이언트 (직원 정보·직급, 급여지급내역 목록, 달별 지급내역 → hrPay patch). 백그라운드(setBase 로 절대 경로)와 HR 탭 공용
-options/               설정 페이지 (카드 필터, 조회 옵션, 청구서 입력 도우미, 급여·연구수당, 미승인내역 서비스, 캡처 로그)
-popup/                 툴바 팝업
+options/               설정 페이지 (카드 필터, 조회 옵션, 청구서 입력 도우미, 급여·연구수당, 확장 Plus(MCP 주소·연결 확인·섹션 이름·노트북·섹션 찾기/만들기·지금 동기화·과제 페이지 모두 만들기·과제별 페이지 표), 미승인내역 서비스, 캡처 로그)
+popup/                 툴바 팝업 (아래 줄에 확장 Plus 켜기 — RERP 섹션을 찾고, 없으면 노트북을 골라 만듦)
+offscreen/             오프스크린 문서: 백그라운드가 클립보드에 쓸 때(내보내기가 페이지를 만든 뒤 링크 복사) 잠깐 띄움
 ```
 
 ## R&D ERP 호출 규약 (분석 메모)

@@ -28,6 +28,56 @@
   });
   document.getElementById('btnOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
 
+  /* ---------- 확장 Plus 켜기/끄기 (설정 KRX_SETTINGS plus.enabled, 설정 페이지의 같은 항목과 같은 값) ----------
+   * 켜면 백그라운드가 설정의 섹션 이름(기본 RERP)으로 섹션을 찾고(plusResolveSection) 없으면 만든다. 그 이름의 섹션이 없는데 만들 노트북을 모르거나 여러 노트북에 있으면
+   * 노트북 select 를 보여 고르게 하고(plus.notebookId 저장), 고르면 다시 찾아(만들어) 바로 동기화한다. MCP 서버가 안 떠 있으면 이유를 보인다 */
+  const plusOn = document.getElementById('plusOn'), plusNb = document.getElementById('plusNotebook'), plusStatus = document.getElementById('plusStatus');
+  const setPlusStatus = (t, err) => { plusStatus.textContent = t || ''; plusStatus.classList.toggle('err', !!err); plusStatus.title = t || ''; };
+  let plusSettings = null;
+  const sectionName = () => String(((plusSettings && plusSettings.plus) || {}).sectionName || '').trim() || KRX_SETTINGS.DEFAULTS.plus.sectionName;
+  async function loadPlus() {
+    try { plusSettings = await KRX_SETTINGS.load(); } catch (e) { return; }
+    const p = plusSettings.plus || {};
+    plusOn.checked = !!p.enabled;
+    plusNb.hidden = true;
+    if (!p.enabled) { setPlusStatus(''); return; }
+    let sec = null; try { sec = (await chrome.storage.local.get('plusSection')).plusSection || null; } catch (e) {}
+    if (sec && sec.id && sec.name === sectionName() && (!p.notebookId || sec.notebookId === p.notebookId)) setPlusStatus(`${sec.name} 섹션: ${sec.notebook || sec.label}`);
+    else resolveSection();
+  }
+  async function savePlus(patch) {
+    const s = plusSettings || await KRX_SETTINGS.load();
+    s.plus = Object.assign({}, KRX_SETTINGS.DEFAULTS.plus, s.plus || {}, patch);
+    plusSettings = s;
+    await KRX_SETTINGS.save(s);
+  }
+  async function resolveSection() {
+    setPlusStatus(`${sectionName()} 섹션을 찾는 중…`);
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'plusResolveSection' }); } catch (e) { r = null; }
+    if (r && r.ok) {
+      plusNb.hidden = true;
+      setPlusStatus(`${r.section.name} 섹션: ${r.section.notebook || r.section.label}${r.section.created ? ' (새로 만듦)' : ''} · 동기화 중…`);
+      let s = null;
+      try { s = await chrome.runtime.sendMessage({ type: 'planSync', reason: 'manual' }); } catch (e) { s = null; }
+      setPlusStatus(s && s.ok ? `${r.section.name} 섹션: ${r.section.notebook || r.section.label} · 동기화됨 과제 ${Object.keys(s.pages || {}).length}건 · 항목 ${s.count}건${s.waiting ? ` · 책임자 생성 대기 ${s.waiting}` : ''}` : s && s.error ? `동기화 실패: ${s.error}` : `${r.section.name} 섹션: ${r.section.notebook || r.section.label}`, !!(s && !s.ok && s.error));
+    } else if (r && r.kind === 'notebook') {   // 만들(또는 고를) 노트북을 골라야 함
+      plusNb.innerHTML = `<option value="">(${sectionName()} 섹션을 둘 노트북 선택)</option>` + (r.notebooks || []).map((n) => `<option value="${KRX_FMT.esc(n.id)}">${KRX_FMT.esc(n.name || n.id)}</option>`).join('');
+      plusNb.hidden = false;
+      setPlusStatus(`${r.error || '노트북을 고르세요'} — 내가 책임자인 과제의 페이지를 만들 때만 필요합니다. 동료가 보낸 링크로 가져오기는 그대로 됩니다`, true);
+    } else setPlusStatus(r ? `MCP 서버 연결 실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
+  }
+  plusOn.addEventListener('change', async () => {
+    await savePlus({ enabled: plusOn.checked });
+    await loadPlus();
+  });
+  plusNb.addEventListener('change', async () => {
+    if (!plusNb.value) return;
+    await savePlus({ notebookId: plusNb.value, notebookLabel: (plusNb.selectedOptions[0] || {}).textContent || '' });
+    resolveSection();
+  });
+  loadPlus();
+
   async function load(force) {
     state.loading = true; state.fatal = null; draw();
     try {

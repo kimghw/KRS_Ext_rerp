@@ -12,10 +12,21 @@
   .toolbar { flex: none; display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid #e1e6ee; background: #f7f9fc; }
   .toolbar a, .toolbar button { flex: 1; text-align: center; padding: 6px 4px; border: 1px solid #c9d1dc; border-radius: 6px; background: #fff; color: #1f4e9c; text-decoration: none; font: inherit; cursor: pointer; }
   .toolbar a:hover, .toolbar button:hover { background: #eef3fa; }
+  /* 확장 Plus 켜기 + 원노트 섹션 고르기 (설정 페이지의 같은 항목과 같은 값) */
+  .plusbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid #e1e6ee; background: #fbfbfe; font-size: 12px; color: #2b2b46; }
+  .plusbar label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+  .plusbar select { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 2px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; }
+  .plusbar .plus-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5b6470; }
+  .plusbar .plus-status.err { color: #b3261e; }
 </style>
 </head>
 <body>
 <div id="krext-panel" class="krext-panel krext-popup"></div>
+<div class="plusbar" title="확장 Plus: 이 PC 의 OneNote MCP 서버(KR_MS365_mcp)를 통해 예상 비용을 과제별 원노트 페이지와 동기화합니다. 켜면 RERP 섹션을 찾아(없으면 고른 노트북에 만들어) 바로 시작됩니다 (섹션 이름·MCP 주소·연결 확인은 설정 페이지)">
+  <label><input type="checkbox" id="plusOn"> 원노트 동기화 (Plus)</label>
+  <select id="plusNotebook" hidden></select>
+  <span id="plusStatus" class="plus-status"></span>
+</div>
 <div class="toolbar">
   <a href="https://eclass.krs.co.kr/eClassVer4/Home/Index" target="_blank" rel="noopener">eClass 열기</a>
   <a id="rndLink" href="https://rnd.krs.co.kr/rderp_layoutMain.act" target="_blank" rel="noopener">R&amp;D ERP 열기</a>
@@ -23,6 +34,7 @@
   <button type="button" id="btnOptions">설정</button>
 </div>
 <script src="../lib/format.js"></script>
+<script src="../lib/settings.js"></script>
 <script src="../lib/plan.js"></script>
 <script src="../lib/pay.js"></script>
 <script src="../lib/part.js"></script>

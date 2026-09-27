@@ -375,6 +375,13 @@
     $('rndUrl').value = s.rndUrl || '';
     $('rndAutoLogin').checked = s.rndAutoLogin !== false;
     $('prjPicker').checked = s.prjPicker !== false;
+    const pl = Object.assign({}, S.DEFAULTS.plus, s.plus || {});   // 확장 Plus (외부 MCP 연동)
+    $('plusEnabled').checked = !!pl.enabled;
+    $('plusMcpUrl').value = pl.onenoteMcpUrl || '';
+    $('plusSectionName').value = pl.sectionName == null ? S.DEFAULTS.plus.sectionName : pl.sectionName;
+    setPlusNotebook(pl.notebookId || '', pl.notebookLabel || '');
+    $('plusPlanSync').checked = pl.planSync !== false;
+    updatePlusSummary();
     const ch = Object.assign({}, S.DEFAULTS.claimHelper, s.claimHelper || {});
     $('chEnabled').checked = ch.enabled !== false;
     $('chDefaultBudget').value = ch.defaultBudget || '';
@@ -458,6 +465,14 @@
       rndUrl: $('rndUrl').value.trim() || S.DEFAULTS.rndUrl,
       rndAutoLogin: $('rndAutoLogin').checked,
       prjPicker: $('prjPicker').checked,
+      plus: {
+        enabled: $('plusEnabled').checked,
+        onenoteMcpUrl: $('plusMcpUrl').value.trim() || S.DEFAULTS.plus.onenoteMcpUrl,
+        sectionName: $('plusSectionName').value.trim() || S.DEFAULTS.plus.sectionName,
+        notebookId: $('plusNotebook').value,
+        notebookLabel: $('plusNotebook').value ? ($('plusNotebook').selectedOptions[0] || {}).textContent || '' : '',
+        planSync: $('plusPlanSync').checked
+      },
       claimHelper: {
         enabled: $('chEnabled').checked,
         defaultBudget: $('chDefaultBudget').value.trim(),
@@ -549,6 +564,92 @@
     catch (e) { setStatus('saveStatus', String(e.message || e), true); }
   });
   $('btnReset').addEventListener('click', () => { if (confirm('모든 설정을 기본값으로 되돌릴까요?')) fill(S.merge(S.DEFAULTS, {})); });
+
+  /* ---------- 확장 Plus: 외부 MCP 연동 (background.js plusProbe / plusNotebooks / plusResolveSection / planSync, lib/plan-sync.js). localhost 호스트 권한은 manifest 에 고정 ---------- */
+  function updatePlusSummary() {
+    const on = $('plusEnabled').checked, name = $('plusSectionName').value.trim() || S.DEFAULTS.plus.sectionName;
+    $('plusSummary').textContent = !on ? '' : ($('plusPlanSync').checked ? `예상 비용 동기화 중 · ${name} 섹션` : '켜짐');
+  }
+  /* 노트북 select: 저장된 노트북은 목록을 불러오기 전에도 보이도록 option 하나를 만들어 둔다 */
+  function setPlusNotebook(id, label) {
+    const sel = $('plusNotebook');
+    if (id && !Array.from(sel.options).some((o) => o.value === id)) { const o = document.createElement('option'); o.value = id; o.textContent = label || id; sel.appendChild(o); }
+    sel.value = id || '';
+  }
+  $('plusEnabled').addEventListener('change', updatePlusSummary);
+  $('plusSectionName').addEventListener('input', updatePlusSummary);
+  $('plusPlanSync').addEventListener('change', updatePlusSummary);
+  $('btnPlusNotebooks').addEventListener('click', async () => {
+    setStatus('plusSectionStatus', '노트북 목록을 받는 중…');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'plusNotebooks', url: $('plusMcpUrl').value.trim() }); } catch (e) { r = null; }
+    if (r && r.ok) {
+      const sel = $('plusNotebook'), cur = sel.value;
+      sel.innerHTML = '<option value="">(자동: 그 이름의 섹션이 있는 노트북)</option>' + (r.notebooks || []).map((n) => `<option value="${F.esc(n.id)}">${F.esc(n.name || n.id)}</option>`).join('');
+      if (cur) setPlusNotebook(cur, ((r.notebooks || []).find((n) => n.id === cur) || {}).name || cur);
+      setStatus('plusSectionStatus', `노트북 ${(r.notebooks || []).length}개 (공유 노트북이 없으면 OneNote 에서 한 번 열어 둔 뒤 다시)`);
+    } else setStatus('plusSectionStatus', r ? `실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
+  });
+  $('btnPlusSection').addEventListener('click', async () => {   // 저장한 뒤 섹션을 찾고 없으면 만든다
+    try { await S.save(read()); } catch (e) { setStatus('plusSectionStatus', `설정 저장 실패: ${e.message || e}`, true); return; }
+    setStatus('plusSectionStatus', '섹션을 찾는 중…');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'plusResolveSection' }); } catch (e) { r = null; }
+    if (r && r.ok) setStatus('plusSectionStatus', `${r.section.name} 섹션: ${r.section.label}${r.section.created ? ' (새로 만듦)' : ''}`);
+    else if (r && r.kind === 'notebook') {
+      const sel = $('plusNotebook');
+      sel.innerHTML = '<option value="">(선택)</option>' + (r.notebooks || []).map((n) => `<option value="${F.esc(n.id)}">${F.esc(n.name || n.id)}</option>`).join('');
+      setStatus('plusSectionStatus', `${r.error} — 노트북을 고르고 다시 누르세요`, true);
+    } else setStatus('plusSectionStatus', r ? `실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
+    showPlusState();
+  });
+  $('btnPlusProbe').addEventListener('click', async () => {
+    setStatus('plusProbeStatus', 'MCP 서버에 연결하는 중…');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'plusProbe', url: $('plusMcpUrl').value.trim() }); } catch (e) { r = null; }
+    if (r && r.ok) {
+      const c = r.check || {};
+      const lack = [!c.hasRead && 'read_onenote 없음', !c.hasWrite && 'write_onenote 없음', c.hasWrite && !c.replace && 'write_onenote 에 replace 없음', c.hasRead && !c.includeIds && 'read_onenote 에 include_ids 없음'].filter(Boolean);
+      setStatus('plusProbeStatus', `연결됨: ${r.server ? `${r.server.name} ${r.server.version || ''}` : '서버'} · 도구 ${(r.tools || []).length}개${lack.length ? ` · 동기화 불가: ${lack.join(', ')} (KR_MS365_mcp 를 최신으로)` : ' · 예상 비용 동기화 가능'}`, lack.length > 0);
+    } else setStatus('plusProbeStatus', r ? `연결 실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
+  });
+  async function plusSyncNow(createAll) {
+    try { await S.save(read()); } catch (e) { setStatus('plusSyncStatus', `설정 저장 실패: ${e.message || e}`, true); return; }   // 고른 섹션·주소로 동기화하도록 먼저 저장
+    setStatus('plusSyncStatus', createAll ? '내가 책임자인 과제마다 페이지를 확인하고 없으면 만드는 중… (과제 수만큼 걸립니다)' : '동기화하는 중…');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'planSync', reason: 'manual', createAll: !!createAll }); } catch (e) { r = null; }
+    if (r && r.ok) {
+      const pgs = Object.values(r.pages || {});
+      setStatus('plusSyncStatus', `동기화했습니다 (${r.ms} ms): 과제 ${pgs.length}건 · 항목 ${r.count}건${pgs.some((p) => p.created) ? ` · 페이지 ${pgs.filter((p) => p.created).length}개 만듦` : ''}${pgs.some((p) => p.pulled) ? ' · 페이지 항목을 가져옴' : ''}${r.waiting ? ` · 책임자 생성 대기 ${r.waiting}건` : ''}`);
+    }
+    else if (r && r.skipped === 'off') setStatus('plusSyncStatus', `동기화하려면 먼저 이것을 해 주세요: ${(r.missing || []).join(' · ') || '설정 확인'}`, true);
+    else if (r && r.kind === 'notebook') setStatus('plusSyncStatus', `${r.error} (노트북 불러오기 → 고르기 → 섹션 찾기 / 만들기)`, true);
+    else setStatus('plusSyncStatus', r ? `동기화 실패 (${r.kind || 'error'}): ${r.error || ''}${r.errors > 1 ? ` 외 ${r.errors - 1}건` : ''}` : '응답 없음', true);
+    showPlusState();
+  }
+  $('btnPlusSyncNow').addEventListener('click', () => plusSyncNow(false));
+  $('btnPlusCreateAll').addEventListener('click', () => plusSyncNow(true));
+  /* 마지막 동기화 결과 + 과제별 페이지 목록(열기 링크는 OneNote 웹) */
+  async function showPlusState() {
+    let st = null, pages = {}, pl = projectList, sec = null;
+    try { const l = await chrome.storage.local.get(['planSyncState', 'plusPlanPages', 'projectList', 'plusSection']); st = l.planSyncState || null; pages = l.plusPlanPages || {}; pl = pl || l.projectList || null; sec = l.plusSection || null; } catch (e) {}
+    if (sec && sec.id && !$('plusSectionStatus').textContent) $('plusSectionStatus').textContent = `현재 섹션: ${sec.label}`;
+    const names = {}; for (const p of (pl && pl.projects) || []) if (p && p.prjNo) names[p.prjNo] = p.prjNm || '';
+    const el = $('plusSyncState');
+    const items = Object.values((st && st.pages) || {}).reduce((x, p) => x + (F.num(p && p.count) || 0), 0);   // 과제별 마지막 결과의 항목 수 합 (과제 하나만 돌린 뒤에도 전체가 보이게)
+    el.textContent = !st ? '' : st.ok
+      ? `마지막 동기화 ${F.fmtClock(st.at)} (${st.reason || ''}): 과제 ${Object.keys(st.pages || {}).length}건 · 항목 ${items}건`
+      : `마지막 시도 ${F.fmtClock(st.at)} (${st.reason || ''}) 실패: ${st.error || st.kind || ''}${st.errors > 1 ? ` 외 ${st.errors - 1}건` : ''}`;
+    const rows = Object.entries(Object.assign({}, pages, (st && st.pages) || {})).map(([prjNo, p]) => {
+      const c = Object.assign({}, pages[prjNo] || {}, p || {});
+      const link = c.webUrl ? `<a href="${F.esc(c.webUrl)}" target="_blank" rel="noopener">열기</a>` : '';
+      const flags = [c.created && '만듦', c.pulled && '가져옴', c.pushed && '씀', c.noPage && '페이지 없음 · 책임자 생성 대기', c.error && `<span class="err">실패: ${F.esc(c.error)}</span>`].filter(Boolean).join(' · ');
+      return `<tr><td class="no">${F.esc(prjNo)}</td><td class="nm">${F.esc(names[prjNo] || '')}</td><td>${F.esc(c.title || '')}</td><td>${link}</td><td>${c.at ? F.fmtClock(c.at) : ''}</td><td>${flags}</td></tr>`;
+    });
+    $('plusPages').innerHTML = rows.length ? `<table class="list"><thead><tr><th>과제번호</th><th>과제명</th><th>페이지</th><th></th><th>동기화</th><th>상태</th></tr></thead><tbody>${rows.join('')}</tbody></table>` : '';
+  }
+  showPlusState();
+  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.planSyncState || ch.plusPlanPages || ch.projectList || ch.plusSection)) showPlusState(); }); } catch (e) {}
 
   /* ---------- 급여·연구수당 (HR System) ---------- */
   /* "P3=22" 줄 → { P3: 22 }. 비율이 숫자가 아니면 그 줄은 무시 (비운 직급은 기본값 유지) */
