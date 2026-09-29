@@ -408,7 +408,6 @@
     $('unapApply').value = (u.fields && u.fields.apply) || '';
     $('unapTemp').value = (u.fields && u.fields.temp) || '';
     $('unapPurchase').value = (u.fields && u.fields.purchase) || '';
-    $('unapLinkUrl').value = u.linkUrl || '';
     $('unapSummary').textContent = u.serviceId ? `설정됨 · ${u.serviceId}` : '미설정 (메인화면 방문 시 화면값 사용)';
     const a = s.adv || {};
     const advChanged = Object.keys(S.DEFAULTS.adv).some((k) => a[k] != null && String(a[k]) !== String(S.DEFAULTS.adv[k]));
@@ -493,8 +492,7 @@
       unapproved: {
         serviceId: $('unapServiceId').value.trim(),
         input: $('unapInput').value.trim() || '{}',
-        fields: { supplement: $('unapSupplement').value.trim(), apply: $('unapApply').value.trim(), temp: $('unapTemp').value.trim(), purchase: $('unapPurchase').value.trim() },
-        linkUrl: $('unapLinkUrl').value.trim() || S.DEFAULTS.unapproved.linkUrl
+        fields: { supplement: $('unapSupplement').value.trim(), apply: $('unapApply').value.trim(), temp: $('unapTemp').value.trim(), purchase: $('unapPurchase').value.trim() }
       },
       adv: {
         usefacSeqNo: $('advUsefac').value.trim() || '10',

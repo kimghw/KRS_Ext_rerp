@@ -403,3 +403,4 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-inbox-what { flex: 1 1 120px; min-width: 0; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .krext-inbox-amt { margin-left: auto; font-weight: 700; white-space: nowrap; }
 .krext-inbox-cont { flex-basis: 100%; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-inbox-op { font-style: normal; color: #b3261e; font-weight: 600; }   /* 보완요청 행의 결재의견 */
