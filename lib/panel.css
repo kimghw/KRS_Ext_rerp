@@ -169,9 +169,6 @@ a.krext-chip:hover { filter: brightness(.94); }
 .krext-bgt tbody tr.krext-bgt-unbilled td { background: #fff8f8; border-top: 1px dashed #f3b3bb; }
 .krext-bgt tr.krext-bgt-unbilled .krext-bgt-nm { white-space: normal; }   /* 좁은 팝업(460px)에서는 태그가 다음 줄로 */
 .krext-bgt tr.krext-bgt-unbilled .krext-tag { white-space: nowrap; }
-.krext-bgt-note { font-size: 10.5px; color: #8a919c; }   /* 승인전 태그 옆 "위 비목 잔액에 반영됨" (좁으면 줄바꿈) */
-.krext-bgt-req { display: block; font-size: 10.5px; font-weight: 400; color: #8a919c; line-height: 1.2; white-space: nowrap; }   /* 비목 잔액 밑 "신청 N 차감" */
-.krext-panel.krext-popup .krext-bgt-req { white-space: normal; }   /* 팝업(460px)에서는 금액 열이 넓어지지 않게 줄바꿈 허용 */
 .krext-bgt tfoot td { border-top: 2px solid #d5dbe3; background: #f3f5f8; font-weight: 700; }
 .krext-bgt .krext-rate { justify-content: flex-end; }
 .krext-panel.krext-inline .krext-bgt .krext-bar { width: 72px; }
