@@ -291,6 +291,21 @@ async function prepFocusTab(key) {
   } catch (x) { return { ok: false, error: '그 탭은 이미 닫혔습니다' }; }
 }
 
+/* R&D ERP 화면에서 쓰기 서비스(결의서 신청·내역 추가·삭제·결재 등 — 서비스 ID 끝이 _c/_d/_u + 숫자)가 끝나면 패널 캐시(갱신 주기 기본 10분)가 그 순간 낡으므로, 잠깐 모았다가 바로 다시 조회한다.
+ * 화면에서 임시저장 결의서를 신청했는데 패널에는 다음 갱신까지 임시저장으로 남아 있던 문제(2026-10-01). 캡처는 응답을 받은 뒤(loadend)에 오므로 서버 반영은 끝난 상태다.
+ * 첨부 업로드·회의록 저장(rcomm_…)은 건수·목록을 바꾸지 않아 뺀다. 확장의 백그라운드 작성·신청 탭이 부른 것도 여기로 오지만 refresh 가 한 번에 하나만 돌아 겹치지 않는다 */
+const WRITE_SVC = /^(rexpe|rappr|rtask)_\w+_[cdu]\d+$/;
+let writeRefreshTimer = 0;
+function refreshAfterWrite(entry) {
+  if (!entry || !WRITE_SVC.test(String(entry.service || ''))) return;
+  if (entry.status != null && Number(entry.status) !== 200) return;
+  clearTimeout(writeRefreshTimer);
+  writeRefreshTimer = setTimeout(() => {
+    const run = () => { refresh(true).catch(() => {}); };
+    if (inflight) inflight.then(run, run); else run();   // 쓰기 전에 시작한 조회가 돌고 있으면 그 결과는 낡았으므로 끝난 뒤 한 번 더
+  }, 1500);
+}
+
 async function appendCapture(entry, sender) {
   if (!entry || !entry.service) return;
   const cur = (await chrome.storage.local.get(CAPTURE_KEY))[CAPTURE_KEY] || [];
@@ -703,7 +718,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'plusProbe': return await plusProbe(msg.url);                                    // 설정 페이지 "연결 확인"
       case 'plusNotebooks': return await plusNotebooks(msg.url);                            // 설정 페이지·팝업 "노트북 불러오기"
       case 'plusResolveSection': return await plusResolveSection();                          // 팝업·설정: 섹션(RERP) 찾기/만들기
-      case 'jctCaptured': await appendCapture(msg.entry, sender); return { ok: true };
+      case 'jctCaptured': refreshAfterWrite(msg.entry); await appendCapture(msg.entry, sender); return { ok: true };
       case 'unapprovedSnapshot': await chrome.storage.local.set({ unapprovedSnapshot: msg.snapshot }); return { ok: true };
       case 'hrPay': { const merged = await mergeHrPay(msg.patch || {}); await patchCacheHrPay(merged); return { ok: true }; }
       case 'rndSsoLogin': return await rndAutoLogin();   // 설정 페이지 "지금 시도": R&D ERP eClass SSO 자동 로그인만 (조회는 따로 getData force)
