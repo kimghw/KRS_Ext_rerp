@@ -213,6 +213,18 @@
     </div>
   </details>
 
+  <details class="card" data-collapse="help">
+    <summary><h2>Help Chat: Claude Code 로 확장 고치기 <span id="helpSummary" class="muted"></span></h2></summary>
+    <p class="help">툴바 팝업의 <b>Help Chat</b> 줄에 고칠 점이나 이상한 결과를 한 줄로 보내면, 이 PC 에서 도는 <b>Help 서버</b>(<code>node help-server/server.js</code>, 기본 <code>http://127.0.0.1:8106</code>)가
+      <b>Claude Code CLI</b>(헤드리스, 기본 모델 <code>claude-opus-5-5</code>)를 이 확장 폴더에서 돌려 코드를 고칩니다. 팝업에는 진행·완료 여부가 한 줄 로그로 보이고, 끝나면 <b>적용</b>으로 확장을 다시 불러옵니다.
+      Claude 는 파일만 고치고 커밋하지 않으며, R&amp;D ERP 에 쓰는 동작(신청·저장·삭제)은 하지 않습니다(<code>help-server/rules.md</code>). 서버는 처음 연결한 확장에서 온 요청만 받습니다. Claude Code CLI 2.1.280 이상과 로그인(<code>claude</code>)이 필요합니다.</p>
+    <div class="grid">
+      <label class="check wide"><input type="checkbox" id="helpEnabled"> 팝업에 Help Chat 줄 표시</label>
+      <label class="wide">Help 서버 주소 <input type="url" id="helpUrl" placeholder="http://127.0.0.1:8106"></label>
+      <label class="wide"><button type="button" id="btnHelpProbe" class="btn">연결 확인</button> <span id="helpProbeStatus" class="status"></span></label>
+    </div>
+  </details>
+
   <details class="card" data-collapse="adv">
     <summary><h2>고급: 서비스 ID / 입력값 <span id="advSummary" class="muted"></span></h2></summary>
     <p class="help">기본값은 R&amp;D ERP 화면 스크립트에서 확인한 값입니다. 문제가 없으면 그대로 두세요.</p>

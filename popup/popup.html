@@ -18,10 +18,44 @@
   .plusbar select { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 2px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; }
   .plusbar .plus-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5b6470; }
   .plusbar .plus-status.err { color: #b3261e; }
+  /* Help Chat: 한 줄 입력 + 한 줄 상태(누르면 로그 펼침). 이 PC 의 Help 서버(help-server/server.js)가 Claude Code CLI 로 확장 코드를 고친다 (popup/help.js) */
+  .helpbar { flex: none; padding: 6px 10px; border-top: 1px solid #e1e6ee; background: #f7f9fc; font-size: 12px; color: #2b2b46; }
+  .helpbar form { display: flex; gap: 6px; margin: 0; }
+  .helpbar input[type=text] { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; }
+  .helpbar input[type=text]:disabled { background: #eef1f6; }
+  .helpbar button { flex: none; font: inherit; font-size: 12px; padding: 3px 8px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #1f4e9c; cursor: pointer; }
+  .helpbar button:hover:not(:disabled) { background: #eef3fa; }
+  .helpbar button:disabled { color: #9aa3af; cursor: default; }
+  .helpbar .help-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+  .helpbar .help-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5b6470; cursor: pointer; }
+  .helpbar .help-status.ok { color: #1b6e3c; }
+  .helpbar .help-status.err { color: #b3261e; }
+  .helpbar .help-status.run { color: #1f4e9c; }
+  .helpbar #helpApply { border-color: #1b6e3c; color: #1b6e3c; font-weight: 600; }
+  .helpbar .help-lines { margin-top: 5px; max-height: 132px; overflow: auto; padding: 4px 6px; border: 1px solid #e1e6ee; border-radius: 5px; background: #fff; font-size: 11px; line-height: 1.5; color: #3c4553; }
+  .helpbar .help-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .helpbar .help-line .t { color: #9aa3af; }
+  .helpbar .help-line.ok { color: #1b6e3c; }
+  .helpbar .help-line.err, .helpbar .help-line.warn { color: #b3261e; }
+  .helpbar .help-line.say { color: #2b2b46; }
+  .helpbar .help-detail { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e1e6ee; white-space: pre-wrap; word-break: break-word; color: #2b2b46; }
 </style>
 </head>
 <body>
 <div id="krext-panel" class="krext-panel krext-popup"></div>
+<div class="helpbar" id="helpbar" title="Help Chat: 확장이 기대와 다르게 동작하거나 고치고 싶은 점을 한 줄로 보내면, 이 PC 의 Help 서버(node help-server/server.js)가 Claude Code CLI(Opus 5.5)로 확장 코드를 고칩니다. 팝업을 닫아도 계속되고, 끝나면 '적용'으로 확장을 다시 불러옵니다 (커밋은 하지 않음)">
+  <form id="helpForm">
+    <input type="text" id="helpText" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter">
+    <button type="submit" id="helpSend" title="보내기 (Enter)">보내기</button>
+  </form>
+  <div class="help-row" id="helpRow" hidden>
+    <span id="helpStatus" class="help-status" role="status"></span>
+    <button type="button" id="helpApply" hidden title="확장을 다시 불러와 바뀐 코드를 적용합니다 (팝업이 닫힙니다)">적용</button>
+    <button type="button" id="helpStop" hidden>중지</button>
+    <button type="button" id="helpNew" hidden title="이 결과를 지우고, 다음 요청을 이전 대화와 잇지 않습니다">새 대화</button>
+  </div>
+  <div class="help-lines" id="helpLines" hidden></div>
+</div>
 <div class="plusbar" title="확장 Plus: 이 PC 의 OneNote MCP 서버(KR_MS365_mcp)를 통해 예상 비용을 과제별 원노트 페이지와 동기화합니다. 켜면 RERP 섹션을 찾아(없으면 고른 노트북에 만들어) 바로 시작됩니다 (섹션 이름·MCP 주소·연결 확인은 설정 페이지)">
   <label><input type="checkbox" id="plusOn"> 원노트 동기화 (Plus)</label>
   <select id="plusNotebook" hidden></select>
@@ -33,6 +67,7 @@
   <a id="hrLink" href="https://eclass.krs.co.kr/eClassVer4/External/SSOMessage" target="_blank" rel="noopener">HR System 열기</a>
   <button type="button" id="btnOptions">설정</button>
 </div>
+<script src="help.js"></script>
 <script src="../lib/format.js"></script>
 <script src="../lib/settings.js"></script>
 <script src="../lib/plan.js"></script>

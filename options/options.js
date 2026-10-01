@@ -382,6 +382,10 @@
     setPlusNotebook(pl.notebookId || '', pl.notebookLabel || '');
     $('plusPlanSync').checked = pl.planSync !== false;
     updatePlusSummary();
+    const hp = Object.assign({}, S.DEFAULTS.help, s.help || {});   // Help Chat (로컬 Help 서버)
+    $('helpEnabled').checked = hp.enabled !== false;
+    $('helpUrl').value = hp.url || '';
+    $('helpSummary').textContent = hp.enabled !== false ? '' : '꺼짐';
     const ch = Object.assign({}, S.DEFAULTS.claimHelper, s.claimHelper || {});
     $('chEnabled').checked = ch.enabled !== false;
     $('chDefaultBudget').value = ch.defaultBudget || '';
@@ -472,6 +476,7 @@
         notebookLabel: $('plusNotebook').value ? ($('plusNotebook').selectedOptions[0] || {}).textContent || '' : '',
         planSync: $('plusPlanSync').checked
       },
+      help: { enabled: $('helpEnabled').checked, url: $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url },
       claimHelper: {
         enabled: $('chEnabled').checked,
         defaultBudget: $('chDefaultBudget').value.trim(),
@@ -562,6 +567,18 @@
     catch (e) { setStatus('saveStatus', String(e.message || e), true); }
   });
   $('btnReset').addEventListener('click', () => { if (confirm('모든 설정을 기본값으로 되돌릴까요?')) fill(S.merge(S.DEFAULTS, {})); });
+
+  /* ---------- Help Chat: 이 PC 의 Help 서버(help-server/server.js) 연결 확인. 설정 페이지도 확장 페이지라 localhost 호스트 권한으로 직접 부른다 (popup/help.js 와 같은 방식) ---------- */
+  $('helpEnabled').addEventListener('change', () => { $('helpSummary').textContent = $('helpEnabled').checked ? '' : '꺼짐'; });
+  $('btnHelpProbe').addEventListener('click', async () => {
+    const url = $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url;
+    if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url)) { setStatus('helpProbeStatus', 'Help 서버 주소는 이 PC(localhost · 127.0.0.1)만 됩니다', true); return; }
+    setStatus('helpProbeStatus', 'Help 서버에 연결하는 중…');
+    let r = null;
+    try { r = await (await fetch(url + '/health', { cache: 'no-store' })).json(); } catch (e) { r = null; }
+    if (r && r.ok && r.name === 'krx-help') setStatus('helpProbeStatus', `연결됨: 모델 ${r.model} · claude CLI ${r.cli || '(확인 안 됨)'} · 저장소 ${r.repo}${r.busy ? ' · 요청 처리 중' : ''}`, !r.cli);
+    else setStatus('helpProbeStatus', r && r.error ? `거절됨: ${r.error}` : `연결할 수 없습니다 (${url}) — 이 PC 에서 node help-server/server.js 를 실행하세요`, true);
+  });
 
   /* ---------- 확장 Plus: 외부 MCP 연동 (background.js plusProbe / plusNotebooks / plusResolveSection / planSync, lib/plan-sync.js). localhost 호스트 권한은 manifest 에 고정 ---------- */
   function updatePlusSummary() {

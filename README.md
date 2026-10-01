@@ -301,6 +301,26 @@ HR 탭을 열어 둘 필요는 없고 HR 로그인 세션 쿠키가 살아 있�
 - 쓰는 MCP 도구(`lib/plus-onenote.js`): `read_onenote list_sections`(섹션·노트북 목록) · `list_pages section_id`(섹션의 페이지, MCP 로컬 DB) · `get_content include_ids` · `sync_onenote_db` · `write_onenote create_section / create_page / append / replace target`. 2026-09-27 KR_MS365_mcp 에 `include_ids` · `list_pages web_url` · `replace`+`target` 을 추가했고 설정의 연결 확인이 이를 검사합니다.
 - 한계: 툴바 팝업은 페이지에 직접 닿지 않고 로컬 저장소(백그라운드가 맞춘 값)를 봅니다. 두 사람이 몇 초 안에 같이 쓰면 나중 쓴 쪽이 남지만 항목별로 병합하므로 다른 항목은 잃지 않습니다. 원노트 표를 손으로 고친 값은 반영되지 않습니다. 과제명이 바뀌어도 페이지 제목은 그대로입니다(과제번호로 찾음).
 
+## Help Chat: 팝업에서 한 줄로 확장 고치기 (0.8.2)
+
+툴바 팝업 아래 **Help Chat** 줄에 고칠 점이나 기대와 다른 결과를 한 줄로 적어 보내면, 이 PC 에서 도는 **Help 서버**가 **Claude Code CLI**(헤드리스, 기본 모델 `claude-opus-5-5`)를 이 확장 폴더에서 돌려 코드를 고칩니다.
+확장은 프로세스를 띄울 수 없어 확장 Plus 처럼 로컬 서버에 기대는 선택 기능입니다. **준비물과 실행 방법은 [CLAUDE.md](CLAUDE.md)** 에 있습니다(요약: Node 18+, Claude Code CLI 2.1.280+ 로그인, git, `node help-server/server.js`).
+
+- **쓰는 법**: 한 줄 적고 Enter → 입력란 밑에 `⏳ 1:23 · Edit lib/render.js` 처럼 진행이 한 줄로 보이고, 끝나면 `✔ 완료 — 요약 · 수정 N개` / `✖ 실패 — 이유` 가 남습니다. 그 줄을 누르면 전체 로그와 Claude 의 답변이 펼쳐집니다.
+  팝업을 닫아도 작업은 서버에서 계속되고, 다시 열면 이어서 보입니다(`storage.local.helpChat`, 쓰던 글은 `helpDraft`).
+- **적용**: 확장 파일이 바뀌었으면 **적용** 버튼이 생기고 누르면 확장을 다시 불러옵니다(`chrome.runtime.reload()`). 문서·테스트·서버 파일만 바뀌었으면 버튼이 없습니다.
+  서버가 바뀐 `.js` 를 `node --check`, `.json` 을 파싱해 보고 문법 오류가 있으면 **적용을 보류**합니다 — 깨진 채 다시 불러오면 팝업(이 창구)까지 죽을 수 있기 때문입니다.
+- **중지 / 새 대화**: 진행 중에는 **중지**, 끝난 뒤에는 **새 대화**. 이어지는 요청은 2시간 안이면 같은 Claude 대화(`--resume`)로 이어져 "아니 그게 아니라…" 가 통하고, 새 대화를 누르면 끊습니다.
+- **Claude 가 하는 일의 범위**(`help-server/rules.md` — 시스템 프롬프트에 덧붙임): 요청한 범위의 코드만 고치고, 커밋·푸시·되돌리기·버전 올리기·확장 다시 불러오기를 하지 않으며, R&D ERP·HR·eClass 에 쓰는 동작(신청·저장·삭제)은 실행하지 않습니다. 변경은 작업 트리에만 남으니 확인 뒤 직접 커밋하세요.
+  권한은 `--permission-mode acceptEdits`(파일 수정 허용) + 명령 허용 목록(`node` · `git status/diff/log/show` · `curl` · `python`)이고 `git commit/push/reset/checkout/restore/stash/clean/rebase/merge` 는 막습니다. MCP 서버는 붙이지 않습니다(`--strict-mcp-config`).
+- **요청에 붙는 것**: 한 줄 글 + 화면 상태(확장 버전, 보고 있던 구역, 조회 시각·오류 문구, 과제·미청구 건수). 금액·이름 같은 조회 내용은 붙이지 않습니다(`popup/help.js context`).
+- **서버**(`help-server/server.js`, 의존 패키지 없음): `POST /ask { text, context, fresh }` → 작업 ID · `GET /job?id=&since=` → 상태와 새 로그 줄 · `POST /cancel` · `GET /health`. Claude 의 `stream-json` 출력을 한 줄 로그(도구 이름 + 파일·명령, 답변 첫 줄)로 줄이고,
+  작업 전후의 `git status`(경로별 내용 해시)를 비교해 **이번 요청으로 바뀐 파일**만 고릅니다. 한 번에 하나만 돌고(같은 작업 트리), 30분이 넘으면 끊습니다. 끝난 작업은 `help-server/logs/<id>.json` 에 남습니다(최근 50개, git 제외).
+- **보안**: 요청 글대로 파일을 고치는 에이전트를 띄우는 서버라 아무 웹 페이지나 부르면 안 됩니다. `127.0.0.1` 에만 바인드하고, `Host` 가 localhost/127.0.0.1 이 아니면 거절(DNS 리바인딩), `Origin` 이 있으면 `chrome-extension://<id>` 만 받되 **처음 연결한 확장 id 를 `help-server/.state.json` 에 고정**해 다른 출처는 403 입니다. POST 는 `application/json` 만 받고 CORS 헤더는 주지 않습니다.
+- **독립 스크립트**: `popup/help.js` 는 다른 lib·백그라운드에 기대지 않고 서버를 직접 부릅니다(팝업도 확장 페이지라 localhost 호스트 권한으로 fetch). 잘못된 수정으로 패널이나 백그라운드가 깨져도 이 줄로 다시 고쳐 달라고 할 수 있게 하기 위해서입니다.
+- **설정 페이지 › Help Chat**: 줄 표시 여부(`help.enabled`) · 서버 주소(`help.url`, 이 PC 만) · 연결 확인(모델·CLI 버전·저장소 경로).
+- **한계**: 완료 알림이 없어 팝업을 다시 열어 확인합니다. Claude Code 사용량(구독 한도 또는 API 비용)이 요청마다 듭니다. 확장을 다른 폴더에서 다시 로드해 id 가 바뀌면 `.state.json` 의 `origin` 을 지워야 합니다.
+
 ## 구조
 
 ```
@@ -328,6 +348,10 @@ content/hr-pay.js      hr.krs.co.kr(최상위 프레임): 백그라운드 hrColl
 lib/hr-api.js          HR System 급여명세서 API 클라이언트 (직원 정보·직급, 급여지급내역 목록, 달별 지급내역 → hrPay patch). 백그라운드(setBase 로 절대 경로)와 HR 탭 공용
 options/               설정 페이지 (카드 필터, 조회 옵션, 청구서 입력 도우미, 급여·연구수당, 확장 Plus(MCP 주소·연결 확인·섹션 이름·노트북·섹션 찾기/만들기·지금 동기화·과제 페이지 모두 만들기·과제별 페이지 표), 미승인내역 서비스, 캡처 로그)
 popup/                 툴바 팝업 (아래 줄에 확장 Plus 켜기 — RERP 섹션을 찾고, 없으면 노트북을 골라 만듦)
+popup/help.js          툴바 팝업 Help Chat 줄: 한 줄 요청을 Help 서버에 보내고 진행·완료 한 줄 로그, 적용(확장 다시 불러오기)·중지·새 대화. 다른 lib·백그라운드에 기대지 않는 독립 스크립트
+help-server/server.js  Help 서버 (Node, 의존 없음, 127.0.0.1:8106): 요청을 받아 Claude Code CLI(claude -p, 기본 claude-opus-5-5)를 이 폴더에서 실행, stream-json → 한 줄 로그, 바뀐 파일·문법 검사, 확장 출처 고정
+help-server/rules.md   Help Chat 의 Claude 작업 규칙 (시스템 프롬프트에 덧붙임: 범위, 하지 않는 것, 마지막 답변 형식)
+CLAUDE.md              Claude Code 용 저장소 안내 + Help Chat 을 쓸 때 필요한 것(설치·실행)
 offscreen/             오프스크린 문서: 백그라운드가 클립보드에 쓸 때(내보내기가 페이지를 만든 뒤 링크 복사) 잠깐 띄움
 ```
 
