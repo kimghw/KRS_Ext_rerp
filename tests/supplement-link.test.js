@@ -70,4 +70,26 @@ test('supplementLink: 1건이면 그 결의서(툴팁에 과제명·결재의견
   assert.strictEqual(req(R.supplementLink(null).href).open, 'rappr_0017_01.act');
 });
 
+// 2026-10-01 CDP 실측 행 (rappr_0017_01_r001 APPR_DIV_CD 40 → rnd-api fetchTemps 매핑): 카드청구 임시저장
+const temp = { procTypCd: 'P11', procTypNm: '청구서작성 카드', prjNo: '2026-0063-01', prjNm: 'MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발', reqCnt: '34', apprDivCd: '40', docNo: '21', cardSent: true, cfrcOut: 'Y', cfrcLimited: 'Y', cfrcLimitedAmt: '50000', gainBiz: '20' };
+
+test('tempLink: 1건이면 저장된 결의서(REQ_CNT · APPR_DIV_CD=40)를 바로, 펼침 없음', () => {
+  const one = R.tempLink({ temps: { items: [temp] } }, { expanded: new Set() });
+  const r = req(one.href);
+  assert.strictEqual(r.open, 'rexpe_0083_01.act'); assert.strictEqual(r.menuName, '카드청구');
+  assert.ok(r.q.startsWith('PRJ_NO=2026-0063-01&REQ_CNT=34&APPR_DIV_CD=40&'), r.q);
+  assert.strictEqual(one.toggle, undefined);
+  assert.ok(one.title.includes('청구서(카드)') && one.title.includes('결의번호 21'), one.title);
+});
+
+test('tempLink: 여러 건이면 목록 펼치기(상태 키 __temps), 0건·없음·지출 결의서가 아닌 1건은 미신청내역조회', () => {
+  const items = [temp, Object.assign({}, temp, { reqCnt: '35', docNo: '22' })];
+  const closed = R.tempLink({ temps: { items } }, { expanded: new Set() });
+  assert.deepStrictEqual(closed.toggle, { key: '__temps', open: false }); assert.ok(closed.title.includes('2건'), closed.title);
+  const open = R.tempLink({ temps: { items } }, { expanded: new Set(['__temps']) });
+  assert.strictEqual(open.toggle.open, true);
+  for (const d of [{ temps: { items: [] } }, {}, null]) { const l = R.tempLink(d, null); assert.strictEqual(req(l.href).open, 'rappr_0017_01.act'); assert.strictEqual(l.toggle, undefined); }
+  assert.strictEqual(req(R.tempLink({ temps: { items: [{ procTypCd: 'F03', prjNo: 'X', reqCnt: '17', apprDivCd: '40' }] } }, null).href).open, 'rappr_0017_01.act');   // 회의사전신청 등
+});
+
 console.log(`\n${n} passed, ${failed} failed`);

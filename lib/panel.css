@@ -18,9 +18,9 @@
 .krext-panel.krext-inline .krext-cols { display: grid; grid-template-columns: minmax(240px, 300px) 1fr; gap: 16px; align-items: start; }
 .krext-panel.krext-inline .krext-stats { flex-direction: column; }
 .krext-panel.krext-inline .krext-stat { flex: none; flex-direction: row; justify-content: space-between; padding: 8px 12px; }
-/* 미승인내역: 본문 삽입 모드에서도 보완요청 / 신청 두 칸을 세로 쌓기 대신 한 줄에 */
-.krext-panel.krext-inline .krext-unappr .krext-stats { flex-direction: row; }
-.krext-panel.krext-inline .krext-unappr .krext-stat { flex: 1 1 0; min-width: 0; }
+/* 미승인내역: 본문 삽입 모드에서도 임시저장 / 보완요청 / 신청 / 결재 네 칸을 세로 쌓기 대신 한 줄에 — 칸이 좁아 이름 위·숫자 아래로 쌓는다 */
+.krext-panel.krext-inline .krext-unappr .krext-stats { flex-direction: row; gap: 6px; }
+.krext-panel.krext-inline .krext-unappr .krext-stat { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: flex-start; padding: 7px 2px; }
 .krext-panel.krext-inline .krext-prj-nm { white-space: normal; }
 .krext-col { padding: 0 12px; }
 @media (max-width: 900px) { .krext-panel.krext-inline .krext-cols { grid-template-columns: 1fr; } }
@@ -81,6 +81,11 @@ a.krext-chip:hover { filter: brightness(.94); }
 .krext-stat { flex: 1 1 120px; display: flex; flex-direction: column; align-items: center; padding: 8px 6px; border: 1px solid #e1e6ee; border-radius: 8px; background: #f7f9fc; color: inherit !important; }
 .krext-stat:hover { background: #eef3fa; text-decoration: none !important; }
 .krext-stat.krext-hot { border-color: #f3b3bb; background: #fff4f5; }
+.krext-stat.krext-open { border-color: #9db7df; background: #eef3fa; }   /* 목록을 펼친 칸 (임시저장 여러 건) */
+/* 미승인내역 네 칸은 팝업·띄우기 폭에서도 줄바꿈 없이 한 줄 */
+.krext-unappr .krext-stats { flex-wrap: nowrap; }
+.krext-unappr .krext-stat { flex: 1 1 0; min-width: 0; }
+.krext-unappr .krext-stat-label { white-space: nowrap; }
 .krext-stat-label { font-size: 12px; color: #222; font-weight: 600; }
 .krext-stat-val { font-size: 20px; font-weight: 800; }
 .krext-red { color: #d7263d; }
@@ -402,6 +407,7 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-inbox-row { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; padding: 5px 4px; border-bottom: 1px dashed #e1e6ee; font-size: 12px; color: inherit !important; text-decoration: none !important; }
 .krext-inbox-row:hover { background: #eef3fa; }
 .krext-inbox-row b { color: #b3261e; white-space: nowrap; }
+.krext-inbox-row.krext-temp b { color: #4b5563; }   /* 임시저장 행: 내가 아직 신청하지 않은 건이라 경고색을 쓰지 않음 */
 .krext-inbox-what { flex: 1 1 120px; min-width: 0; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .krext-inbox-amt { margin-left: auto; font-weight: 700; white-space: nowrap; }
 .krext-inbox-cont { flex-basis: 100%; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

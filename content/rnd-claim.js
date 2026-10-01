@@ -788,7 +788,15 @@
     if (prepAuto && !hasStep('add')) { runApplyOnly(); return; }   // 저장된 결의서 신청만 (행 선택 없음)
     if (document.documentElement.dataset.krextRowSelected === q.appr) runPrep();   // 훅이 이미 행을 골랐음
     else if (prepAuto) setTimeout(() => {   // 자동 처리인데 60초 안에 행 선택 신호가 없으면(이미 청구된 거래 등) 실패로 보고
-      if (!stopped && prep && !prepRunning && !prepReported && document.documentElement.dataset.krextRowSelected !== q.appr) reportRun(false, '청구서 화면에서 이 승인번호의 미청구 행을 찾지 못했습니다 (이미 청구됐거나 목록에 없음)');
+      if (stopped || !prep || prepRunning || prepReported || document.documentElement.dataset.krextRowSelected === q.appr) return;
+      // 실패 사유에 화면이 실제로 조회한 기간·건수를 적는다. 행 선택 전에 기본값을 넣다 화면이 띄운 alert(청구할 카드사용내역을 먼저 선택…)는 원인이 아니므로 뺀다
+      const noise = /청구할 카드사용내역을 먼저 선택/;
+      prepAlerts = prepAlerts.filter((a) => !noise.test(a));
+      try { if (noise.test(document.documentElement.dataset.krextAlert || '')) delete document.documentElement.dataset.krextAlert; } catch (e) {}
+      const val = (id) => String((document.getElementById(id) || {}).value || '').trim();
+      const total = /총\s*([\d,]+)\s*건/.exec((document.getElementById('myGrid2') || {}).textContent || '');
+      const range = val('START_DATE') && val('END_DATE') ? `조회 ${val('START_DATE')} ~ ${val('END_DATE')}${total ? `, ${total[1]}건` : ''}` : '';
+      reportRun(false, `R&D ERP 청구서 화면의 미청구 카드내역${range ? `(${range})` : ''}에 승인번호 ${q.appr} 건이 없습니다 — 이미 청구됐거나 조회 기간 밖`);
     }, 60000);
     scheduleScan();
   }
@@ -1187,6 +1195,7 @@
   }
   async function addLine() {
     setSt('add', '누르는 중…');
+    if (current && cfg.defaultRcms) fillDefault(current.rcms, cfg.defaultRcms);   // 기본값은 카드 행이 체크된 뒤에야 들어가므로(cardRowNeeded) 다음 tick 을 기다리지 않고 여기서 한 번 더
     const btn = document.getElementById('btn_listAdd') || findButton(['내역추가', '청구내역추가']);
     if (!btn) { setSt('add', '"내역 추가" 버튼을 찾지 못했습니다', true); report('failed', '"내역 추가" 버튼을 찾지 못했습니다'); return false; }
     let dbclick = null;
@@ -1575,10 +1584,21 @@
     apply(f);
     if (!tickTimer) tickTimer = setInterval(tick, 700);
   }
+  /* 지금 비목 기본값을 넣으면 화면이 alert("청구할 카드사용내역을 먼저 선택해주세요.")를 띄우는 상태인지 — 화면의 #PAY_EXP_CD change 핸들러(rexpe_0083_01.js, 2026-10-01 확인)와 같은 조건:
+   * 새 청구내역(#REQ_SEQ_NO 가 TMP…)이고 #PRGM_LNK_YN 이 Y 가 아닌데 미청구 카드 그리드에 체크된 행이 1개가 아님. 패널의 임시저장 칸에서 저장된 결의서를 열면(행 선택 없이 열림) 이 상태라 열자마자 alert 가 떴다.
+   * 체크 수는 MAIN 훅에 묻고(krext-card-checked → <html data-krext-card-checked>, 동기), 훅이 수를 주지 않으면(그리드가 없는 화면 — 청구서(일반) 등) 막지 않는다. 행을 체크하면 다음 tick 에 기본값이 들어간다 */
+  function cardRowNeeded() {
+    const v = (id) => String((document.getElementById(id) || {}).value || '');
+    if (!/TMP/.test(v('REQ_SEQ_NO')) || v('PRGM_LNK_YN') === 'Y') return false;
+    const root = document.documentElement;
+    try { delete root.dataset.krextCardChecked; document.dispatchEvent(new CustomEvent('krext-card-checked')); } catch (e) { return false; }
+    const n = root.dataset.krextCardChecked;
+    return n !== undefined && n !== '' && Number(n) !== 1;
+  }
   function apply(f) {
     if (cfg.dragDrop && f.attach) bindDropZone(f.attach);
     ensurePicks(f);
-    if (!noRowMode()) {   // 행 선택 없는 자동 모드에선 기본값을 넣지 않는다 — 카드 행이 체크돼 있지 않으면 화면의 비목 change 핸들러가 값을 되돌리며 alert("청구할 카드사용내역을 먼저 선택해주세요.")
+    if (!noRowMode() && !cardRowNeeded()) {   // 행 선택 없는 자동 모드, 그리고 카드 행이 아직 체크되지 않은 화면(저장된 결의서를 연 직후 등)에선 기본값을 넣지 않는다 — 화면의 비목 change 핸들러가 값을 되돌리며 alert("청구할 카드사용내역을 먼저 선택해주세요.")
       if (cfg.defaultBudget) fillDefault(f.sel1, cfg.defaultBudget);
       if (cfg.defaultRcms) fillDefault(f.rcms, cfg.defaultRcms);
     }

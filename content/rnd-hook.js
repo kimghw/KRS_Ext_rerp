@@ -8,6 +8,7 @@
    * document_start 에는 아직 원본이라 붙들어 두고, 혹시 그것도 이상하면 new Date().getTime() */
   const nativeNow = Date.now;
   const now = () => { try { const v = nativeNow.call(Date); if (typeof v === 'number') return v; } catch (e) {} return new Date().getTime(); };
+  let onCardList = null;   // 미청구 카드내역 조회(rcomm_0103_01_r001) 응답이 올 때마다 부를 함수(응답 글) — autoSelectRow 가 넣고, 맨 아래 XHR 훅이 부른다
 
   /* ---- 딥링크: eClass 패널에서 연 rderp_layoutMain.act#krext=... 를 레이아웃의 탭으로 열기 ----
    * req.menuId 가 있으면 그 메뉴 ID로 바로 연다(청구서·과제정보).
@@ -25,7 +26,8 @@
       if (!req || !req.open) return;
       // krext_auto=add | add,apply | apply: 패널의 청구 준비 "청구서 작성"·"작성+신청"·"신청"(백그라운드 탭) — rnd-claim.js 가 세목·청구종류·첨부를 넣고 "내역 추가", 이어서 "신청"까지 누른다.
       // krext_appr 는 그 승인번호의 미청구 행을 자동 선택(autoSelectRow), krext_prep 은 행 선택 없이(이미 청구된 거래의 결의서 신청만) rnd-claim.js 가 준비 항목을 찾는 승인번호
-      const extra = [req.q || '', req.appr ? 'krext_appr=' + encodeURIComponent(req.appr) : '', req.prep ? 'krext_prep=' + encodeURIComponent(req.prep) : '', req.card ? 'krext_card=' + encodeURIComponent(req.card) : '', req.auto ? 'krext_auto=' + encodeURIComponent(req.auto) : ''].filter(Boolean).join('&');
+      // krext_date(카드 사용일 YYYYMMDD)는 그 행이 화면의 기본 조회 기간(이번 달) 밖일 때 조회 시작일로 쓴다 (autoSelectRow)
+      const extra = [req.q || '', req.appr ? 'krext_appr=' + encodeURIComponent(req.appr) : '', req.prep ? 'krext_prep=' + encodeURIComponent(req.prep) : '', req.card ? 'krext_card=' + encodeURIComponent(req.card) : '', req.date ? 'krext_date=' + encodeURIComponent(req.date) : '', req.auto ? 'krext_auto=' + encodeURIComponent(req.auto) : ''].filter(Boolean).join('&');
       const title = req.title || '청구서(카드)';
       const started = now();
       const withQuery = (path) => (extra ? path + (path.includes('?') ? '&' : '?') + extra : path);
@@ -65,16 +67,32 @@
     } catch (e) {}
   })();
 
-  /* ---- 청구서(카드) 화면: krext_appr(승인번호)와 같은 미청구 행을 자동 선택 ---- */
+  /* ---- 청구서(카드) 화면: krext_appr(승인번호)와 같은 미청구 행을 자동 선택 ----
+   * 화면은 미청구 카드내역을 처음에 "이번 달 1일 ~ 오늘"(일자 구분 사용일자, uf_setCardDate: #START_DATE ← #PRE_YMD, #END_DATE ← #CUR_DATE)로만 조회하므로
+   * 지난달에 쓴 건은 목록에 없다 (2026-10-01 CDP 확인: 9/22 사용 건이 10/1~10/1 조회 0건, 시작일을 9/22 로 주면 1건 → 자동 작성이 "미청구 행을 찾지 못했습니다"로 실패).
+   * 조회 응답(rcomm_0103_01_r001)에 이 승인번호가 없으면 시작일을 카드 사용일(krext_date, 없으면 화면의 [6개월] 버튼과 같은 6개월 전)로 당겨 [조회](#btn_cardList)를 한 번 더 누른다 */
   (function autoSelectRow() {
     try {
       const sp = new URLSearchParams(location.search);
       const appr = (sp.get('krext_appr') || '').trim();
       if (!appr) return;
       const card4 = (sp.get('krext_card') || '').replace(/\D/g, '').slice(-4);
+      const useDate = (sp.get('krext_date') || '').replace(/\D/g, '').slice(0, 8);
       const isLeaf = (el) => !el.children.length;
       const started = now();
-      let done = false;
+      let done = false, widened = false;
+      const p2 = (n) => String(n).padStart(2, '0');
+      onCardList = (text) => {
+        if (done || widened || String(text || '').includes('"' + appr + '"')) return;
+        const mode = document.getElementById('CARD_DATE'), st = document.getElementById('START_DATE'), btn = document.getElementById('btn_cardList');
+        if (!mode || mode.value !== '1' || !st || !btn) return;   // 사용일자 조회일 때만 (결제일자·결제예정월 조회는 사용일로 기간을 정할 수 없음)
+        let from = useDate.length === 8 ? `${useDate.slice(0, 4)}-${useDate.slice(4, 6)}-${useDate.slice(6, 8)}` : '';
+        if (!from) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 6); from = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(st.value) || st.value <= from) return;   // 이미 그 날짜까지 조회했는데 없음 — 이미 청구된 건
+        widened = true;
+        st.value = from;
+        setTimeout(() => { try { btn.click(); } catch (e) {} }, 300);   // 화면이 이번 응답을 그리드에 넣은 뒤에
+      };
       const tryClick = () => {
         if (done) return;
         const root = document.getElementById('myGrid2') || document.body;
@@ -191,6 +209,13 @@
           fn.apply(ctx, Array.isArray(req.args) ? req.args : []);
           reply(true, '');
         } catch (e) { reply(false, (e && e.message) || e); }
+      });
+      /* 청구서(카드)의 미청구 카드 그리드에 체크된 행 수 → <html data-krext-card-checked> (그리드가 없는 화면이면 빈 값). DOM 이벤트는 동기라 도우미가 보낸 직후 바로 읽는다.
+       * 화면의 비목 change 핸들러가 이 수가 1이 아니면 값을 되돌리며 alert 하므로, 도우미가 기본값을 넣기 전에 묻는다 (rnd-claim.js cardRowNeeded) */
+      document.addEventListener('krext-card-checked', () => {
+        let n = '';
+        try { const g = typeof grid2 !== 'undefined' ? grid2 : null; if (g && g.checkMgr && typeof g.checkMgr.getCheckList === 'function') n = String(g.checkMgr.getCheckList().length); } catch (e) {}
+        try { document.documentElement.dataset.krextCardChecked = n; } catch (e) {}
       });
     } catch (e) {}
   })();
@@ -352,6 +377,7 @@
       this.addEventListener('loadend', () => {
         let text = '';
         try { if (!this.responseType || this.responseType === 'text') text = this.responseText || ''; } catch (e) {}
+        if (onCardList && svcOf(info.url) === 'rcomm_0103_01_r001' && this.status === 200) { try { onCardList(text); } catch (e) {} }
         post({ ts: now(), frame: location.pathname + location.search, service: svcOf(info.url), url: info.url,
                method: info.method, request: info.request, status: this.status, response: text.slice(0, MAX_RES) });
       });

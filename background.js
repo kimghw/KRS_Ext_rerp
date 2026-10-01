@@ -223,8 +223,12 @@ async function prepRun(key, mode) {
   if (e.run && e.run.state === 'running' && Date.now() - e.run.ts < (e.run.meeting ? PREP_RUN_TIMEOUT_MEETING : PREP_RUN_TIMEOUT)) return { ok: false, error: '이미 진행 중입니다' };
   if (e.run && e.run.tabId != null) { try { await chrome.tabs.remove(e.run.tabId); } catch (x) {} }   // 지난 실행이 남겨 둔 탭
   const req = { open: 'rexpe_0083_01.act', title: '청구서(카드)', menuId: 'menu_id_362', q: 'PRJ_NO=' + encodeURIComponent(e.prjNo || ''), card: e.card4, auto };
-  if (steps.has('add')) req.appr = e.appr;
-  else {
+  if (steps.has('add')) {
+    req.appr = e.appr;
+    // 카드 사용일: 화면의 기본 조회 기간(이번 달 1일 ~ 오늘) 밖의 건이면 훅이 조회 시작일을 이 날로 당겨 다시 조회한다 (rnd-hook.js autoSelectRow)
+    const used = String(e.usedDate || '').replace(/\D/g, '').slice(0, 8);
+    if (used.length === 8) req.date = used;
+  } else {
     /* 신청만·삭제: 미청구 행 자동 선택 없이(이미 청구된 거래) 준비 항목만 찾게 krext_prep. 저장된 결의서는 과제정보 › 청구결의서 탭(rtask_0008_t04_01.js)처럼 주소에
      * REQ_CNT(결의서 차수)·APPR_DIV_CD(40 임시저장)를 붙여야 열린다 — 화면(rexpe_0083_01)은 서버가 주소 파라미터로 렌더한 reqParam/hidden REQ_CNT 로 청구내역 목록(rexpe_0001_01_r018)을 읽고,
      * PRJ_NO 만 주면 새 결의서 폼(REQ_CNT 빈값, 목록 0건)이 열려 청구번호 행을 못 찾는다 (2026-09-25 CDP 확인). 회의비 관련 CFRC_* 파라미터는 없어도 같은 목록이 뜬다 */
