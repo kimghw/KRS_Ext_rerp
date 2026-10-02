@@ -25,8 +25,15 @@
     else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; chrome.storage.local.set({ panelView: state.view }); draw(); }
     else if (act === 'section') { ev.preventDefault(); state.section = btn.dataset.section === 'budget' ? 'budget' : 'cards'; chrome.storage.local.set({ panelSection: state.section }); draw(); }
     else if (act === 'claim') { if (ev.target.closest('a')) return; ev.preventDefault(); if (btn.dataset.href) chrome.tabs.create({ url: btn.dataset.href }); }
+    else if (act === 'rcms') { ev.preventDefault(); openRcms(btn.href); }
   });
   document.getElementById('btnOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  // RCMS 열기(패널 아래 바 · 툴바): 백그라운드가 탭을 열고 그 탭에 자동 로그인을 건다 (background.js openRcms). 안 되면 링크 주소를 그대로 연다
+  function openRcms(href) {
+    const open = () => chrome.tabs.create({ url: href });
+    chrome.runtime.sendMessage({ type: 'openRcms' }).then((r) => { if (!r || !r.ok) open(); }, open);
+  }
+  document.getElementById('rcmsLink').addEventListener('click', (ev) => { ev.preventDefault(); openRcms(ev.currentTarget.href); });
 
   /* ---------- 확장 Plus 켜기/끄기 (설정 KRX_SETTINGS plus.enabled, 설정 페이지의 같은 항목과 같은 값) ----------
    * 켜면 백그라운드가 설정의 섹션 이름(기본 RERP)으로 섹션을 찾고(plusResolveSection) 없으면 만든다. 그 이름의 섹션이 없는데 만들 노트북을 모르거나 여러 노트북에 있으면
@@ -88,6 +95,8 @@
     if (state.data && state.data.settings && state.data.settings.rndUrl) document.getElementById('rndLink').href = state.data.settings.rndUrl;
     const hr = state.data && state.data.settings && state.data.settings.hr;
     if (hr && hr.url) document.getElementById('hrLink').href = hr.url;
+    const rcms = state.data && state.data.settings && state.data.settings.rcms;
+    if (rcms && rcms.url) document.getElementById('rcmsLink').href = rcms.url;
   }
   // 백그라운드가 캐시를 바꾸면(급여·연구수당 보기 클릭 → HR 수집 결과 등) 바로 반영 (content/eclass.js 와 같은 방식)
   try {

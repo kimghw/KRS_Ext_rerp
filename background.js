@@ -1,5 +1,5 @@
 /* 서비스워커: 데이터 수집/캐시, 배지, 캡처 로그 저장, 주기 갱신 */
-importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/prep-store.js',
+importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/prep-store.js', 'lib/rcms.js',
   'lib/plan.js', 'lib/mcp-client.js', 'lib/plus-onenote.js', 'lib/plan-sync.js');   // 확장 Plus: 예상 비용 ↔ 원노트 동기화 (plan.js 는 저장소 키·월간 구독 계산용)
 
 const CACHE_KEY = 'cache';
@@ -740,6 +740,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return { ok: true };
       }
       case 'openOptions': await chrome.runtime.openOptionsPage(); return { ok: true };
+      case 'openRcms': return await KRX_RCMS.open(sender);          // 패널·팝업 하단 "RCMS 열기": 탭을 열고 자동 로그인을 걸어 둠 (lib/rcms.js)
+      case 'rcmsLogin': return await KRX_RCMS.login(msg, sender);   // RCMS 화면(content/rcms.js): 로그인 폼에 넣을 값, 버튼을 누를지
       case 'clearCapture': await chrome.storage.local.set({ [CAPTURE_KEY]: [] }); return { ok: true };
       case 'invalidate': await chrome.storage.local.remove(CACHE_KEY); return { ok: true };
       // 청구 준비 (lib/prep.js 패널 ↔ lib/prep-store.js ↔ content/rnd-claim.js 청구서)

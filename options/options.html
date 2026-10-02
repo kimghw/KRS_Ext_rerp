@@ -170,6 +170,19 @@
     </details>
   </details>
 
+  <details class="card" data-collapse="rcms">
+    <summary><h2>RCMS 열기 · 자동 로그인 <span id="rcmsSummary" class="muted"></span></h2></summary>
+    <p class="help">패널·팝업 아래 바의 <b>RCMS 열기</b>는 RCMS(www.rcms.go.kr)를 새 탭으로 엽니다. 아래에 ID·비밀번호를 넣어 두면 로그아웃 상태일 때 로그인 화면으로 가서 <b>ID 로그인</b> 칸을 채우고 <b>로그인</b> 버튼까지 누릅니다.
+      그 뒤의 <b>2차 인증(SMS·인증앱)</b>은 직접 해야 합니다. 로그인 화면에 다른 경로로 들어가면 ID·비밀번호만 채우고 버튼은 누르지 않습니다 — 로그인에 실패하면 RCMS 가 같은 화면을 다시 보이므로, 틀린 비밀번호로 반복 시도해 계정이 잠기지 않게 버튼은 RCMS 열기 한 번에 한 번만 누릅니다.
+      ID·비밀번호는 <b>이 브라우저의 확장 저장소에만</b> 저장되고(암호화되지 않음, 다른 PC 로 동기화하지 않음) www.rcms.go.kr 로그인 화면에만 넣습니다. 여럿이 쓰는 PC 에서는 넣지 마세요. 아래 <b>저장</b>을 눌러야 반영됩니다.</p>
+    <label class="check"><input type="checkbox" id="rcmsAutoLogin"> RCMS 자동 로그인 (끄면 RCMS 열기는 링크만 열고 로그인 화면도 채우지 않음)</label>
+    <div class="grid">
+      <label>RCMS ID <input type="text" id="rcmsId" autocomplete="off" spellcheck="false"></label>
+      <label>RCMS 비밀번호 <input type="password" id="rcmsPw" autocomplete="new-password"></label>
+      <label class="wide">RCMS 링크 <input type="url" id="rcmsUrl"></label>
+    </div>
+  </details>
+
   <details class="card" data-collapse="unap">
     <summary><h2>미승인내역 실시간 조회 <span id="unapSummary" class="muted"></span></h2></summary>
     <p class="help">R&amp;D ERP 메인화면을 열면 아래 <b>캡처 로그</b>에 호출된 서비스가 기록됩니다. 미승인내역(임시저장/보완요청/신청/구매요청) 값을 돌려주는 서비스를 찾아

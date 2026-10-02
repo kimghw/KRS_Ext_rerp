@@ -27,6 +27,7 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
 | eClass | `https://eclass.krs.co.kr` | 홈 화면에 패널 삽입, R&D ERP·HR 자동 로그인의 SSO 발급원 |
 | R&D ERP | `https://rnd.krs.co.kr` | 미승인내역·과제·카드·예산·참여인력 조회, 청구서(카드)·회의록·과제 화면 도우미, 청구서 작성·신청 자동화 |
 | HR System | `https://hr.krs.co.kr` | 급여명세서 API 조회(읽기만) |
+| RCMS | `https://www.rcms.go.kr` | 패널에서 열기, 로그인 화면의 ID 로그인 칸 자동 입력(조회·쓰기 없음) |
 
 ### 1.3 구성 요소
 
@@ -52,12 +53,13 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
   - eClass 홈(`/eClassVer4/Home/Index*`, `/eClassVer4/Home`, `/eClassVer4/`): 패널.
   - `rnd.krs.co.kr` 모든 프레임: MAIN world 훅(`document_start`) + 격리 world 도우미(`document_idle`).
   - `hr.krs.co.kr` 최상위 프레임: 급여명세서 수집 대체 경로.
+  - `www.rcms.go.kr` 최상위 프레임: 로그인 화면 자동 입력(`PAN-11`). 호스트 권한은 따로 두지 않는다(백그라운드는 RCMS 에 요청하지 않음).
 - `CMN-03` 확장을 재로드하면 열려 있는 R&D ERP 탭에도 스크립트를 다시 넣는다(`scripting`). 다시 주입된 스크립트는 이전 스크립트를 멈추고 넣었던 요소를 걷어낸 뒤 새로 붙인다.
 
 ### 2.2 데이터·개인정보
 
 - `CMN-10` 확장이 만들어 내는 계획·준비 데이터(예상 비용, 예비 참여율, 받기 예정 연구수당, 청구 준비)는 확장 저장소(`chrome.storage.local`, 확장 IndexedDB)에만 저장한다. R&D ERP·HR 에는 보내지 않는다. 예외는 사용자가 명시적으로 누른 **청구서 작성 / 작성+신청 / 신청 / 임시저장 삭제** 와 회의록 등록이다.
-- `CMN-11` 비밀번호는 저장·전송하지 않는다. SSO 에 쓰는 UID·SID 는 저장하지 않는다. eClass·HR 자체 로그인 페이지는 건드리지 않는다.
+- `CMN-11` eClass·R&D ERP·HR 의 비밀번호는 저장·전송하지 않는다. SSO 에 쓰는 UID·SID 는 저장하지 않는다. eClass·HR 자체 로그인 페이지는 건드리지 않는다. 예외는 사용자가 설정 페이지에 직접 넣은 **RCMS ID·비밀번호**로, 이 브라우저의 `storage.local` 에만 두고(암호화 없음, 동기화·패널 캐시·캡처 로그에 넣지 않음) `www.rcms.go.kr` 로그인 화면에만 넣는다(`PAN-11`).
 - `CMN-12` HR System 에는 아무것도 쓰지 않는다(조회만). R&D ERP 결재(승인)는 확장이 하지 않는다(조회만).
 - `CMN-13` 설정은 `chrome.storage.sync` 에 저장하고 실패하면 `chrome.storage.local` 을 쓴다. 이전 버전 기본값이 저장돼 있으면 새 기본값으로 자동 이전한다(10.3).
 - `CMN-14` 툴바 팝업과 eClass 패널은 같은 저장 값(계획·준비·설정)을 공유한다.
@@ -101,7 +103,7 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
 - `PAN-04` 제목 줄 오른쪽에 동기화 시각, 새로고침(↻)·설정·접기 아이콘 버튼. 제목 줄에는 **신청**·**결재** 칩(클릭 동작은 3.3 과 같음)과 **미청구 / 집행비율** 전환 칩이 있다.
 - `PAN-05` 카드미청구 / 과제집행비율은 제목 줄 칩이나 구역 제목의 스위치로 전환하고 마지막 선택을 기억한다. 책임자·과제 목록은 두 보기가 공통이다.
 - `PAN-06` 과제 목록에는 머리글(책임자 · 과제 / 미청구 · 금액 또는 집행비율 · 예산잔액)이 있고, 행 끝 아이콘 칸으로 R&D ERP 과제정보의 카드 탭(카드미청구) 또는 자금현황 탭(과제집행비율)을 연다.
-- `PAN-07` 패널 아래 바: **R&D ERP 열기** · **HR System 열기**(eClass 화면에 HR 링크가 있으면 그 주소, 없으면 설정 `hr.url`) · **설정** 링크, 조회 범위, 버전.
+- `PAN-07` 패널 아래 바: **R&D ERP 열기** · **HR System 열기**(eClass 화면에 HR 링크가 있으면 그 주소, 없으면 설정 `hr.url`) · **RCMS 열기**(설정 `rcms.url`, `PAN-11`) · **설정** 링크, 조회 범위, 버전. 툴바 팝업의 맨 아래 버튼 줄에도 같은 링크가 있다.
 - `PAN-08` 툴바 아이콘을 누르면 같은 패널이 팝업으로 열린다. 팝업 창은 최대 600px 높이이며 패널 부분만 스크롤되고 아래 링크 바는 고정이다.
 - `PAN-09` 툴바 팝업에서는 파일을 넣을 수 없다(드래그·파일 선택 창 모두 팝업이 닫힘). 청구종류 선택과 지우기는 팝업에서도 된다.
 - `PAN-10` **Help Chat(0.8.2, 선택)**: 툴바 팝업 아래에 한 줄 입력란이 있다. 고칠 점이나 기대와 다른 결과를 한 줄로 보내면 이 PC 의 Help 서버(`help-server/server.js`, 기본 `http://127.0.0.1:8106`)가 Claude Code CLI(헤드리스, 기본 모델 `claude-opus-5-5`)를 확장 폴더에서 돌려 코드를 고친다.
@@ -111,6 +113,12 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
   - Claude 는 작업 트리의 파일만 고친다: 커밋·푸시·되돌리기, 버전 올리기, R&D ERP·HR·eClass 에 쓰는 동작, 확장 다시 불러오기는 하지 않는다(`help-server/rules.md`).
   - Help 서버는 `127.0.0.1` 에만 열리고, 처음 연결한 확장(`chrome-extension://<id>`)의 요청만 받는다. 웹 페이지 출처·다른 Host 의 요청은 거절한다.
   - 요청에는 한 줄 글과 화면 상태(확장 버전, 보고 있던 구역, 조회 시각·오류 문구, 과제·미청구 건수)만 붙인다. 금액·이름 등 조회 내용은 붙이지 않는다.
+- `PAN-11` **RCMS 열기 · 자동 로그인(0.8.3)**: **RCMS 열기**를 누르면 RCMS(`rcms.url`)를 새 탭으로 연다(eClass 패널에서는 그 탭 옆). RCMS 는 eClass SSO 대상이 아니므로 설정 페이지에 넣은 RCMS ID·비밀번호로 로그인 화면의 **ID 로그인** 칸을 채운다.
+  - 자동 로그인(`rcms.autoLogin`)이 켜져 있고 ID·비밀번호가 모두 있을 때만 동작한다. 아니면 링크만 연다.
+  - RCMS 열기로 연 탭이 포털에 닿으면 세션(`/wq/getSession.do` 의 `userInfo`)을 보고, 로그아웃 상태일 때만 로그인 화면(`/login/rid.do?PORTAL_YN=Y`)으로 가서 ID·비밀번호를 채우고 **로그인** 버튼을 누른다. 이미 로그인돼 있으면 아무것도 하지 않는다.
+  - **로그인 버튼은 RCMS 열기 한 번에 한 번만** 누른다(연 탭 하나, 2분 안). 로그인에 실패하면 RCMS 가 같은 로그인 폼(`loginRcvFail.do`)을 다시 보이므로, 폼이 보일 때마다 누르면 틀린 비밀번호로 반복 시도해 계정이 잠길 수 있기 때문이다. 다른 경로로 로그인 화면에 들어가면 칸만 채우고 버튼은 누르지 않으며, 비밀번호 칸에 이미 값이 있으면 건드리지 않는다.
+  - ID 로그인 뒤의 **2차 인증(SMS·인증앱)** 은 사용자가 직접 한다. 공동인증서 로그인은 다루지 않는다.
+  - 비밀번호는 백그라운드가 `www.rcms.go.kr` 최상위 프레임의 콘텐츠 스크립트에만 넘긴다(`CMN-11`).
 
 ### 3.2 툴바 아이콘 배지
 
@@ -401,6 +409,8 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | `rndUrl` | `https://rnd.krs.co.kr/rderp_layoutMain.act` | R&D ERP 열기 주소 |
 | `rndAutoLogin` | `true` | R&D ERP 자동 로그인(8장). 설정 페이지에 **지금 시도** 버튼 |
 | `prjPicker` | `true` | 과제 화면 내 참여 과제 드롭다운(7장) |
+| `rcms.url` | `https://www.rcms.go.kr/index.do` | RCMS 열기 주소 |
+| `rcms.autoLogin` | `true` | RCMS 자동 로그인(`PAN-11`). ID·비밀번호는 설정 값이 아니라 `storage.local.rcmsCred`(11장)에 두며 설정 페이지의 **저장**으로 함께 저장 |
 
 ### 10.2 과제·카드
 
@@ -518,6 +528,8 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | `krext › prepFiles` | 확장 IndexedDB | 청구 준비 첨부 파일 Blob | `claimPrep` 과 함께 |
 | `hrPay` | `storage.local` | 급여명세서 수집 원본(연도별 달 목록·지급내역, 직급, 사번, `status`) | 설정에서 삭제 |
 | `rndUser` | `storage.local` | R&D ERP 로그인 사용자(사번·이름·부서코드) | ERP 방문 시 갱신 |
+| `rcmsCred` | `storage.local` | RCMS ID·비밀번호 `{id, pw}`(암호화 없음, 동기화하지 않음) | 설정 페이지에서 두 칸을 비우고 저장하면 삭제 |
+| `rcmsAuto` | `storage.session` | RCMS 열기로 연 탭 `{tabId, until}` — 로그인 버튼을 한 번만 누르기 위한 표시 | 누른 뒤·이미 로그인돼 있을 때 삭제, 2분 뒤 무효, 브라우저를 닫으면 사라짐 |
 | 패널 캐시 | `storage.local` | 미승인내역·카드미청구·집행비율·참여율 마지막 조회, `autoLogin` 상태 | 갱신 주기 |
 | 캡처 로그 | `storage.local` | `.jct` 호출 기록(설정 페이지에서 확인) | — |
 | `helpChat` · `helpDraft` | `storage.local` | Help Chat 마지막 요청(작업 ID·요청 글·상태·요약·바뀐 파일·적용 여부) · 쓰던 글 | 새 요청·새 대화로 교체 |
@@ -581,7 +593,7 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | `rappr_0001_01.act` MY신청함, `rappr_0002_01.act` 개인결재함, `rappr_0017_01.act` 미신청내역조회 | 3.3, 6.7 |
 | `gw.common.jexNewWin`, `window.open`, `confirm`, `alert`, `Date.now`(훅 가로채기) | 2.5 |
 
-### 12.4 eClass · HR
+### 12.4 eClass · HR · RCMS
 
 | 대상 | 기능 |
 | --- | --- |
@@ -590,6 +602,7 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | HR `/popup/psmst`, `/pay/payself/payself110`, `/pay/payself/payself110/income` | 9 |
 | HR `/hrm_admin/login`(로그인 리다이렉트 감지) | 9 |
 | eClass 홈 "Popup Notice" 카드(패널 삽입 위치), HR 링크 | 3.1 |
+| RCMS 로그인 화면 `/login/rid.do`(WebSquare `loginForm.xml`: `#loginId` · `#loginPasswd` · `#btn_login` · `#successRedir`), 세션 `/wq/getSession.do` | 3.1 (`PAN-11`) |
 
 ## 13. 제약·미지원·알려진 문제
 

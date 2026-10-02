@@ -402,7 +402,11 @@
     $('hrBaseItem').value = h.baseItem || '';
     $('hrResearchItem').value = h.researchItem || '';
     $('hrUrl').value = h.url || '';
-    bgtInclude = Object.assign({}, s.budgetItemInclude || {});
+    const rc = Object.assign({}, S.DEFAULTS.rcms, s.rcms || {});   // RCMS 열기 · 자동 로그인 (ID·비밀번호는 settings 가 아니라 storage.local.rcmsCred — loadRcmsCred)
+    $('rcmsAutoLogin').checked = rc.autoLogin !== false;
+    $('rcmsUrl').value = rc.url || '';
+    updateRcmsSummary();
+    bgtInclude =Object.assign({}, s.budgetItemInclude || {});
     bgtDefaultKeys = (s.budgetExcludeDefault || []).map(normNm).filter(Boolean);
     renderBgtItems();
     const u = s.unapproved || {};
@@ -494,6 +498,7 @@
         researchItem: $('hrResearchItem').value.trim() || S.DEFAULTS.hr.researchItem,
         url: $('hrUrl').value.trim() || S.DEFAULTS.hr.url
       },
+      rcms: { autoLogin: $('rcmsAutoLogin').checked, url: $('rcmsUrl').value.trim() || S.DEFAULTS.rcms.url },
       unapproved: {
         serviceId: $('unapServiceId').value.trim(),
         input: $('unapInput').value.trim() || '{}',
@@ -563,9 +568,27 @@
 
   $('form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    try { await S.save(read()); setStatus('saveStatus', '저장했습니다. eClass 화면은 자동으로 다시 조회됩니다.'); }
+    try { await S.save(read()); await saveRcmsCred(); setStatus('saveStatus', '저장했습니다. eClass 화면은 자동으로 다시 조회됩니다.'); }
     catch (e) { setStatus('saveStatus', String(e.message || e), true); }
   });
+
+  /* ---------- RCMS 열기 · 자동 로그인: ID·비밀번호는 동기화되는 settings 대신 이 브라우저의 storage.local.rcmsCred {id, pw} 에만 둔다 (background.js rcmsLogin 이 RCMS 로그인 화면에만 넘김). 저장 버튼으로 함께 저장 ---------- */
+  function updateRcmsSummary() {
+    const id = $('rcmsId').value.trim(), pw = $('rcmsPw').value;
+    $('rcmsSummary').textContent = !$('rcmsAutoLogin').checked ? '자동 로그인 꺼짐' : (id && pw ? `자동 로그인 · ${id}` : 'ID·비밀번호 미입력 (링크만 엶)');
+  }
+  async function loadRcmsCred() {
+    let c = {};
+    try { c = (await chrome.storage.local.get('rcmsCred')).rcmsCred || {}; } catch (e) {}
+    $('rcmsId').value = c.id || ''; $('rcmsPw').value = c.pw || '';
+    updateRcmsSummary();
+  }
+  async function saveRcmsCred() {
+    const id = $('rcmsId').value.trim(), pw = $('rcmsPw').value;
+    if (id || pw) await chrome.storage.local.set({ rcmsCred: { id, pw } });
+    else await chrome.storage.local.remove('rcmsCred');
+  }
+  ['rcmsAutoLogin', 'rcmsId', 'rcmsPw'].forEach((id) => $(id).addEventListener('input', updateRcmsSummary));
   $('btnReset').addEventListener('click', () => { if (confirm('모든 설정을 기본값으로 되돌릴까요?')) fill(S.merge(S.DEFAULTS, {})); });
 
   /* ---------- Help Chat: 이 PC 의 Help 서버(help-server/server.js) 연결 확인. 설정 페이지도 확장 페이지라 localhost 호스트 권한으로 직접 부른다 (popup/help.js 와 같은 방식) ---------- */
@@ -840,6 +863,7 @@
   cacheData = local.cache || null;
   await initCollapse();
   fill(await S.load());
+  await loadRcmsCred();
   await loadProjects();
   await showRndUser();
   await showNameCandidates();

@@ -47,7 +47,7 @@ eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https:/
 
 패널은 기본적으로 eClass 본문의 "Popup Notice" 카드 위에 삽입되며, 설정의 **eClass 표시**에서 우측 상단 띄우기로 바꾸거나 eClass 홈에는 표시하지 않고(`eclassPanel`) 툴바 아이콘 팝업으로만 볼 수 있습니다 (끄면 열려 있는 eClass 화면에서도 바로 사라지고, 배지·자동 갱신은 그대로).
 제목 줄(버튼 제외) 아무 곳이나 클릭하면 접고 펼 수 있으며, 접힘 상태는 기억됩니다.
-제목 줄 오른쪽에는 동기화 시각(`● MM-DD HH:MM 기준`)과 새로고침 · 설정 · 접기 아이콘 버튼이 있습니다. 과제 목록에는 머리글(책임자 · 과제 / 미청구 · 금액 또는 집행비율 · 예산잔액)이 있고, 행 끝의 아이콘 칸으로 R&D ERP 과제정보와 카드 탭(카드미청구) 또는 자금현황 탭(과제집행비율)을 엽니다. 패널 아래 바에는 **R&D ERP 열기** · **HR System 열기**(eClass 화면에 HR 링크가 있으면 그 주소, 없으면 설정의 HR System 링크) · **설정** 링크와 조회 범위 · 버전이 표시됩니다.
+제목 줄 오른쪽에는 동기화 시각(`● MM-DD HH:MM 기준`)과 새로고침 · 설정 · 접기 아이콘 버튼이 있습니다. 과제 목록에는 머리글(책임자 · 과제 / 미청구 · 금액 또는 집행비율 · 예산잔액)이 있고, 행 끝의 아이콘 칸으로 R&D ERP 과제정보와 카드 탭(카드미청구) 또는 자금현황 탭(과제집행비율)을 엽니다. 패널 아래 바에는 **R&D ERP 열기** · **HR System 열기**(eClass 화면에 HR 링크가 있으면 그 주소, 없으면 설정의 HR System 링크) · **RCMS 열기**(0.8.3, 아래 "RCMS 열기 · 자동 로그인") · **설정** 링크와 조회 범위 · 버전이 표시됩니다.
 
 툴바 아이콘 배지에는 **내가 결재해야 하는 건수(받은 결재요청, 내 결재대기)** 가 있으면 그 수가 빨간색으로 우선 표시되고, 없으면 **카드미청구** 건수가 회색으로 표시됩니다(아이콘에 마우스를 올리면 보완요청·신청·받은 결재요청·카드미청구 건수). 내가 올린 결의서의 보완요청·신청 건수는 배지에 더하지 않습니다(0.7.1). 아이콘을 누르면 같은 패널이 팝업으로 열립니다 (팝업 창은 최대 600px 높이. 문서 전체가 아니라 패널 부분만 스크롤되고 아래 링크 바는 고정).
 
@@ -75,6 +75,7 @@ eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https:/
 - **진단**(설정 페이지 맨 아래): 과제를 고르거나 과제번호·과제명 일부(예: `멀티모듈`)를 적고 실행하면 확장이 쓰는 서비스의 원본 응답과 함께, 그 과제가 패널에 **보이지 않는 이유**를 정리해 보여줍니다 — 과제 검색 목록에 없음 / 진행상태명에 키워드(기본 "진행")가 없어 제외 / 설정에서 제외 / 참여인력(참여구분 계속)에 본인 사번 행 없음. 본인 행이 있으면 계상률·지급기간을 보여 주므로, 이미 빠진 과제가 계속 보이면 R&D ERP 참여인력에 행이 남아 있는 것입니다. 본인 행이 있어도 참여기간이 모두 끝났으면 그 사유를 보여줍니다. 확장의 참여인력 캐시와 지금 조회값이 다르면 그 차이(옛 값)를 보여주고, 진단한 과제의 캐시를 지금 값으로 바꾼 뒤 패널을 자동으로 다시 조회하므로 진단만 해도 바로잡힙니다. 본인 식별값(사번/ID·이름)과, 패널의 마지막 조회에서 과제 목록에 이 과제가 있었는지(과제 목록 서비스는 500건에서 잘릴 수 있음)·패널이 보여 주던 값도 함께 나옵니다. ↻ 로 참여인력을 다시 조회하다 실패한 과제는 이전 값을 쓰며 참여율 제목 줄에 `다시 조회 실패 N건`으로 표시됩니다.
 - **청구서(카드) 입력 도우미**(기본 켜짐, 아래 참고): 예산(비목)·RCMS 사용금액구분 기본값, 세목 빠른 선택 버튼 목록, 첨부문서 드래그 앤 드롭을 켜고 끕니다.
 - **급여·연구수당 (HR System)**(기본 켜짐, 아래 참고): 급여명세서 수집과 패널 표시, 직급(P1~P4, 비우면 HR 직원 정보에서 자동 감지)과 직급별 한도 비율(기본 P1 18% · P2 20% · P3 22% · P4 24%), 기본연봉·연구수당 항목명, HR 탭에서 지금 수집, 수집한 급여 정보 보기/지우기
+- **RCMS 열기 · 자동 로그인**(아래 참고): RCMS ID·비밀번호(이 브라우저에만 저장), 자동 로그인 켜기/끄기, RCMS 링크
 - **미승인내역 실시간 조회**: 기본값이 메인화면과 같은 서비스(`rmain_0002_01_r006`, 아래 참고)라 별도 설정 없이 갱신 주기마다 자동 조회됩니다. 다른 서비스로 바꾸고 싶을 때만 수정
 - **고급**: 서비스 ID / 입력 JSON (기본값은 R&D ERP 화면 스크립트에서 확인한 값)
 
@@ -258,6 +259,23 @@ HR 탭을 열어 둘 필요는 없고 HR 로그인 세션 쿠키가 살아 있�
 - 설정 페이지의 **급여·연구수당** 구역에서 수집된 원본(`hrPay`: 연도별 달 목록·지급내역, 직급, 사번, 마지막 수집 상태)을 확인하고 지울 수 있습니다.
 - HR 급여명세서 화면은 RealGrid(가상 스크롤: 보이는 행만 DOM 에 있음)로 그려지고 `debugger` 기반 개발자도구 감지 스크립트가 있어, 화면(DOM)을 읽는 이전 방식(0.5.x)은 일부 달만 잡히고 직급은 잡히지 않았습니다.
 
+## RCMS 열기 · 자동 로그인 (0.8.3)
+
+패널·팝업 아래 바의 **RCMS 열기**는 RCMS(범부처 연구비통합관리시스템, `https://www.rcms.go.kr/index.do`)를 새 탭으로 엽니다. RCMS 는 eClass SSO 대상이 아니라서(R&D ERP·HR 과 다름) ID·비밀번호로 로그인하며, 설정 페이지 › **RCMS 열기 · 자동 로그인**에 넣어 둔 값으로 확장이 로그인 화면을 채웁니다.
+
+- **동작**: RCMS 열기 → 백그라운드(`lib/rcms.js` `open`)가 탭을 열고 그 탭을 `storage.session.rcmsAuto {tabId, until}` 로 표시(2분) → 그 탭의 `content/rcms.js` 가 포털에서 세션(`/wq/getSession.do?sessionKey=…` → `userInfo`, 로그아웃이면 `null`)을 확인 →
+  로그아웃 상태면 로그인 화면(`/login/rid.do?PORTAL_YN=Y`, 포털 머리글의 로그인 버튼이 가는 주소)으로 이동 → **ID 로그인** 칸(`#loginId` · `#loginPasswd`)을 채우고 **로그인**(`#btn_login`)을 누릅니다. 이미 로그인돼 있으면 아무것도 하지 않습니다.
+- **2차 인증은 직접**: ID 로그인 뒤 RCMS 가 요구하는 2차 인증(화면이 SMS 인증으로 고정, `successRedir … &rcvType=sms`)은 확장이 할 수 없습니다. 인증번호 입력까지 사용자가 마쳐야 로그인됩니다. 공동인증서 로그인은 다루지 않습니다.
+- **로그인 버튼은 한 번만**: 로그인에 실패하면 RCMS 는 같은 로그인 폼(`/login/loginRcvFail.do`, 같은 `loginForm.xml`)을 다시 보여 줍니다. 폼이 보일 때마다 버튼을 누르면 틀린 비밀번호로 계속 시도해 계정이 잠길 수 있으므로,
+  버튼은 RCMS 열기로 연 탭에서 한 번만 누르고(누르는 순간 표시를 지움) 그 밖의 경로(주소 직접 입력, 세션 만료 뒤 로그인 화면, 실패 뒤 다시 보이는 폼)에서는 **칸만 채웁니다**. 비밀번호 칸에 이미 값이 있으면 건드리지 않습니다.
+- **ID·비밀번호 보관**: `chrome.storage.local.rcmsCred {id, pw}` — 이 브라우저 프로필에만, **암호화 없이** 저장합니다. 다른 PC 로 동기화되는 설정(`storage.sync`)·패널 캐시·캡처 로그에는 넣지 않습니다.
+  백그라운드(`lib/rcms.js` `login`)는 보낸 곳이 `https://www.rcms.go.kr/` 의 최상위 프레임 콘텐츠 스크립트일 때만 값을 넘깁니다. 여럿이 쓰는 PC 에서는 넣지 마세요. 설정 페이지에서 두 칸을 비우고 저장하면 지워집니다.
+- **로그인 화면 구조**(2026-10-02 확인): RCMS 는 WebSquare 화면이라 `rid.do` 가 `/common/login/loginForm.xml` 을 받아 그립니다. `form#loginForm` 은 `https://cims.keit.re.kr/login/login.do` 로 POST(`loginId`, `loginPasswd`, `sysCd=DI8017`, `popupYn=N`, `cmd=rcmsdn`, `failRedir`, `successRedir`)하고,
+  로그인 버튼은 `scwin.btn_login_onclick` → 시스템 작업시간 확인(`/rest/com/lginSysWorkNoti`) → form submit 입니다. 컴포넌트의 `getValue()` 가 DOM 값을 그대로 읽으므로 확장은 DOM 에 값을 넣고 버튼을 클릭만 합니다(격리 월드에서 충분, MAIN world 훅 없음). 키보드보안(TouchEn nxKey)은 이 화면에서 꺼져 있습니다.
+  콘텐츠 스크립트는 화면의 `onpageload`(form action·`successRedir` 채움, 저장된 아이디 복원)가 끝난 뒤(`#successRedir` 에 값이 생긴 뒤) 채웁니다.
+- **설정**: `rcms.autoLogin`(기본 켜짐. 끄면 링크만 열고 로그인 화면도 채우지 않음) · `rcms.url`(RCMS 열기 주소). ID·비밀번호가 비어 있으면 링크만 엽니다.
+- **검증**: `node tests/rcms-login.test.js`(버튼 한 번만 · 보낸 곳 확인). 실제 로그인 화면에서는 더미 값으로 칸 채우기와 버튼 클릭(가로채서 전송하지 않음), 포털 → 로그인 화면 이동까지 CDP 로 확인했고, **실제 계정으로 로그인 전송 → 2차 인증으로 넘어가는 것은 아직 확인 전**입니다.
+
 ## 미승인내역 실시간 조회
 
 메인화면(`rmain_0002_01.act`)의 `setPendingStatusCount()`가 호출하는 서비스를 그대로 씁니다.
@@ -337,6 +355,7 @@ lib/mcp-client.js      확장 Plus: MCP Streamable HTTP 클라이언트 (initial
 lib/plus-onenote.js    확장 Plus: OneNote 접근 (섹션·페이지 목록, 페이지 생성, 페이지 HTML 읽기, data-id 블록 찾기·생성 id 로 replace/append, 서버 도구 점검) — KR_MS365_mcp onenote 도구 사용
 lib/plan-sync.js       확장 Plus: 예상 비용 ↔ 과제별 원노트 페이지 동기화 (제목 규칙, 표+JSON 직렬화·해석, id/ts/묘비 병합, 과제별 run 오케스트레이션)
 lib/rnd-api.js         R&D ERP .jct 호출 (_JSON_ 이중 인코딩, EUC-KR 디코딩, 세션 오류 감지) + eClass SSO 재로그인(ssoLogin: loginCheck → sso_login_krs.jct → rderp_layoutMain.act)
+lib/rcms.js            RCMS 열기 · ID 로그인 자동 입력의 백그라운드 쪽 (탭 열기, storage.local.rcmsCred 의 ID·비밀번호를 RCMS 로그인 화면에만 넘김, 로그인 버튼은 연 탭에서 한 번만 — storage.session.rcmsAuto)
 lib/render.js          패널 렌더러 (eClass 삽입 / 팝업 공용)
 lib/plan.js            과제집행비율 예상 비용(세목·수량·단가) 저장소 + 입력 처리 (storage.local.plannedExpenses, 삭제 묘비 plannedDeleted, 동기화 상태 planSyncState 표시·요청)
 lib/pay.js             급여·연구수당의 받기 예정 연구수당(메모·금액) 저장소 + 입력 처리 (storage.local.plannedAllowance)
@@ -352,6 +371,7 @@ content/rnd-claim.js   rnd.krs.co.kr: 청구서(카드) 입력 도우미 (예산
 content/rnd-prjpick.js rnd.krs.co.kr: 과제책임자/과제명 칸의 내 참여 과제 드롭다운 (storage.local.projectList, 고르면 팝업 없이 화면 콜백에 적용, hidden #PRJ_NO 동기화로 메인화면에서 연 과제도 반영)
 content/rnd-meeting.js rnd.krs.co.kr 회의록 등록 팝업(rcomm_0071_01.act): 패널 청구 준비의 회의록 종류(식비/다과)·금액·참석자 카드를 팝업에 미리 넣고 규칙 안내 (저장은 사용자)
 content/hr-pay.js      hr.krs.co.kr(최상위 프레임): 백그라운드 hrCollect 요청(직접 호출 실패 시 대체 경로)을 받아 급여명세서 API 수집을 실행해 hrPay 로 보냄
+content/rcms.js        www.rcms.go.kr(최상위 프레임): 로그인 화면의 ID 로그인 칸 채우기, RCMS 열기로 연 탭이면 로그아웃 상태일 때 로그인 화면으로 가서 로그인 버튼까지 (2차 인증은 사용자)
 lib/hr-api.js          HR System 급여명세서 API 클라이언트 (직원 정보·직급, 급여지급내역 목록, 달별 지급내역 → hrPay patch). 백그라운드(setBase 로 절대 경로)와 HR 탭 공용
 options/               설정 페이지 (카드 필터, 조회 옵션, 청구서 입력 도우미, 급여·연구수당, 확장 Plus(MCP 주소·연결 확인·섹션 이름·노트북·섹션 찾기/만들기·지금 동기화·과제 페이지 모두 만들기·과제별 페이지 표), 미승인내역 서비스, 캡처 로그)
 popup/                 툴바 팝업 (아래 줄에 확장 Plus 켜기 — RERP 섹션을 찾고, 없으면 노트북을 골라 만듦)

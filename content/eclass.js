@@ -164,7 +164,7 @@
     try {
       const btn = ev.target.closest('[data-act]');
       if (!btn) return;
-      if (!alive()) { ev.preventDefault(); showStale(); return; }
+      if (!alive()) { if (btn.dataset.act !== 'rcms') ev.preventDefault(); showStale(); return; }   // RCMS 열기는 링크라 그대로 열림 (자동 로그인만 빠짐)
       const act = btn.dataset.act;
       if (act === 'refresh') { ev.preventDefault(); load(true); }
       else if (act === 'settings') { ev.preventDefault(); safe(() => chrome.runtime.sendMessage({ type: 'openOptions' })); }
@@ -177,6 +177,11 @@
         safe(() => chrome.storage.local.set({ panelSection: state.section })); draw();
       }
       else if (act === 'claim') { if (ev.target.closest('a')) return; ev.preventDefault(); if (btn.dataset.href) window.open(btn.dataset.href, '_blank', 'noopener'); }
+      else if (act === 'rcms') {   // 하단 RCMS 열기: 백그라운드가 탭을 열고 그 탭에 자동 로그인을 건다 (background.js openRcms). 안 되면 링크 주소를 그대로 연다
+        ev.preventDefault();
+        const open = () => window.open(btn.href, '_blank', 'noopener');
+        chrome.runtime.sendMessage({ type: 'openRcms' }).then((r) => { if (!r || !r.ok) open(); }, open);
+      }
     } catch (e) { showStale(); }
   });
 
