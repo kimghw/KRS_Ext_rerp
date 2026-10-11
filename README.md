@@ -35,7 +35,7 @@ eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https:/
 
 **예상 비용(계획)**: 펼친 표의 비목 이름 옆 **＋** 버튼을 누르면 그 비목 밑에 입력 줄이 열리고, **세목 · 수량 · 단가 · 금액**을 적어 추가(Enter)합니다.
 수량 × 단가를 적으면 금액이 자동으로 채워지고, 금액을 직접 적으면 단가를 수량으로 나눠 맞춥니다 (수량을 비우면 1). 세목 칸에는 청구서 세목 빠른 선택 버튼의 표시이름과 이미 적어 둔 세목이 자동완성으로 나옵니다.
-적어 둔 항목은 비목 밑에 `↳ 세목 · [−] 수량 [＋] × 단가 · −금액 · +예산 대비 비율`로 나열되고(수량 −/＋ 로 바로 증감, ✎ 수정, × 삭제), 그 비목과 합계에 **예상 반영** 행(예상 비용을 뺀 잔액, 더한 집행비율)이 추가되며, 접힌 과제 행의 잔액 밑에도 예상 잔액이 작게 표시됩니다.
+적어 둔 항목은 비목 밑에 `↳ 세목 · [−] 수량 [＋] × 단가 · −금액 · +예산 대비 비율`로 나열되고(수량 −/＋ 로 바로 증감, ✎ 수정, × 삭제), 그 비목 행 바로 밑(항목 줄들 위)과 합계에 **예상 반영** 행(예상 비용을 뺀 잔액, 더한 집행비율)이 추가되며, 접힌 과제 행의 잔액 밑에도 예상 잔액이 작게 표시됩니다.
 입력 줄의 수량 칸에도 −/＋ 버튼(↑/↓ 키)이 있습니다.
 **월간 구독**: 입력 줄의 **월간** 버튼을 켜면 수량 대신 **결제일**을 고르고 단가 칸이 월 결제액이 됩니다. 수량은 매월 그 날 결제로 보고 오늘(당일 포함)부터 올해 12월까지 남은 결제 횟수를 그릴 때마다 다시 세므로 날짜가 지나면 저절로 줄어듭니다
 (예: 결제일 8월 2일이면 9월 2일까지는 9·10·11·12월의 4회, 9월 3일부터는 3회). 항목 줄에는 `월간 2일` 태그와 남은 횟수가 표시되고 −/＋ 버튼은 없습니다 (결제일을 바꾸려면 ✎ 수정). 31일처럼 짧은 달에 없는 날은 그 달 말일로 봅니다. 예상 항목이 있는 과제는 표 머리글 **비목** 옆에 눈 아이콘(감추기/보이기)과 저장 아이콘이 붙습니다.
@@ -346,6 +346,41 @@ HR 탭을 열어 둘 필요는 없고 HR 로그인 세션 쿠키가 살아 있�
 - **설정 페이지 › Help Chat**: 줄 표시 여부(`help.enabled`) · 서버 주소(`help.url`, 이 PC 만) · 연결 확인(모델·CLI 버전·저장소 경로).
 - **한계**: 완료 알림이 없어 팝업을 다시 열어 확인합니다. Claude Code 사용량(구독 한도 또는 API 비용)이 요청마다 듭니다. 확장을 다른 폴더에서 다시 로드해 id 가 바뀌면 `.state.json` 의 `origin` 을 지워야 합니다.
 
+## 개발: 확장 다시 올리기 · 커밋 상태 (CDP, Claude Code Stop 훅)
+
+코드를 고친 뒤 chrome://extensions 의 ↻ 단추를 사람이 누르는 대신 CDP 로 다시 올립니다 — kr_ext_workspace 의 `test/cdp/reload.mjs` 와 같은 방식입니다.
+디버그 포트를 연 크롬(CLAUDE.md 의 CDP 용 Chrome, KRS 프로필, `--remote-debugging-port=9333` — 다른 포트는 `CDP_PORT`)에 **이 폴더에서 로드된** 압축해제 확장이 있어야 합니다.
+
+```
+node tests/cdp/reload.mjs            # 이 폴더에서 로드된 확장을 다시 올리고, 올라온 상태·오류·커밋 상태를 찍습니다 (바뀐 파일에 문법 오류가 있으면 올리지 않음 — --force 로 그대로)
+node tests/cdp/reload.mjs <확장 ID>   # 경로로 못 찾을 때(다른 폴더의 복사본 등)
+node tests/cdp/reload.mjs list       # 디버그 크롬의 압축해제 확장 목록(이름·버전·ID·상태·경로·남은 오류) — 이 폴더 것에 ← 표시
+node tests/cdp/reload.mjs git        # 커밋 상태 한 줄만(리로드 없음)
+```
+
+- 확장은 이름이 아니라 **경로**(`chrome.developerPrivate.getExtensionsInfo` 의 `path` 가 이 폴더)로 고릅니다 — 같은 이름의 확장이 다른 폴더에서 올라가 있어도 엉뚱한 것을 올리지 않습니다(이름만 맞으면 경로가 다르다고 알립니다). chrome://extensions 탭(없으면 잠깐 열었다 닫음)에서 `chrome.developerPrivate.reload(id, {failQuietly, populateErrorForUnpacked})` 를 부르고, 그 길이 막히면 확장의 서비스워커·페이지에서 `chrome.runtime.reload()` 로 대신합니다.
+- 끝나면 다시 올라온 상태와 **올라오면서 난 manifest·런타임 오류**를 찍습니다. 크롬은 리로드해도 런타임 오류 기록을 남겨 두므로 전에 쌓인 것은 먼저 찍고 비운 뒤 리로드합니다 — 리로드 뒤 보이는 것은 전부 새 오류입니다.
+- 리로드 뒤 열린 탭은 손댈 것이 없습니다: `background.js` 의 `onInstalled` 가 eClass 홈 탭을 새로고침하고, 열린 R&D ERP·HR 탭에는 브리지·청구서 도우미·HR 스크립트를 다시 넣습니다. 툴바 팝업·설정 페이지는 리로드로 닫히니 다시 엽니다.
+
+**Claude Code 가 코드를 고치면 자동으로 다시 올리고 커밋 상태를 알립니다.** `.claude/settings.local.json`(개인 설정, git 에 안 올라감)의 Stop 훅이 Claude 가 한 차례 작업을 마칠 때마다 `node tests/cdp/reload.mjs --if-changed` 를 부릅니다.
+
+1. 확장이 읽는 파일(`tests/`·`help-server/`·`.claude/`·`.git/` 과 `*.md`·`*.mp4`·`package*.json`·`.gitignore` 를 뺀 전부)의 가장 새 mtime 이 지난 리로드의 도장(임시 폴더 `krx-rerp-reload.stamp`)보다 새로울 때만 올립니다. 올리기 전에 그 뒤 바뀐 `.js` 는 `node --check`, `.json` 은 `JSON.parse` 로 문법을 보고, 깨진 것이 있으면 **올리지 않고 보류**합니다(도장도 그대로 — 고치면 다음 턴에 올립니다). Help Chat 서버의 "적용" 과 같은 보호입니다 — 깨진 채 올리면 팝업, 곧 Help Chat 창구까지 죽습니다. 디버그 포트 크롬이 없으면 그렇다고만 말합니다.
+2. git 으로 **커밋 상태**를 봅니다 — 커밋 안 한 변경(파일 수·이름), 올리지 않은 커밋 수, GitHub 에 새 커밋 수(`git fetch` 는 10분에 한 번, 비밀번호는 묻지 않고 실패로 둠). 리로드했거나 커밋 상태의 말이 지난번과 달라졌을 때만 보여 줍니다 — 같은 말을 매 턴 되풀이하지 않습니다. 커밋·푸시는 하지 않습니다(사용자가 합니다).
+
+```
+확장 다시 올림(lib/render.js 바뀜) — ENABLED, 오류 없음 / 커밋 상태: 커밋 안 한 변경 3개(README.md, SPEC.md, lib/render.js)
+```
+
+훅은 `/hooks` 에서 보고 끌 수 있습니다. Help Chat 서버가 헤드리스로 돌린 Claude(`claude -p`)가 끝날 때도 같은 훅이 돕니다(2026-10-11 확인) — 디버그 크롬의 확장은 그때 바로 다시 올라가고, 팝업의 "적용" 버튼은 디버그 포트가 없는 크롬을 위해 그대로 둡니다. 훅이 없는 PC 에서는 `.claude/settings.local.json` 을 이렇게 만듭니다:
+
+```json
+{ "hooks": { "Stop": [ { "hooks": [ { "type": "command",
+  "command": "node \"${CLAUDE_PROJECT_DIR:-.}/tests/cdp/reload.mjs\" --if-changed", "timeout": 90,
+  "statusMessage": "확장 소스가 바뀌었으면 CDP 로 다시 올리고 커밋 상태를 보는 중" } ] } ] } }
+```
+
+`tests/cdp/cdp.mjs` 는 의존성 없는 최소 CDP 클라이언트(Node 22+ 내장 WebSocket)로, 실서버 검증 스크립트에서도 그대로 씁니다. 2026-10-11 크롬 154 에서 리로드·오류 보고·훅 경로(바뀐 것 없으면 침묵, 소스가 바뀌면 다시 올림, 문법 오류면 보류)를 확인했습니다.
+
 ## 구조
 
 ```
@@ -379,6 +414,8 @@ popup/help.js          툴바 팝업 Help Chat 줄: 한 줄 요청을 Help 서�
 help-server/server.js  Help 서버 (Node, 의존 없음, 127.0.0.1:8106): 요청을 받아 Claude Code CLI(claude -p, 기본 claude-opus-5-5)를 이 폴더에서 실행, stream-json → 한 줄 로그, 바뀐 파일·문법 검사, 확장 출처 고정
 help-server/rules.md   Help Chat 의 Claude 작업 규칙 (시스템 프롬프트에 덧붙임: 범위, 하지 않는 것, 마지막 답변 형식)
 CLAUDE.md              Claude Code 용 저장소 안내 + Help Chat 을 쓸 때 필요한 것(설치·실행)
+tests/                 테스트(node tests/<파일>.test.js). tests/cdp/ 는 디버그 포트(9333) 크롬을 다루는 도구 — cdp.mjs(의존성 없는 CDP 클라이언트), reload.mjs(이 폴더에서 로드된 확장 다시 올리기 · 올라온 오류 · 커밋 상태, Stop 훅의 --if-changed)
+.claude/settings.local.json  (개인 설정, git 제외) Claude Code Stop 훅 — 작업을 마칠 때마다 tests/cdp/reload.mjs --if-changed 로 확장을 다시 올리고 커밋 상태를 알림
 offscreen/             오프스크린 문서: 백그라운드가 클립보드에 쓸 때(내보내기가 페이지를 만든 뒤 링크 복사) 잠깐 띄움
 ```
 

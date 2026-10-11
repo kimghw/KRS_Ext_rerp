@@ -1,3 +1,6 @@
 # Help Chat 서버가 만드는 것 (작업 기록 · 고정된 확장 출처/대화 세션)
 help-server/logs/
 help-server/.state.json
+
+# 개인 설정 (Stop 훅: tests/cdp/reload.mjs --if-changed — 이 PC 의 CDP 크롬에 기대므로 git 에 올리지 않음)
+.claude/settings.local.json

@@ -2,6 +2,7 @@
 
 - 파일별 역할은 README.md 의 "구조" 절, 기능 사양은 SPEC.md, eClass SSO 경로는 classSSO.md.
 - 빌드 단계 없음: 이 폴더를 `chrome://extensions` 에서 "압축해제된 확장"으로 로드해 쓴다. 테스트는 `node tests/<파일>.test.js`.
+- 코드를 고친 뒤 확장을 다시 올리는 것은 `.claude/settings.local.json` 의 Stop 훅이 한다: 작업을 마칠 때마다 `node tests/cdp/reload.mjs --if-changed` 가 디버그 포트(9333) 크롬의 **이 폴더에서 로드된** 확장을 CDP 로 다시 올리고(바뀐 파일에 문법 오류가 있으면 보류), 커밋 상태(커밋 안 한 변경·올리지 않은 커밋·GitHub 의 새 커밋)를 한 줄로 알린다 — README "개발: 확장 다시 올리기" 절. 작업 도중 새 코드로 실서버를 확인해야 하면 `node tests/cdp/reload.mjs` 를 직접 돌린다. Help Chat 의 헤드리스 실행(`claude -p`)이 끝날 때도 같은 훅이 돈다. 훅이 없는 PC 는 README 의 JSON 으로 만든다.
 - 동작이 바뀌면 README.md(해당 절이 있으면 SPEC.md 도)를 같이 고친다.
 
 ## Help Chat (help-server) 을 쓸 때 필요한 것
