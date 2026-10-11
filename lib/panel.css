@@ -7,6 +7,7 @@
 /* 본문 삽입 모드: 카드처럼 페이지 흐름에 배치, 두 구역을 가로로 */
 .krext-panel.krext-inline { position: static; width: auto; max-height: none; overflow: visible; margin: 0 0 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); border-top: 3px solid #1f4e9c; }
 .krext-panel.krext-inline.krext-collapsed { width: auto; }
+.krext-row .krext-panel.krext-inline { margin-bottom: 0; }   /* 패널만의 row(eClass 의 pt-3 mt-1)에 들어갈 때는 row 의 여백만 써서 다른 줄과 위아래 간격을 같게 (2026-10-06) */
 .krext-panel.krext-inline .krext-head { position: static; background: #f5f8fc; color: #1f4e9c; border-bottom: 1px solid #e3eaf3; padding: 10px 14px; }
 .krext-panel.krext-inline .krext-updated { color: #607089; opacity: 1; }
 .krext-panel.krext-inline .krext-dot { background: #8798b0; }

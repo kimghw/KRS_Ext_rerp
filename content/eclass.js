@@ -35,9 +35,12 @@
   host.id = 'krext-panel';
   host.className = 'krext-panel';
 
-  /* 본문 삽입 위치 찾기: "Popup Notice" 카드 → 그 카드(또는 그 카드가 속한 row)의 앞 */
+  /* 본문 삽입 위치 찾기: "Popup Notice" 카드 → 그 카드가 든 bootstrap row 의 **앞**(패널만의 row 로. rowClass = 그 row 의 여백 class).
+   * row 안에 col 로 넣으면 eClass 가 팝업 공지가 없는 날 그 row(#divPopupInfo)를 display:none 으로 숨겨 패널까지 안 보인다 (2026-10-06 확인).
+   * row 가 아니면 카드 앞. 넣을 자리의 조상이 숨겨져 있으면 본문 컨테이너 맨 앞 */
   function findInlineAnchor() {
     const isRow = (el) => el && el.classList && el.classList.contains('row');
+    const hidden = (el) => { for (let e = el; e && e !== document.body; e = e.parentElement) if (getComputedStyle(e).display === 'none') return true; return false; };
     const leaf = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,div,span,p,strong'))
       .find((el) => el.children.length === 0 && /^popup\s*notice$/i.test((el.textContent || '').trim()));
     if (leaf) {
@@ -45,12 +48,16 @@
       if (card && card !== document.body) {
         let node = card;
         while (node.parentElement && node.parentElement !== document.body && !isRow(node.parentElement)) node = node.parentElement;
-        if (isRow(node.parentElement)) return { parent: node.parentElement, before: node, wrapCol: true };
-        return { parent: card.parentElement, before: card, wrapCol: false };
+        const row = isRow(node.parentElement) ? node.parentElement : null;
+        if (row && !hidden(row.parentElement)) {
+          const rowClass = row.className.split(/\s+/).filter((c) => c === 'row' || /^[pm][tbxylrse]?-(n?\d+|auto)$/.test(c)).join(' ');   // row + 여백 유틸리티만 (숨김 class 는 따라 쓰지 않음)
+          return { parent: row.parentElement, before: row, rowClass };
+        }
+        if (!row && !hidden(card.parentElement)) return { parent: card.parentElement, before: card };
       }
     }
     const main = document.querySelector('.content-page .container-fluid, .content-page .content, .content-page, .page-content, main, #content, .container-fluid');
-    if (main) return { parent: main, before: main.firstElementChild, wrapCol: false };
+    if (main) return { parent: main, before: main.firstElementChild };
     return null;
   }
 
@@ -64,32 +71,36 @@
     return null;
   }
 
-  /* 패널을 본문 위치(a)에 넣는다. 부모가 bootstrap row 면 col 로 감싼다 */
+  /* 패널을 감싼 요소(.krext-row > .col-12.krext-col). 없으면 null */
+  const wrapper = () => host.closest('.krext-row') || host.closest('.krext-col');
+  /* 패널을 본문 위치(a)에 넣는다. a.rowClass 가 있으면 bootstrap row(.krext-row) > col(.krext-col) 로 감싸 그 자리 앞에 넣는다 */
   function mountInline(a) {
-    const col = host.closest('.krext-col');
+    const old = wrapper();
     host.classList.add('krext-inline'); host.classList.remove('krext-float');
-    if (a.wrapCol) {
-      const wrap = document.createElement('div');
-      wrap.className = 'col-12 krext-col';
-      wrap.appendChild(host);
-      a.parent.insertBefore(wrap, a.before);
+    if (a.rowClass != null) {
+      const row = document.createElement('div');
+      row.className = (a.rowClass || 'row') + ' krext-row';
+      const col = document.createElement('div');
+      col.className = 'col-12 krext-col';
+      col.appendChild(host); row.appendChild(col);
+      a.parent.insertBefore(row, a.before);
     } else {
       a.parent.insertBefore(host, a.before);
     }
-    if (col && col !== host.parentElement) col.remove();   // 이전 자리의 빈 col 정리
+    if (old && old !== wrapper()) old.remove();   // 이전 자리의 빈 row/col 정리
   }
   /* 패널을 우측 상단(body 끝, CSS position: fixed)으로 옮긴다 */
   function mountFloat() {
-    const col = host.closest('.krext-col');
+    const old = wrapper();
     host.classList.add('krext-float'); host.classList.remove('krext-inline');
     document.body.appendChild(host);
-    if (col) col.remove();
+    if (old) old.remove();
   }
-  let visible = true;   // 설정 eclassPanel. 숨김은 col 이 있으면 col 에(빈 col 이 여백을 남기지 않게), 아니면 host 에 건다
+  let visible = true;   // 설정 eclassPanel. 숨김은 감싼 row/col 이 있으면 거기에(빈 row 가 여백을 남기지 않게), 아니면 host 에 건다
   function applyVisible() {
     host.style.display = visible ? '' : 'none';
-    const col = host.closest('.krext-col');
-    if (col) col.style.display = visible ? '' : 'none';
+    const w = wrapper();
+    if (w) w.style.display = visible ? '' : 'none';
   }
 
   /* 설정의 표시 위치대로 패널을 놓는다(처음 한 번, 그리고 설정이 바뀔 때마다). 본문 삽입 위치를 못 찾으면 우측 상단으로 대체.
