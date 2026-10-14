@@ -550,11 +550,22 @@ chrome.runtime.onInstalled.addListener(() => {   // 설치/업데이트/재로�
   } catch (e) {}
 });
 chrome.runtime.onStartup.addListener(() => { ensureHrRules(); scheduleAlarm(); getCache().then(updateBadge); });
+
+/* 사이드 패널(0.8.4): 설정 actionSidePanel 이 켜져 있으면 툴바 아이콘 클릭이 팝업(action.default_popup) 대신 사이드 패널(manifest side_panel = 같은 popup/popup.html)을 연다.
+ * 팝업 제목 줄의 버튼(popup.js openSidePanel)과 아이콘 우클릭 메뉴 "사이드 패널 열기"는 이 설정과 무관하게 연다. Chrome 이 이 동작을 다시 시작한 뒤에도 기억하는지에 기대지 않고 워커가 뜰 때마다·설정이 바뀔 때마다 맞춘다 */
+async function applySidePanel() {
+  if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) return;
+  let on = false;
+  try { on = !!(await KRX_SETTINGS.load()).actionSidePanel; } catch (e) {}
+  try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: on }); } catch (e) {}
+}
+applySidePanel();
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); planSync('alarm').catch(() => {}); } });   // 자동 갱신 때 예상 비용 동기화도 (확장 Plus 가 켜져 있을 때만 실제 동작)
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if ((area === 'sync' || area === 'local') && changes.settings) {
     settingsGen++;   // 진행 중인 조회가 있으면 끝난 뒤 새 설정으로 한 번 더 돌게 함
+    applySidePanel();
     chrome.storage.local.remove(CACHE_KEY).then(() => { scheduleAlarm(); refresh(true).catch(() => {}); });
   }
 });

@@ -349,6 +349,7 @@
     $('eclassPanel').checked = s.eclassPanel !== false;
     togglePanelModeBox();
     document.querySelector(`input[name=panelMode][value="${s.panelMode === 'float' ? 'float' : 'inline'}"]`).checked = true;
+    $('actionSidePanel').checked = !!s.actionSidePanel;
     $('onlyMyProjects').checked = !!s.onlyMyProjects;
     $('myEmpNo').value = s.myEmpNo || '';
     $('myName').value = s.myName || '';
@@ -450,6 +451,7 @@
     return S.merge(S.DEFAULTS, {
       eclassPanel: $('eclassPanel').checked,
       panelMode: document.querySelector('input[name=panelMode]:checked').value,
+      actionSidePanel: $('actionSidePanel').checked,
       accountRule: $('accountRule').checked,
       showShared: $('showShared').checked,
       cardOverrides,

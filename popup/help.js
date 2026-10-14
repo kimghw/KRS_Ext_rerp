@@ -27,7 +27,7 @@
 
   /* 요청에 붙이는 화면 상태: 무엇을 보고 있었는지와 조회 오류만 (금액·이름 같은 내용은 보내지 않음) */
   async function context() {
-    const out = { from: '툴바 팝업' };
+    const out = { from: window.KRX_SIDE ? '사이드 패널' : '툴바 팝업' };   // 어디에 떴는지는 popup/mode.js 가 정함 (없으면 팝업으로 봄)
     try { out.version = chrome.runtime.getManifest().version; } catch (e) {}
     try {
       const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']);
@@ -62,7 +62,7 @@
     btnApply.hidden = !(has && cur.state === 'done' && !cur.applied && needsReload(cur.files) && !needsReload((cur.checks || []).map((c) => c.file)));
     btnNew.hidden = running || !has;
     btnSend.disabled = running; input.disabled = running;
-    input.placeholder = running ? '처리 중… (팝업을 닫아도 계속됩니다)' : 'Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter';
+    input.placeholder = running ? '처리 중… (이 창을 닫아도 계속됩니다)' : 'Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter';
     linesEl.hidden = !open || !has;
     if (!linesEl.hidden) {
       const stick = linesEl.scrollTop + linesEl.clientHeight >= linesEl.scrollHeight - 8;

@@ -1,5 +1,5 @@
 // 확장 다시 올리기 — 디버그 포트를 연 크롬에 **이 폴더**에서 로드된 압축해제 확장을 CDP 로 리로드한다(chrome://extensions 의 ↻ 단추와 같다).
-// kr_ext_workspace 의 test/cdp/reload.mjs 를 이 저장소에 맞춘 것 — 사이드패널이 없고(툴바 팝업), 리로드 뒤 커밋 상태(git)까지 한 줄에 붙인다.
+// kr_ext_workspace 의 test/cdp/reload.mjs 를 이 저장소에 맞춘 것 — 패널 문서는 툴바 팝업·사이드 패널(0.8.4, 같은 popup/popup.html)이고, 리로드 뒤 커밋 상태(git)까지 한 줄에 붙인다.
 //
 //   node tests/cdp/reload.mjs                 # 이 폴더에서 로드된 확장을 다시 올리고, 올라온 상태·오류·커밋 상태를 찍는다 (바뀐 파일에 문법 오류가 있으면 올리지 않음 — --force 로 그대로)
 //   node tests/cdp/reload.mjs <확장 ID>        # 경로로 못 찾을 때(다른 폴더의 복사본 등) ID 로 고른다
@@ -21,7 +21,7 @@
 // 남겨 두므로 전에 쌓인 것은 먼저 찍고 비운 뒤 리로드한다 — 그래서 리로드 뒤에 보이는 건 전부 새 오류다.
 //
 // 리로드 뒤 열린 탭: background.js 의 onInstalled 가 eClass 홈 탭은 새로고침하고 열린 R&D ERP·HR 탭에는 브리지·청구서 도우미·HR 스크립트를
-// 다시 넣으므로 손댈 것이 없다. 툴바 팝업·설정 페이지는 리로드로 닫힌다 — 다시 열면 된다.
+// 다시 넣으므로 손댈 것이 없다. 툴바 팝업·사이드 패널·설정 페이지는 리로드로 닫힌다 — 다시 열면 된다.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

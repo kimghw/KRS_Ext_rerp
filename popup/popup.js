@@ -1,9 +1,12 @@
-/* 툴바 팝업: 패널 렌더러 재사용 */
+/* 툴바 팝업 · 사이드 패널(같은 문서 — 어디에 떴는지는 popup/mode.js 가 구분): 패널 렌더러 재사용 */
 (async () => {
   const host = document.getElementById('krext-panel');
   const state = { mode: 'popup', loading: true, data: null, fatal: null, collapsed: false, expanded: new Set(), prepOpen: new Set() /* 청구 준비 요소를 보이는 과제·카드 묶음 (줄 끝 청구 아이콘, lib/prep.js) */, rndUrl: null, view: 'project', section: 'cards', version: '',
     plans: {}, planEdit: null, planDraft: null, planError: '' };   // 예상 비용 (lib/plan.js)
   try { state.version = chrome.runtime.getManifest().version; } catch (e) {}
+  // 사이드 패널·탭에 떴으면(popup/mode.js → KRX_SIDE) 창이 닫히지 않으므로 청구 준비 줄에 파일을 끌어다 놓을 수 있고(render.js prepCtx.files), 팝업 창이면 제목 줄에 "사이드 패널로 열기" 버튼(chrome.sidePanel.open, Chrome 116+)
+  state.sidePanel = !!window.KRX_SIDE;
+  state.sideOpen = !state.sidePanel && !!(chrome.sidePanel && chrome.sidePanel.open);
   try { const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']); state.data = l.cache || null; state.view = l.panelView === 'card' ? 'card' : 'project'; state.section = l.panelSection === 'budget' ? 'budget' : 'cards'; } catch (e) {}
   try { state.plans = await KRX_PLAN.load(); } catch (e) {}
   try { state.payPlans = await KRX_PAY.load(); } catch (e) {}   // 받기 예정 연구수당 (lib/pay.js)
@@ -13,7 +16,7 @@
   KRX_PLAN.bind(host, state, draw);   // 과제집행비율 표의 예상 비용 입력(＋/수정/삭제) 처리
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
-  KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업에는 파일을 끌어다 놓을 수 없음
+  KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
 
   host.addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-act]');
@@ -26,7 +29,16 @@
     else if (act === 'section') { ev.preventDefault(); state.section = btn.dataset.section === 'budget' ? 'budget' : 'cards'; chrome.storage.local.set({ panelSection: state.section }); draw(); }
     else if (act === 'claim') { if (ev.target.closest('a')) return; ev.preventDefault(); if (btn.dataset.href) chrome.tabs.create({ url: btn.dataset.href }); }
     else if (act === 'rcms') { ev.preventDefault(); openRcms(btn.href); }
+    else if (act === 'sidepanel') { ev.preventDefault(); openSidePanel(); }
   });
+  // 제목 줄 "사이드 패널로 열기"(팝업 창에만): 같은 문서를 이 창의 사이드 패널로 열고 팝업은 닫는다. 사용자 클릭 안에서 불러야 하므로 여기서 바로 연다. 아이콘 클릭 자체를 사이드 패널로 바꾸는 것은 설정 actionSidePanel (background.js applySidePanel)
+  async function openSidePanel() {
+    try {
+      const w = await chrome.windows.getCurrent();
+      await chrome.sidePanel.open({ windowId: w.id });
+      window.close();
+    } catch (e) { state.fatal = `사이드 패널을 열지 못했습니다: ${String((e && e.message) || e)}`; draw(); }
+  }
   document.getElementById('btnOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
   // RCMS 열기(패널 아래 바 · 툴바): 백그라운드가 탭을 열고 그 탭에 자동 로그인을 건다 (background.js openRcms). 안 되면 링크 주소를 그대로 연다
   function openRcms(href) {

@@ -12,6 +12,7 @@ eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https:/
 3. R&D ERP에 로그인된 상태(eClass에서 링크로 한 번 들어가 두면 됨)에서 eClass 홈을 열면 우측 상단에 패널이 뜹니다.
    - 로그인 세션이 없으면 확장이 먼저 **eClass SSO 로 자동 로그인**을 시도합니다(0.7.2, 아래 "R&D ERP 자동 로그인"). eClass 에 로그인돼 있으면 탭 없이 바로 이어지고, eClass 도 풀려 있으면 패널에 "eClass 로그인 필요"가 표시됩니다 — eClass 에 로그인하면 다음 조회에서 자동으로 이어집니다.
      자동 로그인을 껐거나 실패하면 "R&D ERP 로그인이 필요합니다"가 표시됩니다. R&D ERP 주소를 바로 열면 세션이 만들어지지 않으니, 그때는 eClass 화면의 R&D ERP 메뉴를 클릭해서 로그인한 뒤 ↻를 누르세요.
+4. 툴바 아이콘을 누르면 같은 패널이 팝업으로 열립니다. 팝업 제목 줄의 **사이드 패널** 버튼(▯)이나 아이콘 우클릭 → **사이드 패널 열기**로 Chrome 사이드 패널에 띄워 두면 탭을 옮겨도 닫히지 않습니다 (0.8.4, 아래 "설정"의 툴바 아이콘).
 
 ## 표시 내용
 
@@ -64,6 +65,8 @@ eClass 홈(`https://eclass.krs.co.kr/eClassVer4/Home/Index`)에 R&D ERP(`https:/
   어느 과제에도 귀속되지 않은 거래는 기본으로 숨기고, 설정의 "미귀속 카드 내역 표시"를 켜면 별도 묶음으로 보여줍니다.
 - **과제 선택**: 조회된 과제 목록에서 체크를 바꾸면 바로 저장·적용되어, 해제한 과제는 카드 조회와 패널 표시에서 제외됩니다 (새 과제는 기본 포함).
 - **eClass 표시**: "eClass 홈에 패널 표시"를 끄면 `content/eclass.js` 가 패널을 넣지 않아 툴바 아이콘 팝업으로만 보게 됩니다 (배지·자동 갱신·청구서 도우미·HR 수집은 영향 없음). 저장하면 열려 있는 eClass 화면에도 새로고침 없이 바로 반영됩니다 — 끄면 패널이 숨겨지고, 다시 켜면 나타나며(꺼 둔 채 연 화면이면 그때 만들어짐), 표시 위치(본문 삽입/우측 상단)를 바꾸면 패널이 그 자리로 옮겨집니다. 오래 가려져 있던 eClass 탭은 Chrome 이 멈춰 두어 변경이 그 탭으로 돌아오는 순간 반영됩니다.
+- **툴바 아이콘 · 사이드 패널 (0.8.4)**: 툴바 아이콘을 누르면 같은 패널이 팝업으로 열립니다. 팝업 제목 줄의 **사이드 패널** 버튼(▯, `chrome.sidePanel.open`)이나 아이콘 우클릭 → **사이드 패널 열기**로 Chrome 사이드 패널에 띄울 수 있고, "툴바 아이콘을 누르면 팝업 대신 사이드 패널로 열기"(`actionSidePanel`)를 켜면 아이콘 클릭이 바로 사이드 패널을 엽니다(`background.js applySidePanel` → `chrome.sidePanel.setPanelBehavior`, 워커가 뜰 때와 설정을 저장할 때 맞춤).
+  사이드 패널은 같은 `popup/popup.html`(manifest `side_panel`, 권한 `sidePanel`)입니다. `popup/mode.js` 가 `chrome.extension.getViews({ type: 'popup' })` 로 팝업 창인지 판별해 사이드 패널·탭이면 `html.krext-side` 를 붙여 문서가 패널 크기를 꽉 채우게 하고(팝업 창은 460px × 최대 600px), 창이 닫히지 않으므로 청구 준비 줄에 파일을 끌어다 놓거나 파일 선택 창을 쓸 수 있습니다(팝업 창에서는 안 됨). 다른 탭으로 옮겨도 열려 있고 캐시 갱신은 `storage.onChanged` 로 바로 반영됩니다.
 - "과제별 카드 귀속", "모니터링 카드 선택", "카드 별명", "미승인내역 실시간 조회", "고급: 서비스 ID / 입력값" 구역은 제목을 클릭해 접고 펼 수 있으며(기본 접힘), 마지막 상태를 기억합니다.
   접힌 제목 옆에 과제·카드 수, 필터 모드, 미승인내역 서비스 설정 여부, 고급 설정 변경 여부가 요약으로 표시됩니다.
 - **카드번호 필터**: 전체 보기 / 선택한 카드만 보기. 과제별 **과제카드발급내역**(`rtask_0008_t01_01_r002`)을 불러와
@@ -118,7 +121,7 @@ R&D ERP 의 카드 청구는 두 단계입니다: 청구서(카드) 화면에서
 - **청구내역(적요)**: 청구서 폼의 청구내역 칸(`#REQ_PTCL`)에 넣을 글을 적습니다. 화면이 필수로 요구하는 값이라 비어 있으면 "내역 추가"가 `청구내역이 입력되지 않았습니다.` 로 실패합니다 (카드 메모가 있으면 화면이 그 값을 미리 채워 둠).
   칸을 벗어나거나 Enter 를 누르면 저장되고(Esc 는 되돌림), 화면에 기본값이 있어도 여기 적은 글로 바꿔 넣습니다. 최대 500자, 화면 규칙대로 1000바이트(한글 2바이트)에서 잘립니다.
 - **첨부 파일**: 파일(영수증·증빙 PDF·이미지 등)을 거래 행이나 그 밑 줄에 끌어다 놓으면 이 브라우저(확장 저장소)에 저장되고 파일 칩(이름·크기·×)으로 나열됩니다. 여러 개 가능, 파일 하나 15MB 까지, 실행·스크립트 확장자는 제외.
-  툴바 팝업에서는 파일을 넣을 수 없어(끌어다 놓기·파일 선택 창 모두 팝업이 닫혀 버림) eClass 홈 패널에서 넣어야 합니다 (청구종류 선택과 지우기는 팝업에서도 됨). 과제 행의 건수 옆에 `준비 N`, 구역 제목에 `청구 준비 N건`이 표시됩니다.
+  툴바 팝업 창에서는 파일을 넣을 수 없어(끌어다 놓기·파일 선택 창 모두 팝업이 닫혀 버림) eClass 홈 패널이나 사이드 패널(0.8.4)에서 넣어야 합니다 (청구종류 선택과 지우기는 팝업에서도 됨). 과제 행의 건수 옆에 `준비 N`, 구역 제목에 `청구 준비 N건`이 표시됩니다.
 - **저장 위치**: 메타(승인번호·카드 뒤 4자리·청구종류·청구내역·파일 이름·작성/신청 상태 `run`)는 `storage.local.claimPrep`, 파일 내용은 확장 출처의 IndexedDB(`krext › prepFiles`)에 Blob 으로 (`lib/prep-store.js`, 백그라운드가 관리. 콘텐츠스크립트는 페이지 출처라 메시지로 base64 를 주고받음).
   거래가 미청구 목록에서 사라지면(내역 추가 뒤 등) 7일 뒤 자동으로 지워지고(그동안 신청 대기 목록에 남음), 신청까지 끝난 항목은 하루 뒤 지워지며, 설정 페이지의 **청구 준비 모두 지우기**로 한 번에 지울 수 있습니다. R&D ERP 에는 "청구서 작성"/"작성+신청"을 누르기 전까지 아무것도 보내지 않습니다.
 - **청구서를 직접 열 때** (거래 행 클릭): `content/rnd-claim.js` 가 주소의 승인번호(`krext_appr`)로 준비 항목을 받아 두고, 훅이 그 행을 자동 선택하면(`krext-row-selected`) 청구내역 폼에서 세목 빠른 선택(→ 청구종류 코드)을 고르고 청구내역(적요)을 적고 파일을 첨부 목록에 올립니다.
@@ -384,7 +387,7 @@ node tests/cdp/reload.mjs git        # 커밋 상태 한 줄만(리로드 없음
 ## 구조
 
 ```
-manifest.json          MV3 매니페스트 (host_permissions 에 localhost·127.0.0.1 — 확장 Plus 의 로컬 MCP 서버 호출용. offscreen·clipboardWrite — 내보내기가 페이지를 만든 뒤 링크를 클립보드에 쓰는 용도)
+manifest.json          MV3 매니페스트 (host_permissions 에 localhost·127.0.0.1 — 확장 Plus 의 로컬 MCP 서버 호출용. offscreen·clipboardWrite — 내보내기가 페이지를 만든 뒤 링크를 클립보드에 쓰는 용도. side_panel·sidePanel — popup/popup.html 을 사이드 패널로도 (0.8.4))
 background.js          서비스워커: 수집/캐시/배지/알람, 캡처 로그 저장, R&D ERP·HR 자동 로그인(rndAutoLogin·hrAutoLogin), 확장 Plus 예상 비용 동기화 배선(planSync·planSyncQueue·plusProbe·plusSections)
 lib/mcp-client.js      확장 Plus: MCP Streamable HTTP 클라이언트 (initialize/세션/tools/call, SSE 응답 해석, 오류 kind). 도메인 지식 없음
 lib/plus-onenote.js    확장 Plus: OneNote 접근 (섹션·페이지 목록, 페이지 생성, 페이지 HTML 읽기, data-id 블록 찾기·생성 id 로 replace/append, 서버 도구 점검) — KR_MS365_mcp onenote 도구 사용
@@ -409,7 +412,8 @@ content/hr-pay.js      hr.krs.co.kr(최상위 프레임): 백그라운드 hrColl
 content/rcms.js        www.rcms.go.kr(최상위 프레임): 로그인 화면의 ID 로그인 칸 채우기, RCMS 열기로 연 탭이면 로그아웃 상태일 때 로그인 화면으로 가서 로그인 버튼까지 (2차 인증은 사용자)
 lib/hr-api.js          HR System 급여명세서 API 클라이언트 (직원 정보·직급, 급여지급내역 목록, 달별 지급내역 → hrPay patch). 백그라운드(setBase 로 절대 경로)와 HR 탭 공용
 options/               설정 페이지 (카드 필터, 조회 옵션, 청구서 입력 도우미, 급여·연구수당, 확장 Plus(MCP 주소·연결 확인·섹션 이름·노트북·섹션 찾기/만들기·지금 동기화·과제 페이지 모두 만들기·과제별 페이지 표), 미승인내역 서비스, 캡처 로그)
-popup/                 툴바 팝업 (아래 줄에 확장 Plus 켜기 — RERP 섹션을 찾고, 없으면 노트북을 골라 만듦)
+popup/                 툴바 팝업 · 사이드 패널 (같은 popup.html — manifest side_panel. 아래 줄에 확장 Plus 켜기 — RERP 섹션을 찾고, 없으면 노트북을 골라 만듦)
+popup/mode.js          팝업 창인지 사이드 패널(·탭)인지 판별 (chrome.extension.getViews) → html.krext-side · window.KRX_SIDE. 사이드 패널은 문서를 꽉 채우고 파일 끌어다 놓기가 됨
 popup/help.js          툴바 팝업 Help Chat 줄: 한 줄 요청을 Help 서버에 보내고 진행·완료 한 줄 로그, 적용(확장 다시 불러오기)·중지·새 대화. 다른 lib·백그라운드에 기대지 않는 독립 스크립트
 help-server/server.js  Help 서버 (Node, 의존 없음, 127.0.0.1:8106): 요청을 받아 Claude Code CLI(claude -p, 기본 claude-opus-5-5)를 이 폴더에서 실행, stream-json → 한 줄 로그, 바뀐 파일·문법 검사, 확장 출처 고정
 help-server/rules.md   Help Chat 의 Claude 작업 규칙 (시스템 프롬프트에 덧붙임: 범위, 하지 않는 것, 마지막 답변 형식)

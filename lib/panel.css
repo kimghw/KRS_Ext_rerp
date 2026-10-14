@@ -3,6 +3,7 @@
   box-sizing: border-box; background: #fff; color: #222; border: 1px solid #d5dbe3; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.14);
   font: 13px/1.45 -apple-system, "Segoe UI", "Malgun Gothic", "맑은 고딕", Roboto, sans-serif; text-align: left; }
 .krext-panel.krext-popup { position: static; width: 460px; max-height: 560px; /* 실제 높이는 popup.html 의 flex 배치가 정함(max-height: none 으로 덮어씀) */ border: 0; border-radius: 0; box-shadow: none; }
+.krext-panel.krext-popup .krext-chips { order: 1; flex: 0 0 100%; }   /* 좁은 팝업·사이드 패널: 제목·시각·버튼(↻ 설정 사이드 패널)을 한 줄에 두고 칩은 그 아래 한 줄로 — 아니면 버튼 하나가 셋째 줄로 밀린다 (0.8.4) */
 .krext-panel.krext-collapsed { width: auto; overflow: hidden; }
 /* 본문 삽입 모드: 카드처럼 페이지 흐름에 배치, 두 구역을 가로로 */
 .krext-panel.krext-inline { position: static; width: auto; max-height: none; overflow: visible; margin: 0 0 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); border-top: 3px solid #1f4e9c; }
