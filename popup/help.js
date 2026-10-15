@@ -2,12 +2,13 @@
  * 일부러 독립 스크립트: 다른 lib·백그라운드가 (잘못된 수정으로) 깨져 있어도 이 창구로 다시 고쳐 달라고 할 수 있게 KRX_* 나 chrome.runtime.sendMessage 에 기대지 않는다. 팝업은 확장 페이지라 localhost 호스트 권한으로 서버를 직접 fetch 한다.
  * 팝업은 다른 곳을 누르면 닫히므로 작업은 서버에서 계속 돌고, 마지막 요청은 storage.local.helpChat = { id, text, at, state(running|done|error|canceled), summary, error, files, checks, endedAt, applied } 에 남겨 다시 열 때 이어서 본다(쓰던 글은 helpDraft).
  * 끝나면 "적용" = chrome.runtime.reload() (바뀐 파일이 있고 서버의 문법 검사가 통과했을 때만 보임). "새 대화"는 다음 요청을 이전 대화와 잇지 않는다(helpChat = { fresh: true }).
+ * 보내기가 서버 연결 실패로 끝나면 그 옆에 "설정 프롬프트 복사": 서버가 없어 이 줄로는 물을 수 없는 새 PC 에서, 준비물 확인·서버 실행을 시키는 글(lib/help-setup.js — 없으면 아래 짧은 글)을 복사해 저장소 폴더의 대화형 Claude Code 에 붙여 넣게 한다.
  * 설정 help = { enabled, url } (lib/settings.js) — 주소는 이 PC(localhost · 127.0.0.1)만 */
 (() => {
   const DEFAULT_URL = 'http://127.0.0.1:8106', KEY = 'helpChat', DRAFT = 'helpDraft';
   const $ = (id) => document.getElementById(id);
   const bar = $('helpbar'), form = $('helpForm'), input = $('helpText'), btnSend = $('helpSend'), row = $('helpRow'), statusEl = $('helpStatus'), linesEl = $('helpLines'),
-    btnApply = $('helpApply'), btnStop = $('helpStop'), btnNew = $('helpNew');
+    btnApply = $('helpApply'), btnStop = $('helpStop'), btnNew = $('helpNew'), btnSetup = $('helpSetup');
   if (!bar || !form) return;
   let base = DEFAULT_URL, cur = null, lines = [], next = 0, detail = '', timer = 0, tick = 0, note = null /* { text, err } 서버 연결 안내 등 일시 문구 */, open = false;
 
@@ -61,6 +62,7 @@
     btnStop.hidden = !running || !!note;
     btnApply.hidden = !(has && cur.state === 'done' && !cur.applied && needsReload(cur.files) && !needsReload((cur.checks || []).map((c) => c.file)));
     btnNew.hidden = running || !has;
+    if (btnSetup) btnSetup.hidden = !(note && note.setup);   // 서버에 연결하지 못했을 때만 (note.setup = 그때 본 연결 상태 한 줄)
     btnSend.disabled = running; input.disabled = running;
     input.placeholder = running ? '처리 중… (이 창을 닫아도 계속됩니다)' : 'Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter';
     linesEl.hidden = !open || !has;
@@ -114,9 +116,9 @@
       if (r.ok) { input.value = ''; try { chrome.storage.local.remove(DRAFT); } catch (e) {} }
       await save();
       watch();
-    } else { note = { text: r.error || '요청을 보내지 못했습니다', err: true }; render(); btnSend.disabled = false; }
+    } else { note = { text: r.error || '요청을 보내지 못했습니다', err: true, setup: r.kind === 'offline' ? r.error || '연결할 수 없습니다' : '' }; render(); btnSend.disabled = false; }
   });
-  input.addEventListener('input', () => { try { chrome.storage.local.set({ [DRAFT]: input.value }); } catch (e) {} if (note && note.err) { note = null; render(); } });
+  input.addEventListener('input', () => { try { chrome.storage.local.set({ [DRAFT]: input.value }); } catch (e) {} if (note && (note.err || note.setup)) { note = null; render(); } });   // 글을 고치면 오류·설정 프롬프트 안내는 치움
   statusEl.addEventListener('click', () => { if (cur && cur.id) { open = !open; render(); if (open) linesEl.scrollTop = linesEl.scrollHeight; } });
   btnStop.addEventListener('click', async () => { btnStop.disabled = true; await api('/cancel', {}); btnStop.disabled = false; clearTimeout(timer); poll(); });
   btnApply.addEventListener('click', async () => {   // 확장을 다시 불러와 바뀐 코드를 적용 (팝업은 닫힌다. 열려 있는 eClass 홈은 백그라운드가 새로고침)
@@ -124,6 +126,19 @@
     try { chrome.runtime.reload(); } catch (e) { note = { text: '다시 불러오지 못했습니다 — chrome://extensions 에서 새로고침하세요', err: true }; render(); }
   });
   btnNew.addEventListener('click', async () => { stopTimers(); cur = { fresh: true }; lines = []; next = 0; detail = ''; note = null; open = false; await save(); render(); input.focus(); });
+  /* [설정 프롬프트 복사]: 서버를 못 붙인 PC 에서 Claude Code 에 붙여 넣을 글 — lib/help-setup.js 가 만들고, 그 파일이 없거나 깨졌으면 짧은 글로 (이 스크립트의 독립성 유지) */
+  const setupText = (reason) => {
+    const o = { url: base, from: window.KRX_SIDE ? '사이드 패널 Help Chat' : '툴바 팝업 Help Chat', reason: reason || '' };
+    try { o.version = chrome.runtime.getManifest().version; } catch (e) {}
+    try { if (window.KRX_HELP_SETUP) return KRX_HELP_SETUP.prompt(o); } catch (e) {}
+    return `[KR eClass + R&D ERP 현황 확장 — Help 서버(LLM) 연결 설정]\n이 폴더(kr_ext_rerp 저장소)의 CLAUDE.md "Help Chat (help-server) 을 쓸 때 필요한 것" 절을 따라 준비물(Node 22 이상 · git · Claude Code CLI 2.1.280 이상과 로그인)을 확인하고, 별도 터미널에서 node help-server/server.js 를 띄운 뒤 ${base}/health 로 확인해 주세요. 확장 코드 수정·커밋은 하지 마세요.`;
+  };
+  if (btnSetup) btnSetup.addEventListener('click', async () => {
+    const reason = (note && note.setup) || '';
+    try { await navigator.clipboard.writeText(setupText(reason)); note = { text: '설정 프롬프트를 복사했습니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으면 준비물 확인과 서버 실행을 안내합니다', setup: reason }; }
+    catch (e) { note = { text: `복사하지 못했습니다: ${e.message}`, err: true, setup: reason }; }
+    render();
+  });
 
   (async () => {
     try {

@@ -53,6 +53,8 @@ Azure 는 처음에 내려받기가 10초 넘게 걸려 손잡이가 놓쳤고(�
 | `GET /fetch/job?id=&since=N` | `{ job: { state: running·done·empty·error·canceled, summary, error, item, matched, howto, files: [{ name, kind, base, mime, bytes, note }], missing: [{ kind, reason }], cost }, lines, next }` |
 | `GET /fetch/file?id=&name=` | 받은 서류 원본 (그 작업의 `files` 에 있는 이름만) |
 | `POST /fetch/cancel { id }` | 중지 |
+| `GET /fetch/guide?url=<사이트 주소>` | 그 주소에 맞는 사이트 안내 파일 원문 `{ host, files: [{ name: "site-fetch/sites/inflearn.md", text }] }` — 설정 페이지 가맹점의 **안내 복사** |
+| `GET /fetch/skill` | fetch-site 스킬 원문 `{ name, path, text }`(`.claude/skills/fetch-site/SKILL.md`) — 설정 페이지의 **스킬 복사** |
 
 Help 서버의 요청 검사(Host 는 127.0.0.1/localhost, Origin 은 처음 연결한 확장만)를 그대로 거칩니다. `GET /health` 의 `fetch` 에 모델 이름이 있어야 확장이 이 기능이 있는 서버로 봅니다(Node 22 미만이면 빈 값 + `fetchNote`).
 
@@ -78,7 +80,7 @@ Help 서버의 요청 검사(Host 는 127.0.0.1/localhost, Origin 은 처음 연
 
 ## 가맹점마다 브라우저 — 요청의 `site.browser` (확장 등록의 "로그인해 둔 Chrome")
 
-가맹점 등록(설정 › 증빙 찾아오기, 패널의 자주 사용 등록 칸)에 적은 값이 요청의 `site.browser` 로 와서 `chrome.js ensureBrowser(spec)` 가 local.json·환경 변수보다 먼저 본다. 빈 값이면 아래 "이 PC 의 브라우저 설정" 대로.
+가맹점 등록(설정 › LLM 설정 › 증빙 찾아오기, 패널의 자주 사용 등록 칸)에 적은 값이 요청의 `site.browser` 로 와서 `chrome.js ensureBrowser(spec)` 가 local.json·환경 변수보다 먼저 본다. 빈 값이면 아래 "이 PC 의 브라우저 설정" 대로.
 
 | 값 | 붙는 곳 | 안 떠 있으면 |
 | --- | --- | --- |
@@ -105,38 +107,16 @@ Help 서버의 요청 검사(Host 는 127.0.0.1/localhost, Origin 은 처음 연
 
 `sites/<이름>.md` 를 만들고 첫 줄에 `hosts: example.com, login.example.com` — 그 뒤에 구매내역 주소, 로그인 화면, 서류 버튼 이름, 함정(덮이는 카드, iframe, 날짜 형식)을 적습니다. 실제 찾아오기가 성공하면 Claude 가 남긴 `howto` 가 그 사이트 등록(확장의 `fetchSites[].howto`)에 저장되어 다음 요청에 참고로 갑니다(설정 페이지에서 고치거나 비울 수 있음).
 
-### Claude Code 로 새 사이트 붙이기 (복사해서 쓰는 프롬프트)
+### Claude Code 로 새 사이트 붙이기 — fetch-site 스킬
 
-확장 설정 페이지 › 증빙 찾아오기에서 가맹점마다 **만들기 프롬프트 복사**(그 가맹점의 이름·가맹점 글자·주소·종류·필요 서류·지난 결과를 채움) 또는 아래 **새 사이트 만들기 프롬프트 복사**(빈 칸 틀)를 누르고, 이 확장 폴더에서 연 Claude Code 에 붙여 넣습니다. 만드는 곳은 `lib/fetch-sites.js buildPrompt` — 아래는 빈 칸 틀(＿＿ 을 채움)입니다.
+절차는 저장소의 **fetch-site 스킬** [`.claude/skills/fetch-site/SKILL.md`](../.claude/skills/fetch-site/SKILL.md) 한 곳에 있습니다(대화형 Claude Code 에서 `/fetch-site <가맹점>`): `run.js` 로 한 번 돌려 헤맨 곳을 보고 → `sites/<영문 이름>.md` 를 만들고 → 다시 돌려 확인하고 README 실측 표에 더하고 → `DOC_HINT` · `lib/fetch-sites.js KNOWN` · README 사이트 목록을 고칩니다. 결과물은 셋 — 사이트 안내 파일, **기억한 찾는 방법** 한 줄(마지막 답변의 `howto:` 줄), 시험으로 받은 서류(`site-fetch-out/<이름>/`, git 제외).
 
-Claude 는 확장을 건드리지 않는 단독 실행(`run.js`)으로만 사이트를 시험합니다 — 확장 서비스워커에서 찾아오기를 시작하면 사용자 패널에 누르지 않은 찾아오기가 뜨고 결과 파일이 그 거래에 들어가므로(2026-10-14 실제로 있었음) 확장 경로 확인은 사용자가 패널의 [찾아오기]를 누릅니다.
+쓰는 길은 셋입니다.
 
-```text
-[증빙 찾아오기 — 새 사이트 붙이기]
-이 저장소(kr_ext_rerp)의 증빙 찾아오기에 아래 가맹점 사이트를 붙여 주세요. 청구 준비 줄의 [찾아오기]가 이 사이트에서 카드 거래 하나의 필요 서류를 찾아 첨부 파일로 넣게 하는 것이 목표입니다.
+| 어디서 | 무엇이 가나 |
+| --- | --- |
+| 확장 설정 페이지 › LLM 설정 탭(증빙 찾아오기) **맨 위의 사이트 만들기 채팅** | 가맹점을 고르고 한 줄 적으면 `lib/fetch-sites.js buildPrompt` 가 만든 글(이 스킬을 가리키는 가맹점 블록 — 이름·가맹점 글자·주소·종류·필요 서류·로그인해 둔 Chrome·메모·지난 방법·지난 결과 + 요청 한 줄 + 지킬 것 + 답변 형식. 아이디·비밀번호 없음)이 Help 서버 `POST /ask` 로 가서 헤드리스 Claude 가 이 폴더에서 돕니다. 끝나면 답변의 `howto:` 가 그 가맹점의 기억한 찾는 방법 칸에 채워집니다(저장은 사용자) |
+| 가맹점의 **만들기 프롬프트 복사** · 아래 **새 사이트 만들기 프롬프트 복사**(빈 칸 틀) | 같은 글을 클립보드로 — 이 확장 폴더에서 연 Claude Code 에 붙여 넣습니다 |
+| 채팅 아래 **스킬 복사** · 가맹점의 **안내 복사** | `GET /fetch/skill` 로 스킬 원문, `GET /fetch/guide?url=` 로 그 사이트의 `sites/*.md` 원문(+ 등록 값·기억한 찾는 방법)을 복사 — 다른 저장소·PC 에 옮길 때 |
 
-가맹점
-- 이름: ＿＿
-- 카드 내역의 가맹점 이름에 든 글자: ＿＿
-- 시작 주소(구매·결제 내역 화면이면 좋음): ＿＿
-- 종류: ＿＿ — 필요 서류: ＿＿
-  (설정 › 증빙 찾아오기 › 종류별 필요 서류: 강의(lecture) = 강의내용·견적서·수강증 / 구독(subscription) = 거래명세서 / 기타(other) = 거래명세서)
-- 시험할 거래: 사용일 ＿＿ · 금액 ＿＿ (모르면 사이트 구매 내역의 가장 최근 결제로)
-
-먼저 읽을 것
-- site-fetch/README.md (구조 · 단독 실행 · 안전장치), site-fetch/prompt.js (찾는 Claude 에 주는 규칙 SYSTEM · 서류 설명 DOC_HINT), site-fetch/sites/inflearn.md · azure.md (사이트 안내 예)
-
-할 일
-1. 요청 파일을 스크래치 폴더에 만들어(형식은 README "단독 실행". 비밀번호는 파일에 넣지 말고 필요하면 환경 변수 KRX_FETCH_ID · KRX_FETCH_PW) `node site-fetch/run.js 요청.json --out <폴더>` 로 한 번 돌린다. 진행 줄 · 결과 JSON(matched · howto · missing) · 받은 파일을 보고 어디서 헤맸는지 찾는다.
-2. site-fetch/sites/<영문 이름>.md 를 만든다. 첫 줄 `hosts: <사이트 도메인>, <로그인 도메인>`(시작 주소가 이 도메인이면 찾는 Claude 의 프롬프트에 붙음), 둘째 줄 `[이름] 출처: … (YYYY-MM-DD 실측)`, 그 아래 한 줄씩:
-   로그인(칸 · 추가 인증) · 구매/결제 내역 주소와 행에서 날짜·금액·주문번호를 읽는 법 · 필요 서류마다 어디서 어떻게 저장하는지(download · saveurl · pdf · capture) · 함정(내려받기 지연, 다른 출처 iframe, 없는 주소 404, 해외 결제 금액 차이, 사이트가 주지 않는 서류).
-3. 다시 run.js 로 돌려 필요 서류가 모두 나오는지(사이트가 주지 않는 것은 missing 이유와 함께) 확인하고, 결과·걸린 시간·비용을 site-fetch/README.md 의 실제 시험 표에 한 줄 더한다.
-4. 필요 서류 이름이 site-fetch/prompt.js 의 DOC_HINT 에 없으면 한 줄 설명을 더한다(이 사이트에서 부르는 이름 — 예: Invoice · Receipt · 수강확인증).
-5. lib/fetch-sites.js 의 KNOWN 에 { re, label, match, url, kind } 를 더해 패널의 [자주 사용 등록]이 이 사이트로 미리 채워지게 하고 `node tests/prep-fetch.test.js` 를 돌린다.
-6. README.md 의 증빙 찾아오기 절(사이트 안내가 있는 사이트 목록)에 이 사이트를 더한다.
-
-지킬 것
-- 확장에서 찾아오기를 시작하지 않는다(KRX_PREP_FETCH.start · prepFetch 메시지 · CDP 로 서비스워커 평가 모두). 확장 경로 확인은 사용자가 패널의 [찾아오기]를 누른다. 확장 설정(help.url 등)도 바꾸지 않는다.
-- 사거나 바꾸지 않는다(조회 · 영수증 보기/내려받기만). 회사 시스템(*.krs.co.kr · rcms.go.kr)으로 가지 않는다. 아이디·비밀번호를 파일·로그·대화에 남기지 않는다.
-- 다른 웹 사이트에 가는 코드는 site-fetch/ 에만 둔다. 커밋하지 않는다 — 바뀐 파일과 시험 결과를 알려 주면 사용자가 확인하고 커밋한다.
-```
+Claude 는 확장을 건드리지 않는 단독 실행(`run.js`)으로만 사이트를 시험합니다 — 확장 서비스워커에서 찾아오기를 시작하면 사용자 패널에 누르지 않은 찾아오기가 뜨고 결과 파일이 그 거래에 들어가므로(2026-10-14 실제로 있었음) 확장 경로 확인은 사용자가 패널의 [찾아오기]를 누릅니다. 헤드리스(채팅)에서는 아이디·비밀번호를 받지 않으니 로그인은 **로그인해 둔 Chrome**(`site.browser`)이나 서버 기본 브라우저의 세션, 또는 남아 있는 작업 창에서 직접 합니다.

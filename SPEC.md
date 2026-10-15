@@ -112,6 +112,7 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
 - `PAN-09` 툴바 팝업 창에서는 파일을 넣을 수 없다(드래그·파일 선택 창 모두 팝업이 닫힘). 청구종류 선택과 지우기는 팝업에서도 된다. 사이드 패널에서는 eClass 패널과 같이 끌어다 놓기·파일 선택 창이 된다(`lib/render.js prepCtx.files`).
 - `PAN-10` **Help Chat(0.8.2, 선택)**: 툴바 팝업 아래에 한 줄 입력란이 있다. 고칠 점이나 기대와 다른 결과를 한 줄로 보내면 이 PC 의 Help 서버(`help-server/server.js`, 기본 `http://127.0.0.1:8106`)가 Claude Code CLI(헤드리스, 기본 모델 `claude-opus-5-5`)를 확장 폴더에서 돌려 코드를 고친다.
   - 입력란 밑 한 줄에 진행(경과 시간 · 마지막 동작) → **완료 / 실패 / 중지됨**과 한 줄 요약·바뀐 파일 수를 보이고, 그 줄을 누르면 전체 로그가 펼쳐진다. 팝업을 닫아도 작업은 서버에서 계속되며 다시 열면 이어서 보인다.
+  - 보내기가 서버 연결 실패(`Help 서버에 연결할 수 없습니다`)로 끝나면 그 옆에 **설정 프롬프트 복사**: `lib/help-setup.js` 가 만든 글(CLAUDE.md 의 준비물 확인 · 포트 확인 · 별도 터미널에서 `node help-server/server.js` · `/health` 확인을 Claude Code 에 시키는 요청, 확장 코드 수정·커밋 금지, 설정된 서버 주소 · 확장 버전 · 그때 본 연결 상태 한 줄 포함)을 클립보드에 복사한다 — 서버가 없어 Help Chat 을 못 쓰는 새 PC 에서 저장소 폴더(확장을 로드한 폴더)의 대화형 Claude Code 에 붙여 넣는 용도. 그 파일이 없으면 짧은 글로 대신한다. 설정 페이지 › LLM 설정에도 연결이 안 될 때 같은 버튼(**Claude Code 설정 프롬프트 복사**, `OPT-LLM`).
   - 확장 파일이 바뀌었고 서버의 문법 검사(`.js` `node --check`, `.json` 파싱)가 통과했을 때만 **적용** 버튼이 보이고, 누르면 확장을 다시 불러온다. 문법 오류가 있으면 적용을 보류하고 알린다.
   - 한 번에 한 요청만 처리한다. 이어지는 요청은 2시간 안이면 같은 대화로 이어지고, **새 대화**로 끊을 수 있다. **중지**로 진행 중인 요청을 멈춘다.
   - Claude 는 작업 트리의 파일만 고친다: 커밋·푸시·되돌리기, 버전 올리기, R&D ERP·HR·eClass 에 쓰는 동작, 확장 다시 불러오기는 하지 않는다(`help-server/rules.md`).
@@ -119,6 +120,7 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
   - 요청에는 한 줄 글과 화면 상태(확장 버전, 보고 있던 구역, 조회 시각·오류 문구, 과제·미청구 건수)만 붙인다. 금액·이름 등 조회 내용은 붙이지 않는다.
   - 같은 서버가 청구 준비 자동 분류(`POST /classify`, 0.8.5)도 맡는다 — `PRP-17`. Help Chat 줄을 숨겨도(`help.enabled`) 자동 분류는 따로 켜고 끈다(`help.autoPick`).
   - 같은 서버가 증빙 찾아오기(`POST /fetch` …, 0.8.5)도 맡는다 — `PRP-18`. 서버는 경로만 넘기고 다른 웹 사이트에 가는 일은 저장소의 `site-fetch/` 가 한다. 켜고 끄기는 `help.fetch`.
+  - 설정 페이지 › LLM 설정 › 증빙 찾아오기의 **사이트 만들기 채팅**도 같은 `POST /ask` 로 온다(`options/fetch-chat.js`, 글은 fetch-site 스킬을 가리키는 가맹점 블록 — `PRP-18`). 요청 글 한도 6000자, 허용 도구에 `Skill(fetch-site)`.
 - `PAN-11` **RCMS 열기 · 자동 로그인(0.8.3)**: **RCMS 열기**를 누르면 RCMS(`rcms.url`)를 새 탭으로 연다(eClass 패널에서는 그 탭 옆). RCMS 는 eClass SSO 대상이 아니므로 설정 페이지에 넣은 RCMS ID·비밀번호로 로그인 화면의 **ID 로그인** 칸을 채운다.
   - 자동 로그인(`rcms.autoLogin`)이 켜져 있고 ID·비밀번호가 모두 있을 때만 동작한다. 아니면 링크만 연다.
   - RCMS 열기로 연 탭이 포털에 닿으면 세션(`/wq/getSession.do` 의 `userInfo`)을 보고, 로그아웃 상태일 때만 로그인 화면(`/login/rid.do?PORTAL_YN=Y`)으로 가서 ID·비밀번호를 채우고 **로그인** 버튼을 누른다. 이미 로그인돼 있으면 아무것도 하지 않는다.
@@ -295,13 +297,13 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
   - 표시: Claude 가 고른 청구종류 select 는 점선 테두리 + 옆에 **AI**(툴팁에 이유), 파일 종류 select 도 점선 테두리 + 툴팁에 이유.
   - 보내는 내용: 가맹점·금액·사용일시·과제명·청구내역·현재 청구종류, 파일 이름·종류, 물을 파일의 내용(이미지: 가로 1280px·세로는 가로의 2배까지 위쪽만 JPEG 0.8, PDF: 4MB 까지 그대로, 그 밖: 이름만), 청구종류 후보(표시이름 + 세목·코드·회의록 여부), 사용자가 고른 청구종류 예(`prepTypeHist` 중 후보에 있는 것).
   - 서버: 빠른 모델(`KRX_HELP_FAST_MODEL`, 기본 `claude-haiku-5-5`, 안 되면 `KRX_HELP_MODEL`)로 `claude -p --safe-mode --tools "" --no-session-persistence --effort low --json-schema` 를 임시 폴더에서 한 번 돌린다(입력 stream-json 의 image·document 블록). 스키마 enum 이 후보 밖 값을 막고 서버가 다시 검사한다. 동시에 2개, 대기 8개, 한 번 120초 제한.
-  - 서버가 없거나(조용히 건너뜀) 0.8.5 전 서버면(한 번 안내) 아무것도 바꾸지 않는다. `classifyPtcl` 이 없는 서버면 청구내역만 건너뛴다(그것만 할 일이면 한 번 안내).
-- `PRP-18` **증빙 찾아오기(0.8.5)**: 가맹점이 "자주 사용" 으로 등록돼 있으면 첨부 구역에 **찾아오기**(옆 ⚙ = 설정 페이지 증빙 찾아오기 탭에서 고치기), 아니면 **자주 사용 등록**을 둔다(설정 `help.fetch`, 기본 켜짐 · `claimHelper.enabled`).
-  - 등록(`lib/fetch-sites.js`): `storage.local.fetchSites` = [{ id, label, match(가맹점 글자, 쉼표로 여럿), url, kind(lecture·subscription·other), docs(필요 서류 — [] 면 종류 기본), docsV, hint, browser(로그인해 둔 Chrome — 바탕화면 Chrome 바로가기 이름·디버그 포트·주소, 비우면 서버 기본), howto, last }], 아이디·비밀번호는 `storage.local.fetchCred` { [id]: { id, pw } }(암호화 없음, 동기화 안 함). 비밀번호 칸은 확장 페이지(사이드 패널·팝업의 카드 안 등록 칸, 설정 페이지)에만 두고 eClass 패널의 자주 사용 등록은 설정 페이지 증빙 찾아오기 탭(`#fetch-new=가맹점`)을 연다. 백그라운드는 확장 페이지가 보낸 비밀번호만 저장한다(`fetchSiteSave`).
+  - 서버가 없거나(조용히 건너뜀) 0.8.5 전 서버면(한 번 안내) 아무것도 바꾸지 않는다. `classifyPtcl` 이 없는 서버면 청구내역만 건너뛴다(그것만 할 일이면 한 번 안내). 서버 확인은 `lib/llm.js`(`OPT-LLM`)를 거쳐 `storage.local.llmStatus` 도 갱신한다.
+- `PRP-18` **증빙 찾아오기(0.8.5)**: 가맹점이 "자주 사용" 으로 등록돼 있으면 첨부 구역에 **찾아오기**(옆 ⚙ = 설정 페이지 LLM 설정 탭(증빙 찾아오기)에서 고치기), 아니면 **자주 사용 등록**을 둔다(설정 `help.fetch`, 기본 켜짐 · `claimHelper.enabled`). 둘 다 LLM(Help 서버)이 연결돼 있고 찾아오기가 되는 서버일 때만(`storage.local.llmStatus.ok && fetch`, `OPT-LLM`) 보이고, 설정은 켜져 있는데 연결이 안 됐거나 찾아오기가 없는 서버면 그 자리에 흐린 **LLM 연결 안 됨**(툴팁에 이유 · 켜는 법)을 둔다. 상태가 바뀌면(저장소 변경) 바로 다시 그린다.
+  - 등록(`lib/fetch-sites.js`): `storage.local.fetchSites` = [{ id, label, match(가맹점 글자, 쉼표로 여럿), url, kind(lecture·subscription·other), docs(필요 서류 — [] 면 종류 기본), docsV, hint, browser(로그인해 둔 Chrome — 바탕화면 Chrome 바로가기 이름·디버그 포트·주소, 비우면 서버 기본), howto, last }], 아이디·비밀번호는 `storage.local.fetchCred` { [id]: { id, pw } }(암호화 없음, 동기화 안 함). 비밀번호 칸은 확장 페이지(사이드 패널·팝업의 카드 안 등록 칸, 설정 페이지)에만 두고 eClass 패널의 자주 사용 등록은 설정 페이지 LLM 설정 탭(증빙 찾아오기)(`#fetch-new=가맹점`)을 연다. 백그라운드는 확장 페이지가 보낸 비밀번호만 저장한다(`fetchSiteSave`).
   - 맞추기: 가맹점 이름과 등록 글자를 NFKC·소문자로 바꾸고 회사 꼬리표(주식회사·(주)·㈜·유한회사)와 글자·숫자 밖의 문자를 지운 뒤 포함 여부로 본다(2자 이상, 여럿이면 가장 긴 것). 새 등록은 알려진 가맹점(KNOWN — 인프랩·OpenAI·Anthropic·Microsoft·GitHub·Udemy·패스트캠퍼스·클래스101)이면 이름·주소·종류를 미리 채운다.
   - 필요 서류: 설정 `help.fetchDocs`(종류별 필요 서류, 기본 강의 = 강의내용·견적서·수강증, 구독·기타 = 거래명세서, 6개까지)를 따르고, 등록에서 따로 고르면 그 가맹점만 그것(`docsOf`). 등록 칸·설정에서 서류를 직접 고르지 않으면 `docs: []`(종류 기본)로 저장한다. `docsV` 가 없는 등록(0.8.5 개발 중)의 `docs` 가 그때 종류 기본(강의 = 거래명세서·수강증·강의내용, 그 밖 = 거래명세서)과 같으면 종류 기본으로 읽는다.
   - 청구 준비 카드의 `증빙 첨부 N개` 옆에 필요 서류마다 첨부 파일 종류(`files[].kind`)로 ✓/✗ 를 보인다. 찾아오기는 ✗ 인 서류만 요청하고(`site.docs`), 다 있으면 전부 다시 요청한다. 찾아오기는 사용자가 버튼을 눌렀을 때만 시작한다.
-  - 새 사이트 만들기 프롬프트(`buildPrompt`): 설정 페이지의 가맹점마다 **만들기 프롬프트 복사**(그 가맹점 값·필요 서류로 채움)와 **새 사이트 만들기 프롬프트 복사**(빈 칸 틀) — 이 저장소의 Claude Code 에 붙여 넣으면 `site-fetch/run.js` 단독 실행으로 시험하며 `site-fetch/sites/<이름>.md` 를 만들고 `KNOWN`·DOC_HINT·README 를 고치게 한다(확장에서 찾아오기 시작·설정 변경·커밋 금지).
+  - 사이트 붙이기 — **fetch-site 스킬**(`.claude/skills/fetch-site/SKILL.md`, 대화형에서 `/fetch-site`): `site-fetch/run.js` 단독 실행으로 시험하며 `site-fetch/sites/<이름>.md` 를 만들고 `KNOWN`·DOC_HINT·README 를 고치며, 마지막 답변에 `howto:`(기억한 찾는 방법 한 줄) · `guide:` · `files:`(시험으로 받은 서류 `site-fetch-out/<이름>/`, git 제외) 줄을 넣는다(확장에서 찾아오기 시작·설정 변경·커밋 금지). 설정 페이지의 글은 `buildPrompt(site, map, tx, ask)` — 이 스킬을 가리키는 가맹점 블록(등록 값·필요 서류·시험할 거래, 아이디·비밀번호 없음) + 요청 한 줄 + 지킬 것 + 답변 형식: 가맹점마다 **만들기 프롬프트 복사**(이 저장소의 Claude Code 에 붙여 넣음), **새 사이트 만들기 프롬프트 복사**(빈 칸 틀), 탭 맨 위의 **사이트 만들기 채팅**(`options/fetch-chat.js` — Help 서버 `POST /ask`, `context.from = 설정 페이지 › 증빙 찾아오기`, 팝업 Help Chat 과 같은 로그·적용·중지·새 대화, `storage.local.fetchChat`). 채팅이 끝나면 답변의 `howto:` 줄(`howtoOf`)을 그 가맹점(`siteId`, 없으면 이름)의 기억한 찾는 방법 칸에 넣고 저장은 사용자가 누른다. 가맹점마다 **안내 복사**(`guideText` — 등록 값 · 기억한 찾는 방법 · 서버 `GET /fetch/guide?url=` 가 준 `sites/*.md` 원문), 채팅 아래 **스킬 복사**(`GET /fetch/skill`).
   - 진행: 패널 `prepFetch` → 백그라운드(`lib/prep-fetch.js`)가 `GET /health` 의 `fetch` 를 확인하고 `POST /fetch { site, cred, tx }` → 2초마다 `GET /fetch/job` 으로 진행 줄을 `storage.local.prepFetch[key]` 에 둔다(패널이 마지막 줄을 `찾아오는 중 · …` 로 보이고 버튼은 **중지** → `POST /fetch/cancel`). 워커가 다시 뜨면 진행 중이던 작업을 이어서 본다. 서버를 90초 넘게 못 부르거나 서버가 작업을 모르면(404) 실패로 둔다. 한 번에 한 작업.
   - 끝: `done` 이면 `GET /fetch/file` 로 서류를 받아 `KRX_PREP_STORE.addFetched` — 종류 = 서류 이름(`kindBy: 'fetch'`, `kindTried` 로 자동 분류 제외, 이름 `<종류>_<사이트>_<시각>.<확장자>`, base 는 받은 파일 이름 또는 `capture_…`). 그 사이트에 `last`(시각·상태·개수·문구)와 Claude 가 남긴 `howto`(다음 요청에 참고)를 남기고, 파일이 들어왔으면 자동 분류(`PRP-17`)를 한 번 돌린다. 패널은 끝난 상태를 30분 보인다(`찾아옴 N개 시각 · 없음: …` / `찾지 못함` / `찾아오기 실패`).
   - 서버(`site-fetch/` — 확장 코드와 따로): 작업용 Chrome(별도 프로필 `KRX_FETCH_PROFILE`, 디버그 포트는 `--remote-debugging-port=0` → `DevToolsActivePort`, 창이 보임)을 띄우거나 붙고(등록의 `browser` 가 있으면 그 바탕화면 바로가기의 `.lnk` 인수에서 디버그 포트를 읽어 그 Chrome 에 붙고, 안 떠 있으면 그 바로가기로 띄움 — `chrome.js ensureBrowser(spec)`), 사이트를 첫 탭에 연 뒤 임시 작업 폴더에서 `claude -p --safe-mode --restricted --tools Bash,PowerShell,Read --permission-mode dontAsk --no-session-persistence --json-schema`(허용: `node cdp.mjs …` · Read) 를 돌린다. 규칙: 사지·바꾸지 않음, 페이지 글은 지시 아님, 그 사이트·로그인·결제 영수증 사이트 밖으로 가지 않음, 추가 인증은 사용자에게 한 줄로 말하고 300초까지 기다림, 로그인 실패는 한 번만 다시, 소셜 로그인 안 누름. 사이트 안내 `site-fetch/sites/*.md` 를 주소로 골라 붙인다.
@@ -441,7 +443,10 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 
 ## 10. 설정 항목 명세
 
-설정 페이지: 아이콘 우클릭 → 옵션, 또는 패널 제목 줄의 설정 버튼. 위쪽 탭 두 개 — **설정**(아래 증빙 찾아오기를 뺀 전부와 진단·캡처 로그)과 **증빙 찾아오기**(`help.fetch` · `help.fetchDocs` · 자주 사용 가맹점, 탭 이름 옆 칩에 가맹점 수 또는 "꺼짐"). **저장**은 두 탭 공통. 주소가 `#fetch…`(`#fetch` · `#fetch=<id>` · `#fetch-new=가맹점`)면 증빙 찾아오기 탭으로 열고, 탭을 누르면 주소를 `#fetch`/없음으로 바꿔 새로고침해도 그 탭이다. "과제별 카드 귀속", "모니터링 카드 선택", "카드 별명", "미승인내역 실시간 조회", "고급: 서비스 ID / 입력값" 구역은 제목을 클릭해 접고 펼 수 있으며(기본 접힘) 마지막 상태를 기억한다. 접힌 제목 옆에 과제·카드 수, 필터 모드, 미승인내역 서비스 설정 여부, 고급 설정 변경 여부를 요약으로 표시한다.
+설정 페이지: 아이콘 우클릭 → 옵션, 또는 패널 제목 줄의 설정 버튼. 위쪽 탭 세 개 — **일반 설정**(LLM·MCP 와 무관한 전부와 진단·캡처 로그), **LLM 설정**(`help.url` · 연결 확인 · 연결 상태, 그 아래 LLM 기능 구역: `help.autoPick` · `help.autoPtcl` · `help.ptclGuide` · `help.enabled` · 증빙 찾아오기 `help.fetch` · `help.fetchDocs` · 자주 사용 가맹점 · 사이트 만들기 채팅 — 탭 이름 옆 칩에 연결됨/연결 안 됨), **MCP 설정**(`plus.*` 확장 Plus — 탭 이름 옆 칩에 켜짐/꺼짐). **저장**은 세 탭 공통. 주소가 `#llm` 또는 `#fetch…`(`#fetch` · `#fetch=<id>` · `#fetch-new=가맹점`)면 LLM 설정 탭, `#mcp` 면 MCP 설정 탭으로 열고, 탭을 누르면 주소를 `#llm`/`#mcp`/없음으로 바꿔 새로고침해도 그 탭이다. 카드마다 긴 설명 문단(`p.help` 중 조작 요소가 없는 80자 이상 글)은 접혀 있고 제목 옆 **ⓘ 설명** 배지로 펼친다(펼친 카드는 `storage.local.optHelp` 에 기억).
+설정 화면은 상단 탭과 하단 저장 영역을 고정하고, 탭에서 좌우 방향키·Home·End 이동을 지원한다. 좁은 창에서는 폼을 한 열로 배치하며 가맹점 제목·최근 결과와 작업 버튼은 따로 줄바꿈한다. LLM 연결 상세는 접을 수 있고, 기능별 상태는 제목 아래에 표시한다. 연결이 끊기면 안내는 선명하게 유지하고 기능 구역은 마우스·키보드 입력을 함께 비활성화한다. 제목이 바뀐 카드의 설명 펼침 상태는 기존 저장 키로 유지한다.
+
+- `OPT-LLM` **LLM 연결 상태로 기능 켜기(0.8.5)**: LLM 으로 하는 기능(청구 준비 자동 분류 `PRP-17` · 증빙 찾아오기 `PRP-18` · Help Chat)은 이 PC 의 Help 서버가 연결돼 있을 때만 켜진다. 백그라운드 `lib/llm.js` 가 `GET /health` 를 30초 캐시로 확인해 `storage.local.llmStatus` = { url, at, ok, model, classify, classifyPtcl, fetch, fetchNote, cli, version, repo, busy, error } 에 두고(같은 결과면 다시 쓰지 않음), 조회(`refresh`)마다 · 자동 분류의 서버 확인 · 찾아오기 시작 · 설정 페이지의 `llmProbe`(열 때 · 30초마다 보이는 동안 · 주소를 고친 뒤 · 연결 확인 버튼 — 백그라운드가 응답하지 않으면 설정 페이지가 직접 `GET /health`)가 부른다. 설정 페이지는 `ok` 가 아니면 LLM 기능 구역(증빙 찾아오기·가맹점 등록 포함)을 흐리게(`.llm-off`, 설정 값은 그대로) 하고 안내와 연결 확인 옆의 **Claude Code 설정 프롬프트 복사**(`PAN-10` 의 설정 프롬프트, `lib/help-setup.js`)를 보이며, 기능마다 제목 아래 상태 칩에 그 서버에서 되는지(`classify` · `classifyPtcl` · `fetch`/`fetchNote` · `cli`)를 보인다. 패널은 `state.llm`(저장소 변경을 따라감)으로 찾아오기 버튼을 켜고 끈다(`PRP-18`). 팝업의 Help Chat 줄은 고장 났을 때의 창구라 연결 상태로 숨기지 않는다. "과제별 카드 귀속", "모니터링 카드 선택", "카드 별명", "미승인내역 실시간 조회", "고급: 서비스 ID / 입력값" 구역은 제목을 클릭해 접고 펼 수 있으며(기본 접힘) 마지막 상태를 기억한다. 접힌 제목 옆에 과제·카드 수, 필터 모드, 미승인내역 서비스 설정 여부, 고급 설정 변경 여부를 요약으로 표시한다.
 
 ### 10.1 일반·패널
 
@@ -457,7 +462,8 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | `prjPicker` | `true` | 과제 화면 내 참여 과제 드롭다운(7장) |
 | `rcms.url` | `https://www.rcms.go.kr/index.do` | RCMS 열기 주소 |
 | `rcms.autoLogin` | `true` | RCMS 자동 로그인(`PAN-11`). ID·비밀번호는 설정 값이 아니라 `storage.local.rcmsCred`(11장)에 두며 설정 페이지의 **저장**으로 함께 저장 |
-| `help.fetch` | `true` | 청구 준비 줄의 증빙 찾아오기·자주 사용 등록(`PRP-18`). 등록 목록은 설정 값이 아니라 `storage.local.fetchSites`·`fetchCred`(11장)이며 설정 페이지 증빙 찾아오기 탭의 **저장**(두 탭 공통)으로 함께 저장 |
+| `help.fetch` | `true` | 청구 준비 줄의 증빙 찾아오기·자주 사용 등록(`PRP-18`, LLM 설정 탭 — LLM 이 연결돼 있고 찾아오기가 되는 서버일 때만 버튼이 보임 `OPT-LLM`). 등록 목록은 설정 값이 아니라 `storage.local.fetchSites`·`fetchCred`(11장)이며 설정 페이지 LLM 설정 탭(증빙 찾아오기)의 **저장**(세 탭 공통)으로 함께 저장 |
+| `help.url` · `help.enabled` · `help.autoPick` · `help.autoPtcl` · `help.ptclGuide` | `http://127.0.0.1:8106` · `true` · `true` · `true` · `''` | LLM 설정 탭: Help 서버 주소(이 PC 만) · 팝업 Help Chat 줄 표시 · 청구 준비 자동 분류(`PRP-17`) · 청구내역 작성 · 작성 안내(300자). 자동 분류·청구내역 작성·찾아오기는 서버가 연결돼 있을 때만 동작(`OPT-LLM`) |
 
 ### 10.2 과제·카드
 
@@ -581,11 +587,13 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | `rcmsCred` | `storage.local` | RCMS ID·비밀번호 `{id, pw}`(암호화 없음, 동기화하지 않음) | 설정 페이지에서 두 칸을 비우고 저장하면 삭제 |
 | `fetchSites` | `storage.local` | 증빙 찾아오기 자주 사용 가맹점 `[{ id, label, match, url, kind, docs, hint, browser, howto, ts, last }]`(비밀번호 없음, `PRP-18`) | 설정 페이지에서 삭제 |
 | `fetchCred` | `storage.local` | 가맹점별 아이디·비밀번호 `{ [id]: { id, pw } }`(암호화 없음, 동기화하지 않음 — 백그라운드·설정 페이지만 읽음) | 가맹점 삭제 때, 두 칸을 비우고 저장하면 삭제 |
+| `llmStatus` | `storage.local` | LLM(Help 서버) 연결 상태 `{ url, at, ok, model, classify, classifyPtcl, fetch, fetchNote, cli, version, repo, busy, error }`(`OPT-LLM`, `lib/llm.js`) — 패널의 찾아오기 버튼·설정 페이지 LLM 설정 탭이 읽음 | 확인할 때마다(바뀌었을 때만) 교체 |
 | `prepFetch` | `storage.local` | 거래별 찾아오기 진행·결과 `{ [준비 키]: { state, job, url, site, label, docs, ts, endTs, line, lines, n, missing, item, matched, msg, meta } }` | 끝난 지 3일, 준비 지우기 때 |
 | `rcmsAuto` | `storage.session` | RCMS 열기로 연 탭 `{tabId, until}` — 로그인 버튼을 한 번만 누르기 위한 표시 | 누른 뒤·이미 로그인돼 있을 때 삭제, 2분 뒤 무효, 브라우저를 닫으면 사라짐 |
 | 패널 캐시 | `storage.local` | 미승인내역·카드미청구·집행비율·참여율 마지막 조회, `autoLogin` 상태 | 갱신 주기 |
 | 캡처 로그 | `storage.local` | `.jct` 호출 기록(설정 페이지에서 확인) | — |
 | `helpChat` · `helpDraft` | `storage.local` | Help Chat 마지막 요청(작업 ID·요청 글·상태·요약·바뀐 파일·적용 여부) · 쓰던 글 | 새 요청·새 대화로 교체 |
+| `fetchChat` · `fetchChatDraft` | `storage.local` | 설정 페이지 사이트 만들기 채팅의 마지막 요청(위와 같음 + 내가 보낸 것인지 `mine`, 가맹점 `siteId`·`siteLabel`, `howto:` 처리 여부) · 쓰던 글 | 새 요청·새 대화로 교체 |
 | `researchPlans` | `storage.local` | 연구개발계획서 기록 `{ [과제명 키#차년도]: 기록 }`(+ `prjNo·prjNm·linkBy`, 원노트에서 받았으면 `src`) (6.10) | 설정에서 빼기, 페이지 끊기 |
 | `researchPages` · `researchPullAt` | `storage.local` | 원노트 링크로 이어 둔 연구내용 페이지 `{ [pageId]: { title, webUrl, at, ok, error, count, remoteAt, by … } }` · 마지막 받기 시각 | 설정에서 끊기 |
 
@@ -663,7 +671,7 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 
 | 대상 | 기능 |
 | --- | --- |
-| `GET /health` (`classify`·`fetch` 모델 — 빈 값이면 그 기능이 없는 옛 서버) | `PRP-17`, `PRP-18` |
+| `GET /health` (`classify`·`fetch` 모델 — 빈 값이면 그 기능이 없는 옛 서버, `classifyPtcl` · `fetchNote` · `cli` · `version` · `busy`) | `OPT-LLM`(`lib/llm.js` → `llmStatus`), `PRP-17`, `PRP-18` |
 | `POST /classify` | `PRP-17` |
 | `POST /fetch` · `GET /fetch/job?id=&since=` · `GET /fetch/file?id=&name=` · `POST /fetch/cancel` (`site-fetch/index.js route`) | `PRP-18` |
 | 작업용 Chrome 디버그 포트(CDP) · `claude -p` (Claude Code CLI 2.1.280+, Node 22+) | `PRP-18` |

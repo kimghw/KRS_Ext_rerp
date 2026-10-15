@@ -7,3 +7,6 @@ help-server/.state.json
 
 # 증빙 찾아오기: 이 PC 만의 작업용 Chrome 프로필·포트 (site-fetch/chrome.js)
 site-fetch/local.json
+
+# 증빙 찾아오기 사이트 붙이기(fetch-site 스킬)가 시험으로 받은 서류 — node site-fetch/run.js --out site-fetch-out/<이름>
+site-fetch-out/

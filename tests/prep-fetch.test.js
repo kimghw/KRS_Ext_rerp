@@ -93,12 +93,24 @@ test('필요 서류: 가맹점이 따로 고른 서류 → 설정의 종류별 �
   assert.deepStrictEqual((await SITES.load()).map((x) => x.docs), [[], ['거래명세서', '수강증', '강의내용'], [], ['수강증']]);
   store = {};
 });
-test('만들기 프롬프트: 가맹점 값·필요 서류를 채우고, 확장에서 찾아오기를 시작하지 말라는 규칙을 넣음 (없으면 빈 칸 틀)', () => {
-  const p = SITES.buildPrompt({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [], browser: 'SUB 전용' }, { lecture: ['강의내용', '견적서', '수강증'] }, { usedDate: '2026-10-06', amount: 43560 });
+test('만들기 프롬프트: 가맹점 값·필요 서류를 채우고 fetch-site 스킬을 가리키며, 확장에서 찾아오기를 시작하지 말라는 규칙과 답변 형식(howto:)을 넣음 (없으면 빈 칸 틀, 요청 한 줄은 그대로)', () => {
+  const p = SITES.buildPrompt({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [], browser: 'SUB 전용', loginId: 'me@x.com', loginPw: 'secret-pw' }, { lecture: ['강의내용', '견적서', '수강증'] }, { usedDate: '2026-10-06', amount: 43560 });
   assert.ok(p.includes('인프랩') && p.includes('https://www.inflearn.com/my/orders') && p.includes('강의내용·견적서·수강증 (종류 기본)') && p.includes('43,560원') && p.includes('로그인해 둔 Chrome: SUB 전용'), p);
-  assert.ok(p.includes('node site-fetch/run.js') && p.includes('site-fetch/sites/') && p.includes('KRX_PREP_FETCH.start') && p.includes('커밋하지 않는다'));
+  assert.ok(p.includes('node site-fetch/run.js') && p.includes('site-fetch/sites/') && p.includes('KRX_PREP_FETCH.start') && p.includes('커밋하지 않는다') && p.includes(SITES.SKILL) && p.includes('howto:'));
+  assert.ok(!p.includes('secret-pw') && !p.includes('me@x.com') && !p.includes('요청:'), '아이디·비밀번호는 넣지 않고, 요청 한 줄이 없으면 요청 줄도 없음');
   const blank = SITES.buildPrompt(null);
-  assert.ok(blank.includes('- 이름: ＿＿') && blank.includes('필요 서류: ＿＿'));
+  assert.ok(blank.includes('- 이름: ＿＿') && blank.includes('필요 서류: ＿＿') && !blank.includes('＿＿ 칸은'));
+  const ask = SITES.buildPrompt(null, null, null, '  유데미 https://www.udemy.com/dashboard/purchase-history/ 강의  사이트를 붙여 줘 ');
+  assert.ok(ask.includes('요청: 유데미 https://www.udemy.com/dashboard/purchase-history/ 강의 사이트를 붙여 줘') && ask.includes('＿＿ 칸은 아래 요청 글'), ask);
+});
+test('채팅 답변의 howto: 줄 → 기억한 찾는 방법 (굵게·머리표·따옴표도), 안내 복사 글은 등록 값 + howto + 서버의 안내 파일 원문', () => {
+  assert.strictEqual(SITES.howtoOf('인프런 안내를 만들었습니다\nhowto: 마이페이지 > 구매 내역에서 행 찾기 → /orders/<번호>/billing 을 pdf\nguide: site-fetch/sites/inflearn.md'), '마이페이지 > 구매 내역에서 행 찾기 → /orders/<번호>/billing 을 pdf');
+  assert.strictEqual(SITES.howtoOf('요약\n- **howto:** "청구 > 청구서 표에서 다운로드"\n'), '청구 > 청구서 표에서 다운로드');
+  assert.strictEqual(SITES.howtoOf('howto 는 없음\n파일: x'), '');
+  assert.strictEqual(SITES.howtoOf('howto: ' + 'a'.repeat(600)).length, 500);
+  const g = SITES.guideText({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [], hint: '마이페이지', howto: '구매 내역 → billing' }, null, [{ name: 'site-fetch/sites/inflearn.md', text: 'hosts: inflearn.com\n[인프런] 출처…\n- 로그인: …' }]);
+  assert.ok(g.startsWith('[인프런] 증빙 찾아오기 안내') && g.includes('- 기억한 찾는 방법: 구매 내역 → billing') && g.includes('- 찾는 곳 메모: 마이페이지') && g.includes('--- site-fetch/sites/inflearn.md ---\nhosts: inflearn.com'), g);
+  assert.ok(SITES.guideText({ label: 'X', kind: 'subscription' }, null, []).includes('- 기억한 찾는 방법: (없음)'));
 });
 
 /* ---------- site-fetch/prompt.js ---------- */
@@ -126,6 +138,10 @@ test('프롬프트: 거래·서류 설명과 그 사이트 안내(sites/inflearn
   assert.strictEqual(P.guideFor('chatgpt.com').includes('settings/billing'), true);
   assert.strictEqual(P.guideFor('portal.azure.com').includes('iframe'), true);
   assert.strictEqual(P.guideFor('example.com'), '');
+  const gf = P.guideFiles('www.inflearn.com');   // 설정 페이지 [안내 복사](GET /fetch/guide): 파일 이름과 원문(hosts 줄 포함), 프롬프트에는 본문만
+  assert.strictEqual(gf.length, 1);
+  assert.ok(gf[0].name === 'inflearn.md' && gf[0].hosts.includes('inflearn.com') && gf[0].text.startsWith('hosts:') && !gf[0].body.startsWith('hosts:') && P.guideFor('www.inflearn.com') === gf[0].body);
+  assert.deepStrictEqual(P.guideFiles('example.com'), []);
 });
 test('결과 검사: 저장되지 않은 파일·요청 밖 종류는 버리고, 못 찾은 서류는 missing 으로 채움, 구조화 출력이 없으면 저장 목록 전부', () => {
   const input = P.clean(body);

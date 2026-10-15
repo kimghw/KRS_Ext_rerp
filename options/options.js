@@ -24,20 +24,59 @@
     return c.acctMatch === null || c.acctMatch === undefined ? true : !!c.acctMatch;
   }
 
-  /* ---------- 탭: 설정 · 증빙 찾아오기 ([data-panel]). 주소가 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=…, 탭을 눌러 둔 #fetch)면 증빙 찾아오기 탭 ---------- */
-  const tabOfHash = () => (/^#fetch/.test(location.hash) ? 'fetch' : 'main');
+  /* ---------- 탭: 일반 설정 · LLM 설정 · MCP 설정 ([data-panel]). 주소가 #llm(탭을 눌러 둠) 또는 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=… — 증빙 찾아오기는 LLM 설정 탭 안)면 LLM 설정 탭, #mcp 면 MCP 설정(확장 Plus) 탭 ---------- */
+  const tabOfHash = () => (/^#(fetch|llm)/.test(location.hash) ? 'llm' : /^#mcp/.test(location.hash) ? 'mcp' : 'main');
   function showTab(name) {
-    if (name !== 'fetch') name = 'main';
+    if (name !== 'llm' && name !== 'mcp') name = 'main';
     document.querySelectorAll('[data-panel]').forEach((el) => { el.hidden = el.dataset.panel !== name; });
-    document.querySelectorAll('.tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+    document.querySelectorAll('.tabs [data-tab]').forEach((b) => {
+      const active = b.dataset.tab === name;
+      b.setAttribute('aria-selected', String(active));
+      b.tabIndex = active ? 0 : -1;
+    });
   }
   document.querySelectorAll('.tabs [data-tab]').forEach((b) => b.addEventListener('click', () => {
     const name = b.dataset.tab;
     showTab(name);
-    if (tabOfHash() !== name) history.replaceState(null, '', name === 'fetch' ? '#fetch' : location.pathname);   // 새로고침해도 그 탭 (hashchange 는 안 일으킴)
+    if (tabOfHash() !== name) history.replaceState(null, '', name === 'main' ? location.pathname : '#' + name);   // 새로고침해도 그 탭 (hashchange 는 안 일으킴)
     window.scrollTo(0, 0);
   }));
+  document.querySelector('.tabs').addEventListener('keydown', (ev) => {
+    const tabs = Array.from(document.querySelectorAll('.tabs [data-tab]'));
+    const current = tabs.indexOf(ev.target);
+    if (current < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(ev.key)) return;
+    ev.preventDefault();
+    const next = ev.key === 'Home' ? 0 : ev.key === 'End' ? tabs.length - 1 : (current + (ev.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].click();
+    tabs[next].focus();
+  });
   showTab(tabOfHash());
+
+  /* ---------- 긴 설명 접기: 카드마다 설명 문단(p.help 중 조작 요소·id 가 없는 글, 80자 이상)은 기본으로 접어 두고 제목 옆 "ⓘ 설명" 배지를 누르면 펼친다. 펼친 카드는 storage.local.optHelp 에 기억 ---------- */
+  const ICON_INFO = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+  async function initDescFold() {
+    let saved = {};
+    try { saved = (await chrome.storage.local.get('optHelp')).optHelp || {}; } catch (e) {}
+    document.querySelectorAll('.card').forEach((card) => {
+      const h2 = card.querySelector('h2');
+      if (!h2) return;
+      const ps = Array.from(card.querySelectorAll('p.help')).filter((p) => p.closest('.card') === card && !p.id && !p.hidden && !p.querySelector('input,button,select,textarea,[id]') && p.textContent.trim().length >= 80);
+      if (!ps.length) return;
+      const key = card.dataset.helpKey || card.dataset.collapse || card.id || Array.from(h2.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim();
+      ps.forEach((p) => p.classList.add('desc'));
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'desc-toggle'; btn.innerHTML = `${ICON_INFO}<span>설명</span>`;
+      const apply = (open) => { card.classList.toggle('desc-open', open); btn.classList.toggle('on', open); btn.setAttribute('aria-expanded', String(open)); btn.title = open ? '설명 접기' : `설명 보기 (${ps.length}개 문단)`; };
+      apply(!!saved[key]);
+      btn.addEventListener('click', (e) => {   // details.card 의 summary 안이면 접기/펼치기까지 일어나지 않게
+        e.preventDefault(); e.stopPropagation();
+        const open = !card.classList.contains('desc-open');
+        apply(open); saved[key] = open;
+        try { chrome.storage.local.set({ optHelp: saved }); } catch (x) {}
+      });
+      h2.appendChild(btn);
+    });
+  }
 
   /* ---------- 접기/펼치기 (details.card[data-collapse]): 마지막 상태를 storage.local.optCollapse 에 기억 (기본: 접힘) ---------- */
   async function initCollapse() {
@@ -404,9 +443,8 @@
     $('helpAutoPick').checked = hp.autoPick !== false;
     $('helpAutoPtcl').checked = hp.autoPtcl !== false;   // 비어 있는 청구내역을 Claude 가 씀 (연구내용 참조)
     $('helpPtclGuide').value = hp.ptclGuide || '';
-    $('helpFetch').checked = hp.fetch !== false;   // 증빙 찾아오기 탭
+    $('helpFetch').checked = hp.fetch !== false;   // 증빙 찾아오기 켜기 (LLM 설정 탭 — 가맹점 등록도 같은 탭)
     for (const [k] of KRX_SITES.KINDS) $('fetchDocs_' + k).value = KRX_SITES.docsFor(k, hp.fetchDocs).join(', ');   // 종류별 필요 서류
-    $('helpSummary').textContent = hp.enabled !== false ? '' : '꺼짐';
     const ch = Object.assign({}, S.DEFAULTS.claimHelper, s.claimHelper || {});
     $('chEnabled').checked = ch.enabled !== false;
     $('chDefaultBudget').value = ch.defaultBudget || '';
@@ -748,7 +786,7 @@
     e.preventDefault();
     $('researchDrop').classList.remove('over');
     intakeFiles(e.dataTransfer.files);
-    showTab('main');   // 증빙 찾아오기 탭에 놓아도 결과는 설정 탭의 연구개발계획서 구역에
+    showTab('main');   // LLM 설정 탭에 놓아도 결과는 일반 설정 탭의 연구개발계획서 구역에
     $('researchCard').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
   // 붙여 넣기: 입력 칸이 아닌 곳에서 Ctrl+V — 복사한 YAML 파일, meta: 로 시작하는 줄이 있는 글, 또는 원노트 페이지 링크(연구내용 공유가 복사해 준 글)
@@ -815,8 +853,8 @@
   }
   ['rcmsAutoLogin', 'rcmsId', 'rcmsPw'].forEach((id) => $(id).addEventListener('input', updateRcmsSummary));
 
-  /* ---------- 증빙 찾아오기 · 자주 사용 가맹점 (lib/fetch-sites.js): storage.local.fetchSites(비밀번호 없음) + fetchCred { [id]: { id, pw } }. 저장 버튼으로 함께 저장.
-   * 패널이 여는 주소: #fetch-new=<가맹점 이름>(새 등록 칸, eClass 패널의 자주 사용 등록) · #fetch=<id>(그 사이트 고치기). 찾아오기가 끝나 백그라운드가 last·howto 를 바꾸면 고치는 중이 아닐 때 다시 읽는다 ---------- */
+  /* ---------- 증빙 찾아오기 · 자주 사용 가맹점 (LLM 설정 탭, lib/fetch-sites.js): storage.local.fetchSites(비밀번호 없음) + fetchCred { [id]: { id, pw } }. 저장 버튼으로 함께 저장.
+   * 패널이 여는 주소: #fetch-new=<가맹점 이름>(새 등록 칸, eClass 패널의 자주 사용 등록) · #fetch=<id>(그 사이트 고치기) — LLM 설정 탭을 열고 그 칸으로. 찾아오기가 끝나 백그라운드가 last·howto 를 바꾸면 고치는 중이 아닐 때 다시 읽는다 ---------- */
   const SITES = KRX_SITES;
   let fetchList = [], fetchDirty = false, fetchNewIdx = -1;
   /* 종류별 필요 서류 칸의 지금 값 (비운 칸은 기본) — 저장(help.fetchDocs)과 가맹점 칸의 "종류 기본 (…)" 표시에 */
@@ -834,11 +872,10 @@
     fetchDirty = false;
     renderFetchSites();
   }
-  function updateFetchSummary() {   // 증빙 찾아오기 탭 이름 옆 칩: 꺼짐 · 등록한 가맹점 수 (툴팁에 이름)
+  function updateFetchSummary() {   // 증빙 찾아오기 제목 옆 요약: 꺼짐 · 등록한 가맹점 수 (툴팁에 이름)
     const el = $('fetchSummary'), on = $('helpFetch').checked;
-    el.textContent = !on ? '꺼짐' : fetchList.length ? `${fetchList.length}곳` : '';
+    el.textContent = !on ? '버튼 꺼짐' : fetchList.length ? `${fetchList.length}곳 등록` : '등록 없음';
     el.title = !on ? '청구 준비 줄에 찾아오기 버튼을 표시하지 않음' : fetchList.map((s) => s.label || s.match || '새 가맹점').join(', ');
-    el.classList.toggle('off', !on);
   }
   function renderFetchSites() {
     const kinds = (v) => SITES.KINDS.map(([id, nm]) => `<option value="${id}"${v === id ? ' selected' : ''}>${nm}</option>`).join('');
@@ -850,21 +887,62 @@
       const docs = Array.from(new Set(SITES.DOC_CHOICES.concat(extra, need)));
       const last = s.last ? `마지막 ${F.fmtClock(s.last.ts)} · ${s.last.state === 'done' ? `${s.last.n}개 찾아옴` : s.last.state === 'empty' ? '찾지 못함' : s.last.state === 'canceled' ? '중지' : '실패'}${s.last.msg ? ` — ${s.last.msg}` : ''}` : '아직 찾아오지 않음';
       return `<div class="fetch-site${i === fetchNewIdx ? ' fetch-new' : ''}" data-fs="${i}" id="fs-${F.esc(s.id || 'new' + i)}">
-        <div class="fetch-site-head">${F.esc(s.label || '새 가맹점')} <span class="muted">${F.esc(last)}</span><button type="button" class="btn" data-fs-prompt="${i}" title="이 가맹점 사이트를 찾아오기에 붙이는(사이트 안내 만들기) Claude Code 프롬프트를 이 칸의 값으로 채워 복사합니다 — 이 확장 폴더에서 연 Claude Code 에 붙여 넣으세요">만들기 프롬프트 복사</button><button type="button" class="btn danger" data-fs-del="${i}">삭제</button></div>
+        <div class="fetch-site-head"><div class="fetch-site-identity"><strong class="fetch-site-name">${F.esc(s.label || '새 가맹점')}</strong><span class="muted">${F.esc(last)}</span></div><div class="fetch-site-actions"><button type="button" class="btn" data-fs-guide="${i}" title="이 가맹점의 안내 글(등록 값 · 기억한 찾는 방법 · Help 서버의 사이트 안내 파일 site-fetch/sites/*.md 원문)을 복사합니다 — 다른 PC 의 등록이나 Claude 에 옮겨 줄 때">안내 복사</button><button type="button" class="btn" data-fs-prompt="${i}" title="이 가맹점 사이트를 찾아오기에 붙이는(fetch-site 스킬) Claude Code 프롬프트를 이 칸의 값으로 채워 복사합니다 — 이 확장 폴더에서 연 Claude Code 에 붙여 넣으세요. 위 사이트 만들기 채팅은 같은 글을 Help 서버로 보냅니다">만들기 프롬프트 복사</button><button type="button" class="btn danger" data-fs-del="${i}" aria-label="${F.esc(s.label || '새 가맹점')} 삭제">삭제</button></div></div>
         <div class="grid">
           <label>이름 <input type="text" data-ff="label" value="${F.esc(s.label || '')}" placeholder="예) 인프런"></label>
-          <label>가맹점 글자 (카드 내역의 가맹점 이름에 든 글자, 쉼표로 여럿) <input type="text" data-ff="match" value="${F.esc(s.match || '')}" placeholder="예) 인프랩"></label>
-          <label class="wide">사이트 주소 (구매내역·청구 화면이면 빠름) <input type="url" data-ff="url" value="${F.esc(s.url || '')}" placeholder="https://www.inflearn.com/my/orders"></label>
+          <label>가맹점 글자 <input type="text" data-ff="match" value="${F.esc(s.match || '')}" placeholder="예) 인프랩"><span class="field-hint">카드 내역에 표시되는 이름 · 여러 개는 쉼표로 구분</span></label>
+          <label class="wide">사이트 주소 <input type="url" data-ff="url" value="${F.esc(s.url || '')}" placeholder="https://www.inflearn.com/my/orders"><span class="field-hint">구매내역이나 청구 화면 주소를 넣으면 더 빠르게 찾습니다.</span></label>
           <label>종류 <select data-ff="kind">${kinds(s.kind)}</select></label>
           <div><span>필요 서류 (찾아오기가 찾고 청구 준비 줄에 ✓/✗ 로 보임)</span><div class="fetch-docs"><label class="fetch-own"><input type="checkbox" data-fown${own ? '' : ' checked'}>종류 기본 따름 — ${F.esc(SITES.kindLabel(s.kind))}: ${F.esc(SITES.docsFor(s.kind, map).join('·'))}</label>${docs.map((d) => `<label><input type="checkbox" data-fd="${F.esc(d)}"${need.includes(d) ? ' checked' : ''}${own ? '' : ' disabled'}><span>${F.esc(d)}</span></label>`).join('')}</div></div>
           <label>아이디 <input type="text" data-ff="loginId" value="${F.esc(s.loginId || '')}" autocomplete="off" spellcheck="false"></label>
           <label>비밀번호 <input type="password" data-ff="loginPw" value="${F.esc(s.loginPw || '')}" autocomplete="new-password"></label>
-          <label class="wide">로그인해 둔 Chrome (선택 — 바탕화면 Chrome 바로가기 이름 · 디버그 포트 · 주소. 작업용 창 대신 그 Chrome 에 붙어 찾고, 안 떠 있으면 그 바로가기로 띄움. 비우면 서버 기본 site-fetch/local.json) <input type="text" data-ff="browser" value="${F.esc(s.browser || '')}" placeholder="예) SUB 전용 · 9444 · http://127.0.0.1:9444" spellcheck="false"></label>
-          <label class="wide">찾는 곳 메모 (선택 — Claude 에 그대로 줌) <input type="text" data-ff="hint" value="${F.esc(s.hint || '')}" placeholder="예) 마이페이지 › 구매내역 › 거래명세서"></label>
-          <label class="wide">기억한 찾는 방법 (지난번에 Claude 가 찾은 길 — 다음 찾아오기에 참고로 줌. 사이트가 바뀌어 헤매면 비우세요) <textarea data-ff="howto" rows="2">${F.esc(s.howto || '')}</textarea></label>
+          <label class="wide">로그인해 둔 Chrome <span class="optional">선택</span><input type="text" data-ff="browser" value="${F.esc(s.browser || '')}" placeholder="예) SUB 전용 · 9444 · http://127.0.0.1:9444" spellcheck="false"><span class="field-hint">바로가기 이름, 디버그 포트 또는 주소를 입력하세요. 실행 중이 아니면 해당 바로가기로 엽니다. 비우면 서버 기본 설정을 사용합니다.</span></label>
+          <label class="wide">찾는 곳 메모 <span class="optional">선택 · Claude에 전달</span><input type="text" data-ff="hint" value="${F.esc(s.hint || '')}" placeholder="예) 마이페이지 › 구매내역 › 거래명세서"></label>
+          <label class="wide">기억한 찾는 방법 <textarea data-ff="howto" rows="2">${F.esc(s.howto || '')}</textarea><span class="field-hint">지난번에 찾은 경로를 다음 요청에 참고합니다. 사이트가 바뀌어 찾지 못하면 비워주세요.</span></label>
         </div></div>`;
     }).join('') || '<p class="muted">등록한 가맹점이 없습니다. 패널 청구 준비 줄의 <b>자주 사용 등록</b>이나 아래 <b>가맹점 추가</b>로 등록하세요.</p>';
     updateFetchSummary();
+    if (self.KRX_FETCH_CHAT) KRX_FETCH_CHAT.refresh();   // 사이트 만들기 채팅의 가맹점 select
+  }
+  /* Help 서버 주소 (설정 칸의 지금 값, 이 PC 만) — 사이트 만들기 채팅·안내 복사·스킬 복사가 씀 */
+  function helpBase() {
+    const u = $('helpUrl').value.trim().replace(/\/+$/, '');
+    return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(u) ? u : S.DEFAULTS.help.url;
+  }
+  async function helpGet(path) {   // GET → JSON (실패면 { ok: false, error }). 404 'not found' 는 이 경로가 없는 이전 버전 서버
+    try {
+      const r = await fetch(helpBase() + path, { cache: 'no-store' }); const j = await r.json();
+      if (!j || typeof j !== 'object') return { ok: false, error: '서버 응답을 읽지 못했습니다' };
+      if (!j.ok && r.status === 404 && !j.kind) return { ok: false, kind: 'old', error: 'Help 서버가 이전 버전입니다 — 서버를 끄고 다시 node help-server/server.js' };
+      return j;
+    } catch (e) { return { ok: false, kind: 'offline', error: `Help 서버에 연결할 수 없습니다 (${helpBase()}) — node help-server/server.js` }; }
+  }
+  /* [안내 복사]: 등록 값 + 기억한 찾는 방법 + 서버의 사이트 안내 파일(GET /fetch/guide — 이전 버전 서버면 파일 없이) */
+  async function copyFetchGuide(site) {
+    const r = site.url ? await helpGet(`/fetch/guide?url=${encodeURIComponent(site.url)}`) : { ok: false, error: '사이트 주소가 없음' };
+    const files = r.ok && Array.isArray(r.files) ? r.files : [];
+    const text = SITES.guideText(site, kindDocsNow(), files);
+    try { await navigator.clipboard.writeText(text); } catch (e) { setStatus('fetchStatus', `복사하지 못했습니다: ${e.message}`, true); return; }
+    const name = site.label || site.match || '가맹점';
+    if (files.length) setStatus('fetchStatus', `${name} 안내를 복사했습니다 — 사이트 안내 파일 ${files.map((f) => f.name.replace(/^site-fetch\/sites\//, '')).join(', ')} 포함`);
+    else setStatus('fetchStatus', `${name} 안내(등록 값 · 기억한 찾는 방법)를 복사했습니다 — 사이트 안내 파일은 ${r.ok ? '없음 (위 채팅으로 만들 수 있음)' : `못 받음: ${r.error}`}`, !r.ok);
+  }
+  /* [스킬 복사]: fetch-site 스킬 원문 (GET /fetch/skill) */
+  $('btnFcSkill').addEventListener('click', async () => {
+    const r = await helpGet('/fetch/skill');
+    if (!r.ok || !r.text) { setStatus('fcCopyStatus', `${r.error || '스킬을 받지 못했습니다'} (원문은 이 폴더의 ${SITES.SKILL})`, true); return; }
+    try { await navigator.clipboard.writeText(r.text); setStatus('fcCopyStatus', `fetch-site 스킬(${r.path || SITES.SKILL})을 복사했습니다 — 다른 저장소의 .claude/skills/fetch-site/SKILL.md 로 붙여 넣으면 거기서도 /fetch-site`); }
+    catch (e) { setStatus('fcCopyStatus', `복사하지 못했습니다: ${e.message}`, true); }
+  });
+  /* 사이트 만들기 채팅이 끝나 howto: 줄을 받음 → 그 가맹점의 기억한 찾는 방법 칸에 (저장은 사용자). 채워졌으면 true */
+  function applyHowto(siteId, label, howto) {
+    const s = fetchList.find((x) => siteId ? x.id === siteId : label && (x.label || x.match) === label);
+    if (!s) { setStatus('fetchStatus', `기억한 찾는 방법을 받았지만 "${label || '새 사이트'}" 등록이 없습니다 — 등록한 뒤 안내 복사로 옮기거나 직접 넣으세요: ${howto}`, true); return false; }
+    s.howto = howto; fetchDirty = true; renderFetchSites();
+    const box = $('fetchSites').querySelector(`[data-fs="${fetchList.indexOf(s)}"]`);
+    if (box) box.classList.add('fetch-new');
+    setStatus('fetchStatus', `${s.label || s.match}: 기억한 찾는 방법을 채웠습니다 — 아래 저장을 누르세요`);
+    return true;
   }
   $('fetchSites').addEventListener('input', (ev) => {
     const el = ev.target, box = el.closest('[data-fs]'); if (!box) return;
@@ -875,16 +953,18 @@
     fetchDirty = true;
     if (el.dataset.ff === 'label') updateFetchSummary();
   });
-  /* 새 사이트 만들기 프롬프트 (lib/fetch-sites.js buildPrompt) 복사 — 가맹점 칸이면 그 값으로, 아래 버튼이면 빈 칸 틀 */
+  /* 새 사이트 만들기 프롬프트 (lib/fetch-sites.js buildPrompt — fetch-site 스킬을 가리키는 가맹점 블록) 복사 — 가맹점 칸이면 그 값으로, 아래 버튼이면 빈 칸 틀 */
   async function copyFetchPrompt(site) {
     const text = SITES.buildPrompt(site, kindDocsNow());
-    try { await navigator.clipboard.writeText(text); setStatus('fetchStatus', `${site ? `${site.label || site.match || '새 가맹점'} ` : '새 사이트 '}만들기 프롬프트를 복사했습니다 — 이 확장 폴더(E:\\dev\\kr_ext_rerp)에서 연 Claude Code 에 붙여 넣으세요${site ? ' (시험할 거래의 사용일·금액 칸을 채우면 좋음)' : ' (＿＿ 칸을 채우세요)'}`); }
+    try { await navigator.clipboard.writeText(text); setStatus('fetchStatus', `${site ? `${site.label || site.match || '새 가맹점'} ` : '새 사이트 '}만들기 프롬프트를 복사했습니다 — 이 확장 폴더(E:\\dev\\kr_ext_rerp)에서 연 Claude Code 에 붙여 넣으세요(fetch-site 스킬 절차)${site ? ' (시험할 거래의 사용일·금액 칸을 채우면 좋음)' : ' (＿＿ 칸을 채우세요)'}`); }
     catch (e) { setStatus('fetchStatus', `복사하지 못했습니다: ${e.message}`, true); }
   }
   $('btnFetchPrompt').addEventListener('click', () => copyFetchPrompt(null));
   $('fetchSites').addEventListener('click', (ev) => {
     const p = ev.target.closest('[data-fs-prompt]');
     if (p) { const s = fetchList[Number(p.dataset.fsPrompt)]; if (s) copyFetchPrompt(s); return; }
+    const gd = ev.target.closest('[data-fs-guide]');
+    if (gd) { const s = fetchList[Number(gd.dataset.fsGuide)]; if (s) copyFetchGuide(s); return; }
     const b = ev.target.closest('[data-fs-del]'); if (!b) return;
     const s = fetchList[Number(b.dataset.fsDel)];
     if (s && s.id && !confirm(`${s.label || s.match} 등록을 지울까요? (아이디·비밀번호도 지워집니다. 아래 저장을 눌러야 반영)`)) return;
@@ -894,7 +974,7 @@
     const d = Object.assign(shop ? SITES.defaultsFor(shop) : { label: '', match: '', url: '', kind: 'other', hint: '', browser: '' }, { docs: [] });   // 필요 서류는 종류 기본
     fetchList.push(Object.assign(d, { id: '', loginId: '', loginPw: '', howto: '' }));
     fetchNewIdx = fetchList.length - 1; fetchDirty = true;
-    showTab('fetch');
+    showTab('llm');
     renderFetchSites();
     const box = $('fetchSites').querySelector(`[data-fs="${fetchNewIdx}"]`);
     if (box) { box.scrollIntoView({ block: 'center' }); const el = box.querySelector(d.url ? '[data-ff="loginId"]' : '[data-ff="url"]'); if (el) el.focus(); }
@@ -909,7 +989,7 @@
     for (const s of fetchList) {
       if (!s.id && !String(s.url || '').trim() && !String(s.match || '').trim()) continue;
       let c;
-      try { c = SITES.sanitize(s); } catch (e) { showTab('fetch'); throw new Error(`증빙 찾아오기 › ${s.label || s.match || '새 가맹점'}: ${e.message}`); }
+      try { c = SITES.sanitize(s); } catch (e) { showTab('llm'); throw new Error(`증빙 찾아오기 › ${s.label || s.match || '새 가맹점'}: ${e.message}`); }
       if (!c.id) c.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + sites.length;
       const old = stored.find((x) => x.id === c.id);
       if (old) c.last = old.last || null;
@@ -922,7 +1002,7 @@
     fetchDirty = false; fetchNewIdx = -1;
   }
   chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch[SITES.KEY] && !fetchDirty) loadFetchSites().catch(() => {}); });
-  /* 패널이 연 주소의 #fetch-new=… / #fetch=… */
+  /* 패널이 연 주소의 #fetch-new=… / #fetch=… (LLM 설정 탭의 증빙 찾아오기 구역) */
   async function fetchFromHash() {
     const h = decodeURIComponent(String(location.hash || '').slice(1));
     if (h.startsWith('fetch-new=')) {
@@ -932,7 +1012,7 @@
       addFetchSite(shop);
       setStatus('fetchStatus', `"${shop}" 가맹점을 등록합니다 — 사이트 주소·아이디·비밀번호를 넣고 아래 저장을 누르세요`);
     } else if (h.startsWith('fetch=')) {
-      showTab('fetch');
+      showTab('llm');
       const box = $(`fs-${h.slice('fetch='.length)}`);
       if (box) { box.classList.add('fetch-new'); box.scrollIntoView({ block: 'center' }); }
     }
@@ -940,22 +1020,95 @@
   window.addEventListener('hashchange', () => { showTab(tabOfHash()); fetchFromHash().catch(() => {}); });
   $('btnReset').addEventListener('click', () => { if (confirm('모든 설정을 기본값으로 되돌릴까요?')) fill(S.merge(S.DEFAULTS, {})); });
 
-  /* ---------- Help Chat: 이 PC 의 Help 서버(help-server/server.js) 연결 확인. 설정 페이지도 확장 페이지라 localhost 호스트 권한으로 직접 부른다 (popup/help.js 와 같은 방식) ---------- */
-  $('helpEnabled').addEventListener('change', () => { $('helpSummary').textContent = $('helpEnabled').checked ? '' : '꺼짐'; });
+  /* ---------- LLM 설정 탭: 이 PC 의 Help 서버(help-server/server.js) 연결 상태. 백그라운드(lib/llm.js 'llmProbe' → storage.local.llmStatus, 패널의 찾아오기 버튼도 같은 상태를 봄)에 묻고,
+   * 백그라운드가 응답하지 않으면(깨졌을 때) 설정 페이지도 확장 페이지라 localhost 호스트 권한으로 직접 부른다(popup/help.js 와 같은 방식).
+   * 열 때 · 30초마다(보이는 동안) · 주소를 고친 뒤 · 연결 확인 버튼으로 확인하고, 연결돼 있을 때만 LLM 기능 구역(#llmFeatures — 자동 분류 · Help Chat · 증빙 찾아오기와 가맹점 등록)을 켠다 — 안 되면 .llm-off 로 흐리게 + 안내 ---------- */
+  const LLM_POLL_MS = 30000;
+  let llm = null;   // 마지막 상태 { url, at, ok, model, classify, classifyPtcl, fetch, fetchNote, cli, version, repo, busy, error } (lib/llm.js 와 같은 모양)
+  let llmProbing = null;
+  async function probeDirect(url) {
+    let j = null, err = '';
+    try {
+      const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 2500);
+      try { j = await (await fetch(url + '/health', { cache: 'no-store', signal: ac.signal })).json(); } finally { clearTimeout(t); }
+    } catch (e) { j = null; err = `연결할 수 없습니다 (${url}) — 이 PC 에서 node help-server/server.js 를 실행하세요`; }
+    const ok = !!(j && j.ok && j.name === 'krx-help');
+    return { url, at: Date.now(), ok, model: ok ? j.model || '' : '', classify: ok ? j.classify || '' : '', classifyPtcl: !!(ok && j.classifyPtcl), fetch: ok ? j.fetch || '' : '', fetchNote: ok ? j.fetchNote || '' : '',
+      cli: ok ? j.cli || '' : '', version: ok ? j.version || '' : '', repo: ok ? j.repo || '' : '', busy: ok ? j.busy || '' : '', error: ok ? '' : (j && j.error ? `거절됨: ${j.error}` : err || `연결할 수 없습니다 (${url})`) };
+  }
+  async function probeLlm(force) {
+    if (llmProbing) return llmProbing;
+    llmProbing = (async () => {
+      const url = helpBase();
+      let st = null;
+      try { st = await chrome.runtime.sendMessage({ type: 'llmProbe', url, force: !!force }); } catch (e) { st = null; }
+      if (!st || typeof st.ok !== 'boolean') st = await probeDirect(url);   // 백그라운드가 안 되면 직접 (이때는 llmStatus 저장소는 안 바뀜)
+      llm = st; renderLlm();
+      return st;
+    })();
+    try { return await llmProbing; } finally { llmProbing = null; }
+  }
+  /* 기능마다 그 서버에서 되는지: [문구, 상태 클래스] */
+  function llmFeature(what) {
+    if (!llm) return ['확인 중…', ''];
+    if (!llm.ok) return ['LLM 연결 안 됨', 'off'];
+    if (what === 'classify') return llm.classify ? [`사용 가능 · ${llm.classify}${llm.classifyPtcl ? '' : ' (청구내역 작성은 이전 버전 서버라 안 됨 — 다시 실행)'}`, llm.classifyPtcl ? 'on' : 'warn'] : ['서버가 이전 버전이라 안 됨 — 서버를 끄고 다시 node help-server/server.js', 'warn'];
+    if (what === 'fetch') return llm.fetch ? [`사용 가능 · ${llm.fetch}`, 'on'] : [llm.fetchNote || '서버가 이전 버전이라 안 됨 — 서버를 끄고 다시 node help-server/server.js', 'warn'];
+    return llm.cli ? [`사용 가능 · claude CLI ${llm.cli}`, 'on'] : ['claude CLI 를 확인하지 못함 — claude --version · claude update', 'warn'];
+  }
+  function renderLlm() {
+    const ok = !!(llm && llm.ok);
+    const badge = $('llmBadge');
+    badge.textContent = !llm ? '확인 중…' : ok ? '연결됨' : '연결 안 됨';
+    badge.className = 'tab-badge ' + (!llm ? '' : ok ? 'on' : 'err');
+    badge.title = !llm ? '' : ok ? `Help 서버 ${llm.url} · 모델 ${llm.model}` : llm.error || '';
+    const st = $('llmState');
+    st.textContent = !llm ? '확인 중…' : ok ? `연결됨 · ${F.fmtClock(llm.at)} 확인` : `연결 안 됨 · ${F.fmtClock(llm.at)} 확인`;
+    st.className = 'llm-state ' + (!llm ? '' : ok ? 'on' : 'err');
+    const detail = $('llmDetail');
+    detail.innerHTML = !llm ? '' : ok
+      ? [`주소 ${F.esc(llm.url)}`, `모델 ${F.esc(llm.model || '-')}`, `자동 분류 ${F.esc(llm.classify || '없음')}`, `청구내역 작성 ${llm.classifyPtcl ? '가능' : '안 됨'}`, `증빙 찾아오기 ${F.esc(llm.fetch || llm.fetchNote || '없음')}`, `claude CLI ${F.esc(llm.cli || '확인 안 됨')}`, llm.version ? `서버가 읽은 확장 ${F.esc(llm.version)}` : '', llm.repo ? `저장소 ${F.esc(llm.repo)}` : '', llm.busy ? '요청 처리 중' : ''].filter(Boolean).map((t) => `<span>${t}</span>`).join('')
+      : `<span class="err">${F.esc(llm.error || '연결할 수 없습니다')}</span><span>서버가 안 떠 있으면 이 PC 의 터미널에서 <code>node help-server/server.js</code> — 뜨면 30초 안에 저절로 켜집니다 (또는 연결 확인)</span>`;
+    document.querySelectorAll('.llm-chip[data-llm]').forEach((el) => { const [t, cls] = llmFeature(el.dataset.llm); el.textContent = t; el.className = 'llm-chip ' + cls; });
+    // 연결돼 있을 때만 LLM 기능 구역(증빙 찾아오기·가맹점 등록 포함)을 켠다 (확인 전에는 켜 둠)
+    const off = !!llm && !ok;
+    $('llmFeatures').classList.toggle('llm-off', off);
+    $('llmFeatures').querySelectorAll(':scope > .card, :scope > #fetchBody').forEach((el) => { el.inert = off; });
+    $('llmNotice').hidden = !off;
+    $('llmNotice').textContent = off ? 'LLM(Help 서버)이 연결돼 있지 않아 아래 기능(자동 분류 · Help Chat · 증빙 찾아오기)을 쓸 수 없습니다 — 서버를 띄우면 저절로 켜집니다. 설정 값과 가맹점 등록은 그대로 남아 있습니다. 처음 쓰는 PC 면 위 LLM 연결 칸의 "Claude Code 설정 프롬프트 복사" 를 저장소 폴더의 Claude Code 에 붙여 넣으세요.' : '';
+    $('llmSetupRow').hidden = !off;   // 연결이 안 될 때만: Claude Code 에 붙여 넣을 설정 프롬프트 (lib/help-setup.js)
+    const fn = $('fetchLlmNotice');   // 연결은 됐는데 찾아오기가 없는 서버(이전 버전 · Node 22 미만) — 연결 자체가 안 되면 위 #llmNotice 가 말한다
+    fn.hidden = !(ok && !llm.fetch);
+    fn.textContent = fn.hidden ? '' : `Help 서버는 연결됐지만 찾아오기가 안 되는 서버입니다 — ${llm.fetchNote || '이전 버전이라 서버를 끄고 다시 node help-server/server.js'}. 가맹점 등록은 해 둘 수 있습니다.`;
+    updateFetchSummary();
+  }
   $('btnHelpProbe').addEventListener('click', async () => {
-    const url = $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url;
-    if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(url)) { setStatus('helpProbeStatus', 'Help 서버 주소는 이 PC(localhost · 127.0.0.1)만 됩니다', true); return; }
+    const u = $('helpUrl').value.trim().replace(/\/+$/, '');
+    if (u && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(u)) { setStatus('helpProbeStatus', 'Help 서버 주소는 이 PC(localhost · 127.0.0.1)만 됩니다', true); return; }
     setStatus('helpProbeStatus', 'Help 서버에 연결하는 중…');
-    let r = null;
-    try { r = await (await fetch(url + '/health', { cache: 'no-store' })).json(); } catch (e) { r = null; }
-    if (r && r.ok && r.name === 'krx-help') setStatus('helpProbeStatus', `연결됨: 모델 ${r.model} · 자동 분류 ${r.classify || '없음 (이전 버전 서버 — 다시 실행하세요)'} · 증빙 찾아오기 ${r.fetch || r.fetchNote || '없음 (이전 버전 서버 — 다시 실행하세요)'} · claude CLI ${r.cli || '(확인 안 됨)'} · 저장소 ${r.repo}${r.busy ? ' · 요청 처리 중' : ''}`, !r.cli || !r.classify);
-    else setStatus('helpProbeStatus', r && r.error ? `거절됨: ${r.error}` : `연결할 수 없습니다 (${url}) — 이 PC 에서 node help-server/server.js 를 실행하세요`, true);
+    const r = await probeLlm(true);
+    if (r.ok) setStatus('helpProbeStatus', `연결됨: 모델 ${r.model} · 자동 분류 ${r.classify || '없음 (이전 버전 서버 — 다시 실행하세요)'} · 증빙 찾아오기 ${r.fetch || r.fetchNote || '없음 (이전 버전 서버 — 다시 실행하세요)'} · claude CLI ${r.cli || '(확인 안 됨)'}${r.busy ? ' · 요청 처리 중' : ''}`, !r.cli || !r.classify);
+    else setStatus('helpProbeStatus', r.error || `연결할 수 없습니다 (${r.url})`, true);
   });
+  /* [Claude Code 설정 프롬프트 복사]: 서버를 못 붙인 PC 에서 저장소 폴더의 Claude Code 에 붙여 넣을 글 (lib/help-setup.js — 팝업 Help Chat 의 설정 프롬프트 복사와 같음) */
+  $('btnLlmSetup').addEventListener('click', async () => {
+    if (!self.KRX_HELP_SETUP) { setStatus('llmSetupStatus', 'lib/help-setup.js 를 읽지 못했습니다 — 팝업 Help Chat 의 설정 프롬프트 복사를 쓰세요', true); return; }
+    const o = { url: helpBase(), from: '설정 페이지 › LLM 설정', reason: llm && !llm.ok ? llm.error || '' : '' };
+    try { o.version = chrome.runtime.getManifest().version; } catch (e) {}
+    try { await navigator.clipboard.writeText(KRX_HELP_SETUP.prompt(o)); setStatus('llmSetupStatus', '복사했습니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으면 준비물 확인과 서버 실행을 안내합니다'); }
+    catch (e) { setStatus('llmSetupStatus', `복사하지 못했습니다: ${e.message}`, true); }
+  });
+  let helpUrlTimer = 0;
+  $('helpUrl').addEventListener('input', () => { clearTimeout(helpUrlTimer); helpUrlTimer = setTimeout(() => probeLlm(true).catch(() => {}), 700); });   // 주소를 고치면 그 주소로 다시 확인
+  setInterval(() => { if (document.visibilityState === 'visible') probeLlm(false).catch(() => {}); }, LLM_POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') probeLlm(false).catch(() => {}); });
+  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.llmStatus && ch.llmStatus.newValue && ch.llmStatus.newValue.url === helpBase()) { llm = ch.llmStatus.newValue; renderLlm(); } }); } catch (e) {}   // 백그라운드·패널이 확인한 결과도 반영
 
-  /* ---------- 확장 Plus: 외부 MCP 연동 (background.js plusProbe / plusNotebooks / plusResolveSection / planSync, lib/plan-sync.js). localhost 호스트 권한은 manifest 에 고정 ---------- */
-  function updatePlusSummary() {
+  /* ---------- MCP 설정 탭 — 확장 Plus: 외부 MCP 연동 (background.js plusProbe / plusNotebooks / plusResolveSection / planSync, lib/plan-sync.js). localhost 호스트 권한은 manifest 에 고정 ---------- */
+  function updatePlusSummary() {   // 제목 옆 요약 + MCP 설정 탭 이름 옆 칩(켜짐/꺼짐)
     const on = $('plusEnabled').checked, name = $('plusSectionName').value.trim() || S.DEFAULTS.plus.sectionName;
-    $('plusSummary').textContent = !on ? '' : ($('plusPlanSync').checked ? `예상 비용 동기화 중 · ${name} 섹션` : '켜짐');
+    $('plusSummary').textContent = !on ? '사용 안 함' : ($('plusPlanSync').checked ? `예상 비용 동기화 중 · ${name} 섹션` : '켜짐');
+    const b = $('mcpBadge'); b.textContent = on ? '켜짐' : '꺼짐'; b.className = 'tab-badge ' + (on ? 'on' : 'off');
   }
   /* 노트북 select: 저장된 노트북은 목록을 불러오기 전에도 보이도록 option 하나를 만들어 둔다 */
   function setPlusNotebook(id, label) {
@@ -1211,9 +1364,12 @@
   projectList = local.projectList || null;
   cacheData = local.cache || null;
   await initCollapse();
+  await initDescFold();
   fill(await S.load());
+  probeLlm(true).catch(() => {});   // LLM(Help 서버) 연결 상태 → LLM 설정 탭 칩·기능 구역 켜기 (기다리지 않음)
   await loadRcmsCred();
   await loadFetchSites();
+  if (self.KRX_FETCH_CHAT) await KRX_FETCH_CHAT.init({ base: helpBase, sites: () => fetchList, docsMap: kindDocsNow, onHowto: applyHowto });   // 사이트 만들기 채팅 (options/fetch-chat.js)
   await fetchFromHash();
   await loadProjects();
   await loadResearch();

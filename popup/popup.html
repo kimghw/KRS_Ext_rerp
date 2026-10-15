@@ -58,6 +58,7 @@
     <button type="button" id="helpApply" hidden title="확장을 다시 불러와 바뀐 코드를 적용합니다 (이 창은 닫힙니다)">적용</button>
     <button type="button" id="helpStop" hidden>중지</button>
     <button type="button" id="helpNew" hidden title="이 결과를 지우고, 다음 요청을 이전 대화와 잇지 않습니다">새 대화</button>
+    <button type="button" id="helpSetup" hidden title="Help 서버를 아직 못 붙인 PC 용: 준비물 확인(Node · git · Claude Code CLI · 로그인)과 서버 실행을 Claude Code 에 시키는 글을 복사합니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으세요">설정 프롬프트 복사</button>
   </div>
   <div class="help-lines" id="helpLines" hidden></div>
 </div>
@@ -73,6 +74,7 @@
   <a id="rcmsLink" href="https://www.rcms.go.kr/index.do" target="_blank" rel="noopener" title="RCMS(www.rcms.go.kr)를 열고, 설정에 ID·비밀번호가 있으면 자동으로 로그인합니다 (2차 인증은 직접)">RCMS 열기</a>
   <button type="button" id="btnOptions">설정</button>
 </div>
+<script src="../lib/help-setup.js"></script><!-- Help 서버를 못 붙인 PC 용 설정 프롬프트 (help.js 는 이 파일이 없어도 짧은 글로 대신) -->
 <script src="help.js"></script>
 <script src="../lib/format.js"></script>
 <script src="../lib/settings.js"></script>

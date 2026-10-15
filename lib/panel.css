@@ -378,6 +378,8 @@ tr.krext-prep-over td { background: #e3edfb !important; }
 /* 증빙 찾아오기 (lib/prep-fetch.js → Help 서버 → site-fetch/): [찾아오기] · 등록 고치기(톱니) · [자주 사용 등록] 과 등록 칸 */
 .krext-prep-cap.krext-prep-fetch { border-color: #b9d5c4; color: #1d6b3f; }
 .krext-prep-cap.krext-prep-fetch:hover:not(:disabled) { border-color: #3f9a64; background: #ecf7f0; }
+.krext-prep-llm-off { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 9px; border: 1px dashed #d4deeb; border-radius: 6px; color: #9aa3af; font-size: 12.1px; white-space: nowrap; cursor: help; }   /* LLM(Help 서버) 연결 안 됨 — 찾아오기·자주 사용 등록 자리에 (lib/llm.js llmStatus) */
+.krext-prep-llm-off svg { width: 12px; height: 12px; }
 .krext-prep-in .krext-prep-x.krext-prep-fetch-edit { display: inline-flex; align-items: center; min-height: 32px; padding: 0 6px; }
 .krext-prep-fetch-edit svg { width: 13px; height: 13px; }
 .krext-fetch-form { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid #d7e6dc; border-radius: 6px; background: #f7fbf8; }

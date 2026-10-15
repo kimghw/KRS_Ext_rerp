@@ -19,6 +19,8 @@ const P = require('./prompt');
 
 const JOB_ROOT = path.join(os.tmpdir(), 'krx-help-fetch');
 const HELPER = path.join(__dirname, 'cdp.mjs');
+const SKILL_REL = '.claude/skills/fetch-site/SKILL.md';   // 사이트 붙이기 절차(fetch-site 스킬) — 설정 페이지의 [스킬 복사]가 GET /fetch/skill 로 받아 감
+const SKILL = path.join(__dirname, '..', ...SKILL_REL.split('/'));
 const TIMEOUT_MS = (Number(process.env.KRX_FETCH_TIMEOUT_MIN) || 15) * 60000;
 const BUDGET = Number(process.env.KRX_FETCH_BUDGET_USD) || 0;   // 한 번에 쓸 최대 금액(달러, 0 이면 제한 없음) — claude --max-budget-usd
 const KEEP_MS = 6 * 3600000;   // 끝난 작업 폴더(받은 서류)를 지우기까지
@@ -195,6 +197,7 @@ function cancel(id, why) {
 
 /* ---------- HTTP (Help 서버가 /fetch, /fetch/* 를 그대로 넘김) ----------
  * POST /fetch { site, cred, tx } → { id } · GET /fetch/job?id=&since= → 상태·새 로그 줄 · GET /fetch/file?id=&name= → 받은 서류 원본 · POST /fetch/cancel { id }
+ * GET /fetch/guide?url= → 그 사이트의 안내 파일 원문(설정 페이지 [안내 복사]) · GET /fetch/skill → fetch-site 스킬 원문(설정 페이지 [스킬 복사])
  * ctx: { readBody(req), send(res, status, body), claude: { bins, model, fallback, env, kill } } — 요청 검사(Host·Origin)는 서버가 먼저 한다 */
 async function route(req, res, u, ctx) {
   const { send } = ctx;
@@ -226,6 +229,15 @@ async function route(req, res, u, ctx) {
   if (req.method === 'POST' && u.pathname === '/fetch/cancel') {
     const body = await ctx.readBody(req);
     return send(res, 200, { ok: true, canceled: cancel(String(body.id || '')) });
+  }
+  if (req.method === 'GET' && u.pathname === '/fetch/guide') {   // 설정 페이지의 [안내 복사]: 그 주소(url 또는 host)에 맞는 사이트 안내 파일(sites/*.md) 원문
+    let host = String(u.searchParams.get('host') || '');
+    try { host = new URL(String(u.searchParams.get('url') || '')).hostname; } catch (e) {}
+    return send(res, 200, { ok: true, host, files: P.guideFiles(host).map((g) => ({ name: `site-fetch/sites/${g.name}`, text: g.text })) });
+  }
+  if (req.method === 'GET' && u.pathname === '/fetch/skill') {   // 설정 페이지의 [스킬 복사]: 사이트 붙이기 스킬 원문
+    try { return send(res, 200, { ok: true, name: 'fetch-site', path: SKILL_REL, text: fs.readFileSync(SKILL, 'utf8') }); }
+    catch (e) { return send(res, 404, { ok: false, kind: 'noskill', error: `${SKILL_REL} 이 없습니다` }); }
   }
   return send(res, 404, { ok: false, error: 'not found' });
 }

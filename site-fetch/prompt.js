@@ -61,11 +61,11 @@ function clean(body) {
   };
 }
 
-/* 사이트 안내: sites/*.md 중 첫 줄 hosts 가 그 주소(또는 그 상위 도메인)에 맞는 것들 */
-function guideFor(host) {
+/* 사이트 안내 파일: sites/*.md 중 첫 줄 hosts 가 그 주소(또는 그 상위 도메인)에 맞는 것들 [{ name, hosts, text(원문), body(hosts 줄 뺀 본문) }] — 프롬프트(guideFor)와 설정 페이지의 [안내 복사](GET /fetch/guide) */
+function guideFiles(host) {
   const h = String(host || '').toLowerCase();
   let files = [];
-  try { files = fs.readdirSync(SITES_DIR).filter((f) => f.endsWith('.md')).sort(); } catch (e) { return ''; }
+  try { files = fs.readdirSync(SITES_DIR).filter((f) => f.endsWith('.md')).sort(); } catch (e) { return []; }
   const out = [];
   for (const f of files) {
     let text = '';
@@ -73,10 +73,12 @@ function guideFor(host) {
     const m = /^hosts:\s*(.+)$/m.exec(text.split(/\r?\n/).slice(0, 3).join('\n'));
     if (!m) continue;
     const hosts = m[1].split(/[,\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
-    if (hosts.some((x) => h === x || h.endsWith('.' + x))) out.push(text.replace(/^hosts:.*\r?\n/m, '').trim());
+    if (hosts.some((x) => h === x || h.endsWith('.' + x))) out.push({ name: f, hosts, text: text.trim(), body: text.replace(/^hosts:.*\r?\n/m, '').trim() });
   }
-  return out.join('\n\n');
+  return out;
 }
+/* 사이트 안내 글(프롬프트에 붙는 것): 맞는 파일들의 본문 */
+function guideFor(host) { return guideFiles(host).map((g) => g.body).join('\n\n'); }
 
 /* 입력 → { prompt(사용자 메시지), schema(--json-schema) } */
 function build(input) {
@@ -119,4 +121,4 @@ function parse(input, out, manifest) {
   return { summary: str(o.summary, 200), item: str(o.item, 200), matched: str(o.matched, 200), howto: str(o.howto, LIMIT.howto), files, missing };
 }
 
-module.exports = { clean, build, parse, guideFor, SYSTEM, DOC_HINT, KINDS, LIMIT, BLOCK_HOST };
+module.exports = { clean, build, parse, guideFor, guideFiles, SYSTEM, DOC_HINT, KINDS, LIMIT, BLOCK_HOST };

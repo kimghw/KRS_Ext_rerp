@@ -1,5 +1,5 @@
 /* 서비스워커: 데이터 수집/캐시, 배지, 캡처 로그 저장, 주기 갱신 */
-importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/prep-store.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
+importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/prep-store.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
   'lib/plan.js', 'lib/mcp-client.js', 'lib/plus-onenote.js', 'lib/plan-sync.js',   // 확장 Plus: 예상 비용 ↔ 원노트 동기화 (plan.js 는 저장소 키·월간 구독 계산용)
   'lib/research.js', 'lib/research-sync.js');   // 연구개발계획서(연구내용) 참조 — 원노트 링크로 받기 (researchBind · researchPull)
 
@@ -76,6 +76,7 @@ async function refresh(force, opts) {
       const gen = settingsGen;
       const settings = await KRX_SETTINGS.load();
       const cache = await getCache();
+      KRX_LLM.probe((settings.help || {}).url, false).catch(() => {});   // LLM(Help 서버) 연결 상태 → storage.local.llmStatus (패널의 찾아오기 버튼·설정 페이지가 봄). 30초 안이면 마지막 결과
       const ttl = Math.max(1, KRX_FMT.num(settings.refreshMinutes) || 10) * 60000;
       // 오류로 끝난 결과(예: 재로드 직후 일시적 네트워크 오류)는 TTL 과 상관없이 다시 조회.
       // "로그인 필요"로 끝난 결과도 자동 로그인이 켜져 있으면 RND_SSO_RETRY_MS 뒤부터 다시 조회 — eClass 에 로그인하고 돌아오면 다음 패널 열기/알람에서 SSO 로 이어진다 (실패해도 요청 2개라 가벼움)
@@ -858,6 +859,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepPersonSearch': try { return { ok: true, list: await KRX_API.searchPerson(msg.name) }; } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message }; }   // 내부참석자 검색
       case 'prepAddFiles': return { ok: true, entry: await KRX_PREP_STORE.addFiles(String(msg.key || ''), msg.meta || {}, msg.files || []) };
       case 'prepAuto': return await KRX_PREP_AI.run(String(msg.key || ''), msg.meta || {});   // Claude 자동 분류 (Help 서버 연결 시): 청구종류 · 첨부 파일 종류 (lib/prep-ai.js)
+      case 'llmProbe': return await KRX_LLM.probe(msg.url, !!msg.force);   // LLM(Help 서버) 연결 확인 — 설정 페이지 LLM 설정 탭(연결 확인 · 주기 확인). 결과는 storage.local.llmStatus 에도 (lib/llm.js)
       case 'prepSetFileKind': return { ok: true, entry: await KRX_PREP_STORE.setFileKind(String(msg.key || ''), String(msg.id || ''), String(msg.kind || '')) };   // 첨부 파일 종류 → 이름 바꾸기
       case 'prepRemoveFile': return { ok: true, entry: await KRX_PREP_STORE.removeFile(String(msg.key || ''), String(msg.id || '')) };
       case 'prepClear': await KRX_PREP_STORE.clear(String(msg.key || '')); await KRX_PREP_FETCH.clear(String(msg.key || '')); return { ok: true };

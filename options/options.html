@@ -2,20 +2,26 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>R&D ERP 현황 - 설정</title>
 <link rel="stylesheet" href="options.css">
 </head>
 <body>
-<h1>R&amp;D ERP 현황 설정</h1>
+<header class="settings-header">
+  <div class="settings-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><rect x="7" y="4" width="4" height="6" rx="2" fill="currentColor" stroke="none"/><rect x="14" y="14" width="4" height="6" rx="2" fill="currentColor" stroke="none"/></svg></div>
+  <div><p class="settings-eyebrow">R&amp;D ERP 현황</p><h1>설정</h1><p class="settings-subtitle">업무에 맞게 화면과 자동화 기능을 설정하세요.</p></div>
+</header>
 
-<!-- 탭: 설정 · 증빙 찾아오기 (options.js showTab — 주소 #fetch… 면 증빙 찾아오기). 저장 버튼은 두 탭 공통 -->
+<!-- 탭: 일반 설정 · LLM 설정 · MCP 설정 (options.js showTab — 주소 #llm 또는 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=…)면 LLM 설정, #mcp 면 MCP 설정). 저장 버튼은 세 탭 공통.
+     LLM 설정 탭 이름 옆 칩은 Help 서버(LLM) 연결 상태(options.js probeLlm → background lib/llm.js). LLM 으로 하는 기능(자동 분류 · Help Chat · 증빙 찾아오기 — 가맹점 등록까지)은 전부 LLM 설정 탭에 있고 연결돼야 켜진다 -->
 <nav class="tabs" role="tablist" aria-label="설정 탭">
-  <button type="button" role="tab" class="tab" data-tab="main" aria-selected="true">설정</button>
-  <button type="button" role="tab" class="tab" data-tab="fetch" aria-selected="false">증빙 찾아오기<span id="fetchSummary" class="tab-badge"></span></button>
+  <button type="button" role="tab" class="tab" id="tab-main" data-tab="main" aria-controls="panel-main panel-diagnostics" aria-selected="true">일반 설정</button>
+  <button type="button" role="tab" class="tab" id="tab-llm" data-tab="llm" aria-controls="panel-llm" aria-selected="false" tabindex="-1">LLM 설정<span id="llmBadge" class="tab-badge"></span></button>
+  <button type="button" role="tab" class="tab" id="tab-mcp" data-tab="mcp" aria-controls="panel-mcp" aria-selected="false" tabindex="-1">MCP 설정<span id="mcpBadge" class="tab-badge"></span></button>
 </nav>
 
 <form id="form">
-  <div class="tab-panel" data-panel="main">
+  <div class="tab-panel" id="panel-main" role="tabpanel" aria-labelledby="tab-main" data-panel="main">
   <section class="card">
     <h2>내 참여 과제만 보기</h2>
     <label class="check"><input type="checkbox" id="onlyMyProjects"> 참여인력에 본인이 포함된 과제만 표시 (과제정보 &gt; 참여인력, 참여구분 "계속" 기준)</label>
@@ -161,7 +167,7 @@
   <details class="card" data-collapse="research" id="researchCard">
     <summary><h2>연구개발계획서 (연구내용 참조) <span id="researchSummary" class="muted"></span></h2></summary>
     <p class="help">RND 폴더의 연구개발계획서 스냅샷 <code>KR_&lt;과제&gt;.yaml</code>(재생성본이 있으면 마지막 <code>_rN</code>)을 넣어 두면, 그 차년도의 <b>개발목표·개발내용·성능목표·수행일정</b>과 <b>연구활동비 세부사용계획</b>을 참조로 씁니다:
-      패널의 <b>연구내용</b> 탭(카드미청구 · 과제집행비율 다음)에서 과제별로 보이고, 청구 준비 자동 분류(Help Chat 구역)를 켜 두었으면 Claude 가 청구종류를 고를 때 그 과제의 계획을 근거로 보고, 비어 있는 청구내역(적요)을 쓸 때 개발내용·목표에서 용도를 고릅니다.
+      패널의 <b>연구내용</b> 탭(카드미청구 · 과제집행비율 다음)에서 과제별로 보이고, 청구 준비 자동 분류(LLM 설정 탭 — LLM 이 연결돼 있을 때)를 켜 두었으면 Claude 가 청구종류를 고를 때 그 과제의 계획을 근거로 보고, 비어 있는 청구내역(적요)을 쓸 때 개발내용·목표에서 용도를 고릅니다.
       과제명으로 R&amp;D ERP 과제에 저절로 잇고(이름이 조금 달라도 가장 비슷한 과제), 아래 표에서 바꿀 수 있습니다. 같은 과제·차년도에 다시 넣으면 바뀌고, 이미 넣은 판보다 오래된 판은 넣지 않습니다.
       <code>history/*.yaml</code> 이력 파일은 쓰지 않습니다. 이 브라우저(확장 저장소)에만 남습니다.</p>
     <label class="rs-drop" id="researchDrop" tabindex="0">
@@ -245,45 +251,6 @@
     </details>
   </details>
 
-  <details class="card" data-collapse="plus">
-    <summary><h2>확장 Plus: 외부 MCP 연동 <span id="plusSummary" class="muted"></span></h2></summary>
-    <p class="help">이 PC 에서 도는 <b>KR_MS365_mcp</b> 의 OneNote MCP 서버(기본 <code>http://localhost:5005/mcp</code>)를 통해 <b>과제집행비율 예상 비용</b>을 <b>과제별 원노트 페이지</b>와 동기화합니다.
-      켜면 아래 이름(기본 <code>RERP</code>)의 섹션을 찾아(없으면 고른 노트북에 만들어) 과제마다 <code>[예상 비용] 과제번호 과제명</code> 페이지를 그 섹션에 만들고, 같은 노트북(공유)의 같은 섹션을 쓰는 사람들은 제목의 과제번호로 같은 페이지를 씁니다. 켜기는 툴바 팝업 아래 줄에서도 됩니다.
-      페이지는 <b>과제 책임자만</b> 만듭니다(참여인력 역할이 책임이거나 과제책임자 이름이 본인인 과제). 책임자인 과제는 항목이 없어도 동기화 때 자동으로 만들어지고, 책임자가 아니면 페이지가 생길 때까지 "책임자 생성 대기"로 표시됩니다(동료가 보낸 링크를 패널의 가져오기로 적용하면 됨).
-      공유 노트북은 각자 OneNote 에서 한 번 열어 둬야 섹션 목록에 나옵니다. MCP 서버에는 2026-09-27 이후의 onenote 도구(<code>read_onenote get_content include_ids</code> · <code>write_onenote replace</code>)가 있어야 합니다 — 연결 확인이 알려 줍니다.</p>
-    <div class="grid">
-      <label class="check wide"><input type="checkbox" id="plusEnabled"> 확장 Plus 사용 (로컬 MCP 서버 연동)</label>
-      <label class="wide">OneNote MCP 주소 <input type="url" id="plusMcpUrl" placeholder="http://localhost:5005/mcp"></label>
-      <label class="wide"><button type="button" id="btnPlusProbe" class="btn">연결 확인</button> <span id="plusProbeStatus" class="status"></span></label>
-      <label>섹션 이름 <input type="text" id="plusSectionName" placeholder="RERP"></label>
-      <label>섹션을 둘 노트북 <select id="plusNotebook"><option value="">(자동: 그 이름의 섹션이 있는 노트북)</option></select></label>
-      <label class="wide"><button type="button" id="btnPlusNotebooks" class="btn">노트북 불러오기</button> <button type="button" id="btnPlusSection" class="btn">섹션 찾기 / 만들기</button> <span id="plusSectionStatus" class="status"></span></label>
-      <label class="check wide"><input type="checkbox" id="plusPlanSync"> 예상 비용을 과제별 페이지와 동기화 — 패널·팝업을 열 때, 항목을 바꾼 4초 뒤, 자동 갱신 때 저절로. 패널 비목 머리글의 저장 아이콘 옆에 <b>원노트로 내보내기(⬆ = 페이지 링크 복사) · 원노트에서 가져오기(⬇ = 동료가 보낸 링크 붙여 넣기) · 열기(↗)</b> 아이콘이 붙습니다(눈 아이콘으로 예상 비용을 펼친 동안만). 켜기는 툴바 팝업 아래 줄에서도 됩니다. 항목별로 마지막 수정이 이기고, 삭제도 전파됩니다 (90일)</label>
-      <label class="wide"><button type="button" id="btnPlusSyncNow" class="btn">지금 동기화</button> <button type="button" id="btnPlusCreateAll" class="btn">내가 책임자인 과제 페이지 모두 만들기</button> <span id="plusSyncStatus" class="status"></span></label>
-      <p class="help wide" id="plusSyncState"></p>
-      <div class="wide" id="plusPages"></div>
-    </div>
-  </details>
-
-  <details class="card" data-collapse="help">
-    <summary><h2>Help Chat: Claude Code 로 확장 고치기 <span id="helpSummary" class="muted"></span></h2></summary>
-    <p class="help">툴바 팝업의 <b>Help Chat</b> 줄에 고칠 점이나 이상한 결과를 한 줄로 보내면, 이 PC 에서 도는 <b>Help 서버</b>(<code>node help-server/server.js</code>, 기본 <code>http://127.0.0.1:8106</code>)가
-      <b>Claude Code CLI</b>(헤드리스, 기본 모델 <code>claude-opus-5-5</code>)를 이 확장 폴더에서 돌려 코드를 고칩니다. 팝업에는 진행·완료 여부가 한 줄 로그로 보이고, 끝나면 <b>적용</b>으로 확장을 다시 불러옵니다.
-      Claude 는 파일만 고치고 커밋하지 않으며, R&amp;D ERP 에 쓰는 동작(신청·저장·삭제)은 하지 않습니다(<code>help-server/rules.md</code>). 서버는 처음 연결한 확장에서 온 요청만 받습니다. Claude Code CLI 2.1.280 이상과 로그인(<code>claude</code>)이 필요합니다.</p>
-    <div class="grid">
-      <label class="check wide"><input type="checkbox" id="helpEnabled"> 팝업에 Help Chat 줄 표시</label>
-      <label class="check wide"><input type="checkbox" id="helpAutoPick"> 청구 준비 자동 분류: Help 서버가 떠 있으면 Claude 가 <b>청구종류</b>와 <b>첨부 파일 종류</b>를 골라 줌</label>
-      <p class="help wide">거래의 청구 준비 줄을 열 때, 파일(끌어다 놓기·화면 캡처)을 넣은 뒤, 청구내역을 고친 뒤 이 PC 의 Help 서버(<code>POST /classify</code>)가 빠른 모델(기본 <code>claude-haiku-5-5</code>, 서버 환경 변수 <code>KRX_HELP_FAST_MODEL</code>)로 한 번 묻습니다 — 보통 몇 초, 줄에 “Claude 분류 중…”이 보입니다.
-        가맹점·금액·사용일·과제명·청구내역·파일 이름과, 아직 종류를 안 정한 이미지·PDF 의 내용(이미지는 줄여서)이 Claude 로 갑니다. Claude 가 고른 값에는 점선 테두리와 <b>AI</b> 표시(툴팁에 이유)가 붙고, <b>직접 고른 값은 바꾸지 않습니다</b>. 서버가 없으면 아무 일도 하지 않습니다.</p>
-      <label class="check wide"><input type="checkbox" id="helpAutoPtcl"> 청구내역(적요)이 비어 있으면 Claude 가 <b>한 줄을 씀</b> — 첨부 파일 내용과 <b>과제 연구내용</b>(연구개발계획서)을 참고</label>
-      <p class="help wide">품목은 첨부 파일(찾아온 인보이스·거래명세서는 내용째, 2개까지)에서, 용도는 그 과제의 연구개발계획서(위 <b>연구개발계획서 (연구내용 참조)</b>에 넣은 KR_&lt;과제&gt;.yaml 이나 원노트로 받은 것)의 개발내용·목표에서 골라 씁니다(예: “Azure 클라우드 사용료(2026년 9월분) - 차단기 제어 알고리즘 시뮬레이션용”).
-        청구종류를 바꾸거나 서류가 새로 들어오면 다시 쓰고, <b>직접 고친 글은 바꾸지 않습니다</b>(지우면 다시 씀). 계획서가 없는 과제는 과제명으로 씁니다. 서버를 0.8.5 개발 중에 띄웠다면 다시 실행해야 합니다.</p>
-      <label class="wide">청구내역 작성 안내 (선택 — Claude 에 그대로 줌, 300자) <input type="text" id="helpPtclGuide" maxlength="300" placeholder="예) &quot;품목(기간) - 용도&quot; 형식, 용도는 개발내용 번호 없이 20자 안팎"></label>
-      <label class="wide">Help 서버 주소 <input type="url" id="helpUrl" placeholder="http://127.0.0.1:8106"></label>
-      <label class="wide"><button type="button" id="btnHelpProbe" class="btn">연결 확인</button> <span id="helpProbeStatus" class="status"></span></label>
-    </div>
-  </details>
-
   <details class="card" data-collapse="adv">
     <summary><h2>고급: 서비스 ID / 입력값 <span id="advSummary" class="muted"></span></h2></summary>
     <p class="help">기본값은 R&amp;D ERP 화면 스크립트에서 확인한 값입니다. 문제가 없으면 그대로 두세요.</p>
@@ -307,18 +274,114 @@
   </details>
   </div>
 
-  <div class="tab-panel" data-panel="fetch" hidden>
+  <!-- MCP 설정 탭: 이 PC 의 외부 MCP 서버(KR_MS365_mcp OneNote) 연동 — 확장 Plus. LLM(Help 서버)과는 별개의 연결이라 LLM 설정 탭에 두지 않는다. 탭 이름 옆 칩은 켜짐/꺼짐 (options.js updatePlusSummary) -->
+  <div class="tab-panel" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" data-panel="mcp" hidden>
   <section class="card">
-    <h2>증빙 찾아오기</h2>
-    <p class="help">패널 청구 준비 줄의 <b>찾아오기</b>는 카드 가맹점 이름에 아래 <b>가맹점 글자</b>가 든 거래를 그 사이트에서 찾아 <b>거래명세서</b>(강의면 <b>수강증·강의내용</b>도)를 첨부 파일로 넣습니다.
-      이 PC 의 Help 서버(<code>node help-server/server.js</code>)가 <b>작업용 Chrome 창</b>(별도 프로필 — 평소 브라우저·회사 시스템 세션과 따로)을 열어 Claude Code 로 로그인 → 구매내역에서 <b>사용일·금액</b>으로 주문 찾기 → 서류를 PDF·이미지로 저장합니다(보통 2~7분). 문자·메일 인증이나 캡차가 나오면 그 창에서 직접 하세요 — 로그인은 그 프로필에 남아 다음에는 바로 갑니다. 가맹점마다 <b>로그인해 둔 Chrome</b>(바탕화면 Chrome 바로가기 이름 · 디버그 포트 · 주소 — 예: <code>SUB 전용</code>, <code>9444</code>)을 적으면 작업용 창 대신 그 Chrome(새 창)에서 찾아 로그인이 필요 없고, 안 떠 있으면 그 바로가기로 띄웁니다.
-      아이디·비밀번호는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 찾아올 때 이 PC 의 Help 서버로만 갑니다. Claude 에는 보이지 않고 브라우저 손잡이가 로그인 칸에 넣습니다. 여럿이 쓰는 PC 에서는 넣지 마세요.
-      아무것도 사거나 바꾸지 않으며(조회·영수증 보기/내려받기만) 회사 시스템(R&amp;D ERP·eClass·RCMS)으로는 가지 않습니다. 다른 웹 사이트에 가는 부분은 저장소의 <code>site-fetch/</code> 폴더에 따로 있습니다(인프런·ChatGPT·Claude·Azure 는 화면 안내 포함). 아래 <b>저장</b>을 눌러야 반영됩니다(저장 버튼은 두 탭 공통 — 설정 탭에서 바꾼 것도 함께 저장).</p>
-    <label class="check"><input type="checkbox" id="helpFetch"> 청구 준비 줄에 <b>찾아오기 · 자주 사용 등록</b> 버튼 표시</label>
+    <h2>확장 Plus: 외부 MCP 연동 — OneNote 예상 비용 동기화 <span id="plusSummary" class="muted"></span></h2>
+    <p class="help">이 PC 에서 도는 <b>KR_MS365_mcp</b> 의 OneNote MCP 서버(기본 <code>http://localhost:5005/mcp</code>)를 통해 <b>과제집행비율 예상 비용</b>을 <b>과제별 원노트 페이지</b>와 동기화합니다.
+      켜면 아래 이름(기본 <code>RERP</code>)의 섹션을 찾아(없으면 고른 노트북에 만들어) 과제마다 <code>[예상 비용] 과제번호 과제명</code> 페이지를 그 섹션에 만들고, 같은 노트북(공유)의 같은 섹션을 쓰는 사람들은 제목의 과제번호로 같은 페이지를 씁니다. 켜기는 툴바 팝업 아래 줄에서도 됩니다.
+      페이지는 <b>과제 책임자만</b> 만듭니다(참여인력 역할이 책임이거나 과제책임자 이름이 본인인 과제). 책임자인 과제는 항목이 없어도 동기화 때 자동으로 만들어지고, 책임자가 아니면 페이지가 생길 때까지 "책임자 생성 대기"로 표시됩니다(동료가 보낸 링크를 패널의 가져오기로 적용하면 됨).
+      공유 노트북은 각자 OneNote 에서 한 번 열어 둬야 섹션 목록에 나옵니다. MCP 서버에는 2026-09-27 이후의 onenote 도구(<code>read_onenote get_content include_ids</code> · <code>write_onenote replace</code>)가 있어야 합니다 — 연결 확인이 알려 줍니다.</p>
+    <div class="grid">
+      <label class="check wide"><input type="checkbox" id="plusEnabled"> 확장 Plus 사용 (로컬 MCP 서버 연동)</label>
+      <label class="wide">OneNote MCP 주소 <input type="url" id="plusMcpUrl" placeholder="http://localhost:5005/mcp"></label>
+      <label class="wide"><button type="button" id="btnPlusProbe" class="btn">연결 확인</button> <span id="plusProbeStatus" class="status"></span></label>
+      <label>섹션 이름 <input type="text" id="plusSectionName" placeholder="RERP"></label>
+      <label>섹션을 둘 노트북 <select id="plusNotebook"><option value="">(자동: 그 이름의 섹션이 있는 노트북)</option></select></label>
+      <label class="wide"><button type="button" id="btnPlusNotebooks" class="btn">노트북 불러오기</button> <button type="button" id="btnPlusSection" class="btn">섹션 찾기 / 만들기</button> <span id="plusSectionStatus" class="status"></span></label>
+      <label class="check wide"><input type="checkbox" id="plusPlanSync"> 예상 비용을 과제별 페이지와 동기화 — 패널·팝업을 열 때, 항목을 바꾼 4초 뒤, 자동 갱신 때 저절로. 패널 비목 머리글의 저장 아이콘 옆에 <b>원노트로 내보내기(⬆ = 페이지 링크 복사) · 원노트에서 가져오기(⬇ = 동료가 보낸 링크 붙여 넣기) · 열기(↗)</b> 아이콘이 붙습니다(눈 아이콘으로 예상 비용을 펼친 동안만). 켜기는 툴바 팝업 아래 줄에서도 됩니다. 항목별로 마지막 수정이 이기고, 삭제도 전파됩니다 (90일)</label>
+      <label class="wide"><button type="button" id="btnPlusSyncNow" class="btn">지금 동기화</button> <button type="button" id="btnPlusCreateAll" class="btn">내가 책임자인 과제 페이지 모두 만들기</button> <span id="plusSyncStatus" class="status"></span></label>
+      <p class="help wide" id="plusSyncState"></p>
+      <div class="wide" id="plusPages"></div>
+    </div>
+  </section>
+  </div>
+
+  <!-- LLM 설정 탭: 이 PC 의 Help 서버(Claude Code CLI) 연결과 그것으로 하는 기능. 연결 상태는 background lib/llm.js(storage.local.llmStatus) — options.js probeLlm 이 열 때·30초마다·연결 확인 버튼으로 확인하고,
+       연결돼 있을 때만 아래 #llmFeatures(자동 분류 · Help Chat · 증빙 찾아오기와 가맹점 등록)가 켜진다(.llm-off 로 흐리게 + 안내). 기능마다 제목 옆 .llm-chip 에 그 기능이 되는 서버인지(자동 분류 모델 · 찾아오기 모델 · claude CLI) -->
+  <div class="tab-panel" id="panel-llm" role="tabpanel" aria-labelledby="tab-llm" data-panel="llm" hidden>
+  <section class="card llm-conn" data-help-key="LLM 연결 (Help 서버)">
+    <h2>LLM 연결 <span id="llmState" class="llm-state">확인 중…</span></h2>
+    <p class="section-description">이 PC의 Help 서버에 연결해 Claude 자동화 기능을 사용합니다.</p>
+    <p class="help">이 PC 에서 도는 <b>Help 서버</b>(<code>node help-server/server.js</code>, 기본 <code>http://127.0.0.1:8106</code>)가 <b>Claude Code CLI</b>(헤드리스 — 기본 모델 <code>claude-opus-5-5</code>, 빠른 분류는 <code>claude-haiku-5-5</code>)를 이 확장 폴더에서 돌립니다.
+      아래 기능 — <b>첨부 서류 읽기(OCR)·청구내역 작성</b>, <b>증빙 찾아오기</b>, <b>Help Chat</b> — 은 모두 이 서버가 <b>연결돼 있을 때만</b> 동작하고, 연결되면 저절로 켜집니다. 패널 청구 준비 줄의 <b>찾아오기</b> 버튼도 연결돼 있을 때만 보입니다.
+      Claude Code CLI 2.1.280 이상과 로그인(<code>claude</code> 실행 후 <code>/login</code>)이 필요하고, 서버는 처음 연결한 확장에서 온 요청만 받습니다. 이 페이지를 열어 두면 30초마다 다시 확인합니다.
+      처음 쓰는 PC 처럼 연결이 안 될 때는 연결 확인 옆에 <b>Claude Code 설정 프롬프트 복사</b>가 보입니다 — 저장소 폴더에서 연 Claude Code 에 붙여 넣으면 준비물 확인부터 서버 실행까지 안내합니다(팝업 Help Chat 의 <b>설정 프롬프트 복사</b>와 같은 글).</p>
+    <div class="connection-form">
+      <label>Help 서버 주소 <input type="url" id="helpUrl" placeholder="http://127.0.0.1:8106" aria-describedby="helpUrlHint"></label>
+      <button type="button" id="btnHelpProbe" class="btn">연결 확인</button>
+    </div>
+    <p class="field-hint" id="helpUrlHint">이 PC의 localhost 또는 127.0.0.1 주소를 사용합니다.</p>
+    <span id="helpProbeStatus" class="status" role="status"></span>
+    <div class="row" id="llmSetupRow" hidden><button type="button" id="btnLlmSetup" class="btn" title="Help 서버를 아직 못 붙인 PC 용: 준비물 확인(Node · git · Claude Code CLI · 로그인) · 포트 확인 · 별도 터미널에서 서버 실행 · /health 확인을 Claude Code 에 시키는 글(lib/help-setup.js)을 복사합니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으세요">Claude Code 설정 프롬프트 복사</button> <span id="llmSetupStatus" class="status"></span></div>
+    <details class="connection-details"><summary>연결 상세 정보</summary><div id="llmDetail" class="llm-detail"></div></details>
+  </section>
+
+  <div id="llmFeatures">
+    <p id="llmNotice" class="llm-notice" hidden></p>
+    <section class="card" data-help-key="청구 준비 자동 분류 — 첨부 서류 읽기(OCR) · 청구내역 작성">
+      <h2>청구 준비 자동화</h2>
+      <p class="section-description">첨부 서류를 읽고 청구종류와 청구내역 작성을 도와줍니다.</p>
+      <div class="feature-status"><span class="llm-chip" data-llm="classify"></span></div>
+      <p class="help">거래의 청구 준비 줄을 열 때, 파일(끌어다 놓기·화면 캡처·찾아온 서류)을 넣은 뒤, 청구내역을 고친 뒤 이 PC 의 Help 서버(<code>POST /classify</code>)가 빠른 모델(기본 <code>claude-haiku-5-5</code>, 서버 환경 변수 <code>KRX_HELP_FAST_MODEL</code>)로 한 번 묻습니다 — 보통 몇 초, 줄에 “Claude 분류 중…”이 보입니다.
+        가맹점·금액·사용일·과제명·청구내역·파일 이름과, 아직 종류를 안 정한 이미지·PDF 의 <b>내용</b>(이미지는 줄여서 — 영수증·캡처를 읽는 OCR 구실)이 Claude 로 갑니다. Claude 가 고른 값에는 점선 테두리와 <b>AI</b> 표시(툴팁에 이유)가 붙고, <b>직접 고른 값은 바꾸지 않습니다</b>. 서버가 연결돼 있지 않으면 아무 일도 하지 않습니다.</p>
+      <label class="check setting-toggle"><input type="checkbox" id="helpAutoPick"><span class="setting-copy"><strong>첨부 서류 읽기 · 자동 분류</strong><span>Claude가 청구종류와 첨부 파일 종류를 골라줍니다.</span></span></label>
+      <label class="check setting-toggle"><input type="checkbox" id="helpAutoPtcl"><span class="setting-copy"><strong>청구내역 자동 작성</strong><span>적요가 비어 있으면 첨부 서류와 과제 연구내용을 참고해 한 줄로 작성합니다.</span></span></label>
+      <p class="help">품목은 첨부 파일(찾아온 인보이스·거래명세서는 내용째, 2개까지)에서, 용도는 그 과제의 연구개발계획서(일반 설정 › <b>연구개발계획서 (연구내용 참조)</b>에 넣은 KR_&lt;과제&gt;.yaml 이나 원노트로 받은 것)의 개발내용·목표에서 골라 씁니다(예: “Azure 클라우드 사용료(2026년 9월분) - 차단기 제어 알고리즘 시뮬레이션용”).
+        청구종류를 바꾸거나 서류가 새로 들어오면 다시 쓰고, <b>직접 고친 글은 바꾸지 않습니다</b>(지우면 다시 씀). 계획서가 없는 과제는 과제명으로 씁니다. 서버를 0.8.5 개발 중에 띄웠다면 다시 실행해야 합니다.</p>
+      <div class="grid">
+        <label class="wide">청구내역 작성 안내 <span class="optional">선택 · 최대 300자</span><input type="text" id="helpPtclGuide" maxlength="300" placeholder="예) 품목(기간) - 용도 형식으로, 용도는 20자 안팎"></label>
+      </div>
+    </section>
+
+    <section class="card" data-help-key="Help Chat: Claude Code 로 확장 고치기">
+      <h2>Help Chat</h2>
+      <p class="section-description">Claude Code에 요청해 확장 기능을 수정합니다.</p>
+      <div class="feature-status"><span class="llm-chip" data-llm="chat"></span></div>
+      <p class="help">툴바 팝업·사이드 패널의 <b>Help Chat</b> 줄에 고칠 점이나 이상한 결과를 한 줄로 보내면, Help 서버가 Claude Code CLI 를 이 확장 폴더에서 돌려 코드를 고칩니다. 팝업에는 진행·완료 여부가 한 줄 로그로 보이고, 끝나면 <b>적용</b>으로 확장을 다시 불러옵니다.
+        Claude 는 파일만 고치고 커밋하지 않으며, R&amp;D ERP 에 쓰는 동작(신청·저장·삭제)은 하지 않습니다(<code>help-server/rules.md</code>). 이 줄은 다른 부분이 깨졌을 때 고쳐 달라고 하는 창구라, 서버가 꺼져 있어도 숨기지 않고 보낼 때 연결 안 됨을 알려 줍니다.</p>
+      <label class="check setting-toggle"><input type="checkbox" id="helpEnabled"><span class="setting-copy"><strong>Help Chat 표시</strong><span>팝업과 사이드 패널에서 바로 요청할 수 있습니다.</span></span></label>
+    </section>
+
+    <!-- 증빙 찾아오기 (LLM 기능): 켜기 · 종류별 필요 서류 · 자주 사용 가맹점 · 사이트 만들기 채팅. 패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=… 가 여기로 온다. 서버가 연결은 됐는데 찾아오기가 없는(이전 버전·Node 22 미만) 서버면 #fetchLlmNotice -->
+    <section class="card" id="fetchCard">
+      <h2>증빙 찾아오기 <span id="fetchSummary" class="muted"></span></h2>
+      <p class="section-description">등록한 가맹점에서 거래에 필요한 증빙 서류를 찾아옵니다.</p>
+      <div class="feature-status"><span class="llm-chip" data-llm="fetch"></span></div>
+      <p class="help">패널 청구 준비 줄의 <b>찾아오기</b>는 카드 가맹점 이름에 아래 <b>가맹점 글자</b>가 든 거래를 그 사이트에서 찾아 <b>거래명세서</b>(강의면 <b>수강증·강의내용</b>도)를 첨부 파일로 넣습니다.
+        Help 서버가 <b>작업용 Chrome 창</b>(별도 프로필 — 평소 브라우저·회사 시스템 세션과 따로)을 열어 Claude Code 로 로그인 → 구매내역에서 <b>사용일·금액</b>으로 주문 찾기 → 서류를 PDF·이미지로 저장합니다(보통 2~7분). 문자·메일 인증이나 캡차가 나오면 그 창에서 직접 하세요 — 로그인은 그 프로필에 남아 다음에는 바로 갑니다. 가맹점마다 <b>로그인해 둔 Chrome</b>(바탕화면 Chrome 바로가기 이름 · 디버그 포트 · 주소 — 예: <code>SUB 전용</code>, <code>9444</code>)을 적으면 작업용 창 대신 그 Chrome(새 창)에서 찾아 로그인이 필요 없고, 안 떠 있으면 그 바로가기로 띄웁니다.
+        아이디·비밀번호는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 찾아올 때 이 PC 의 Help 서버로만 갑니다. Claude 에는 보이지 않고 브라우저 손잡이가 로그인 칸에 넣습니다. 여럿이 쓰는 PC 에서는 넣지 마세요.
+        아무것도 사거나 바꾸지 않으며(조회·영수증 보기/내려받기만) 회사 시스템(R&amp;D ERP·eClass·RCMS)으로는 가지 않습니다. 다른 웹 사이트에 가는 부분은 저장소의 <code>site-fetch/</code> 폴더에 따로 있습니다(인프런·ChatGPT·Claude·Azure 는 화면 안내 포함). Help 서버를 띄운 Node 가 22 이상이어야 합니다(제목 옆 칩에 이유가 보임). 가맹점·필요 서류는 아래 <b>저장</b>을 눌러야 반영됩니다(저장 버튼은 두 탭 공통).</p>
+      <label class="check setting-toggle"><input type="checkbox" id="helpFetch"><span class="setting-copy"><strong>찾아오기 · 자주 사용 등록 표시</strong><span>LLM 연결 시 청구 준비 줄에서 사용할 수 있습니다.</span></span></label>
+      <p id="fetchLlmNotice" class="llm-notice" hidden></p>
+    </section>
+
+  <div id="fetchBody">
+  <!-- 사이트 만들기 채팅 (options/fetch-chat.js): Help 서버 /ask 로 Claude Code 를 돌려 fetch-site 스킬대로 사이트 안내·기억한 찾는 방법·시험 서류를 만들게 함. 설정 페이지의 큰 form 안이라 form 을 겹치지 않고 Enter 는 스크립트가 받음 -->
+  <section class="card fetch-chat" id="fetchChat">
+    <h2>사이트 만들기 채팅</h2>
+    <p class="section-description">가맹점을 고르고 요청하면 사이트 안내와 찾는 방법을 만듭니다.</p>
+    <p class="help">가맹점을 고르고(또는 새 사이트) 한 줄 적어 보내면 이 PC 의 Help 서버(<code>node help-server/server.js</code>)가 Claude Code 를 이 확장 폴더에서 돌려 <b>fetch-site 스킬</b>(<code>.claude/skills/fetch-site/SKILL.md</code>)의 절차대로 — 확장을 건드리지 않는 단독 실행(<code>node site-fetch/run.js</code>, 작업용 Chrome 창이 열림)으로 그 사이트를 시험하며
+      사이트 안내(<code>site-fetch/sites/&lt;이름&gt;.md</code> — 다음 찾아오기부터 바로 붙음), <b>기억한 찾는 방법</b>(끝나면 아래 그 가맹점 칸에 채워지니 <b>저장</b>을 누르세요), 시험으로 받은 서류(<code>site-fetch-out/&lt;이름&gt;/</code>)를 만듭니다.
+      팝업 Help Chat 과 같은 서버 줄이라 한 번에 하나이고, 아이디·비밀번호는 보내지 않으니 로그인은 <b>로그인해 둔 Chrome</b>이나 열린 창에서. 커밋은 하지 않습니다. 대화형 Claude Code 에서는 <code>/fetch-site</code>.</p>
+    <div class="fc-form">
+      <select id="fcSite" aria-label="요청할 가맹점" title="어느 가맹점 사이트를 붙일지 (등록 값이 요청에 붙음)"></select>
+      <input type="text" id="fcText" aria-label="사이트 만들기 요청" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="예) 10/06 43,560원 거래로 안내를 만들어 줘" title="비우면 선택한 가맹점의 등록 값으로 요청합니다. Enter로 보내기">
+      <button type="button" id="fcSend" class="btn primary" title="보내기 (Enter)">보내기</button>
+    </div>
+    <div class="help-row" id="fcRow" hidden>
+      <span id="fcStatus" class="help-status" role="status"></span>
+      <button type="button" id="fcApply" class="btn" hidden title="확장을 다시 불러와 바뀐 코드를 적용합니다 (이 페이지는 닫힙니다)">적용</button>
+      <button type="button" id="fcStop" class="btn" hidden>중지</button>
+      <button type="button" id="fcNew" class="btn" hidden title="이 결과를 지우고, 다음 요청을 이전 대화와 잇지 않습니다">새 대화</button>
+    </div>
+    <div id="fcLines" class="help-lines" hidden></div>
+    <div class="row"><button type="button" id="btnFcSkill" class="btn" title="fetch-site 스킬 원문(.claude/skills/fetch-site/SKILL.md)을 Help 서버에서 받아 복사합니다 — 다른 저장소·PC 의 .claude/skills/fetch-site/SKILL.md 로 두면 거기서도 /fetch-site 로 씁니다">스킬 복사</button> <span id="fcCopyStatus" class="status"></span></div>
   </section>
 
   <section class="card">
     <h2>종류별 필요 서류</h2>
+    <p class="section-description">청구에 필요한 서류를 쉼표로 구분해 입력하세요.</p>
     <p class="help">가맹점을 등록할 때 고르는 <b>종류</b>마다 청구에 갖춰야 할 첨부 서류입니다(쉼표로 구분, 6개까지). 가맹점이 <b>종류 기본</b>이면 청구 준비 줄에 <b>필요 서류</b>가 첨부 파일 종류로 다 있는지 ✓/✗ 로 보이고,
       <b>찾아오기</b>는 아직 없는 서류만 찾습니다. 서류 이름은 첨부 파일 종류(설정 탭 › 청구서(카드) 입력 도우미의 첨부 파일 종류)와 같게 쓰세요 — 그 이름이 파일 이름 앞에 붙어 ERP 에 올라갑니다. 가맹점마다 다르게 하려면 아래 그 가맹점에서 <b>종류 기본</b>을 끄고 고릅니다.</p>
     <div class="grid fetch-kind-docs">
@@ -330,21 +393,25 @@
 
   <section class="card">
     <h2>자주 사용 가맹점</h2>
+    <p class="section-description">자주 찾는 사이트와 로그인 정보, 필요한 서류를 관리합니다.</p>
     <div id="fetchSites"></div>
     <div class="row"><button type="button" id="btnFetchAdd" class="btn">가맹점 추가</button> <button type="button" id="btnFetchPrompt" class="btn" title="새 사이트를 찾아오기에 붙이는 Claude Code 프롬프트(빈 칸 틀)를 복사합니다 — 이 확장 폴더에서 Claude Code 에 붙여 넣고 빈 칸을 채우세요. 등록한 가맹점은 그 가맹점의 [만들기 프롬프트 복사]가 값을 채워 줍니다">새 사이트 만들기 프롬프트 복사</button> <span id="fetchStatus" class="status"></span></div>
     <p class="help"><b>만들기 프롬프트 복사</b>: 찾아오기가 헤매거나 안내가 없는 사이트는, 복사한 프롬프트를 이 확장 폴더(<code>E:\dev\kr_ext_rerp</code>)에서 연 Claude Code 에 붙여 넣으세요. Claude 가 확장을 건드리지 않는 단독 실행(<code>node site-fetch/run.js</code>)으로 사이트를 시험하며
       사이트 안내(<code>site-fetch/sites/&lt;이름&gt;.md</code> — 로그인·구매 내역·서류마다 저장하는 곳·함정)를 만들고, 다음 찾아오기부터 그 안내가 붙습니다. 커밋은 하지 않으니 확인 뒤 직접 커밋하세요.</p>
   </section>
   </div>
+  </div>
+  </div>
 
-  <div class="row sticky">
+  <div class="row sticky" aria-label="설정 저장">
     <button type="submit" class="btn primary">저장</button>
     <button type="button" id="btnReset" class="btn">기본값으로</button>
-    <span id="saveStatus" class="status"></span>
+    <span class="save-hint">변경한 설정을 모든 탭에 함께 저장합니다.</span>
+    <span id="saveStatus" class="status" role="status"></span>
   </div>
 </form>
 
-<div class="tab-panel" data-panel="main">
+<div class="tab-panel" id="panel-diagnostics" role="tabpanel" aria-labelledby="tab-main" data-panel="main">
 <section class="card">
   <h2>진단</h2>
   <p class="help">과제 하나를 고르거나 과제번호·과제명 일부를 적어 확장이 실제로 호출하는 서비스(과제 목록, 카드 사용내역, 발급내역, 참여인력, 자금현황 비목별 잔액)의 원본 응답을 확인합니다.
@@ -380,6 +447,8 @@
 <script src="../lib/settings.js"></script>
 <script src="../lib/research.js"></script>
 <script src="../lib/fetch-sites.js"></script>
+<script src="../lib/help-setup.js"></script>
+<script src="fetch-chat.js"></script>
 <script src="options.js"></script>
 </body>
 </html>
