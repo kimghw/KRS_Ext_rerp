@@ -8,7 +8,14 @@
 <body>
 <h1>R&amp;D ERP 현황 설정</h1>
 
+<!-- 탭: 설정 · 증빙 찾아오기 (options.js showTab — 주소 #fetch… 면 증빙 찾아오기). 저장 버튼은 두 탭 공통 -->
+<nav class="tabs" role="tablist" aria-label="설정 탭">
+  <button type="button" role="tab" class="tab" data-tab="main" aria-selected="true">설정</button>
+  <button type="button" role="tab" class="tab" data-tab="fetch" aria-selected="false">증빙 찾아오기<span id="fetchSummary" class="tab-badge"></span></button>
+</nav>
+
 <form id="form">
+  <div class="tab-panel" data-panel="main">
   <section class="card">
     <h2>내 참여 과제만 보기</h2>
     <label class="check"><input type="checkbox" id="onlyMyProjects"> 참여인력에 본인이 포함된 과제만 표시 (과제정보 &gt; 참여인력, 참여구분 "계속" 기준)</label>
@@ -105,8 +112,8 @@
 
   <section class="card">
     <h2>툴바 아이콘</h2>
-    <label class="check"><input type="checkbox" id="actionSidePanel"> 툴바 아이콘을 누르면 팝업 대신 <b>사이드 패널</b>로 열기</label>
-    <p class="help">사이드 패널은 다른 탭으로 옮기거나 화면을 눌러도 닫히지 않고(닫기는 패널의 ×), 청구 준비 줄에 첨부 파일을 끌어다 놓을 수 있습니다. 끈 채로도 팝업 제목 줄의 사이드 패널 버튼이나 아이콘 우클릭 메뉴의 "사이드 패널 열기"로 열 수 있습니다.</p>
+    <label class="check"><input type="checkbox" id="actionPopup"> 툴바 아이콘을 누르면 사이드 패널 대신 <b>팝업 창</b>으로 열기</label>
+    <p class="help">기본은 툴바 아이콘을 누르면 바로 <b>사이드 패널</b>이 열립니다. 사이드 패널은 다른 탭으로 옮기거나 화면을 눌러도 닫히지 않고(닫기는 아이콘을 다시 누르거나 패널의 ×), 청구 준비 줄에 첨부 파일을 끌어다 놓을 수 있습니다. 팝업 창으로 바꿔도 팝업 제목 줄의 사이드 패널 버튼이나 아이콘 우클릭 메뉴의 "사이드 패널 열기"로 열 수 있습니다.</p>
   </section>
 
   <section class="card">
@@ -141,6 +148,8 @@
           청구종류는 <code>83</code>처럼 코드 또는 이름이며, 적어 두면 세목이 그 항목으로 바뀔 때 청구종류 라디오를 그것으로 고름.
           넷째 값 <code>식비</code>/<code>다과</code>는 회의비(17)의 회의록 종류: 회의록 팝업의 "회의비(식비) 청구여부"와 금액 칸(식비 A / 다과 B)을 정하고, <code>식비</code>면 패널 청구 준비 줄 밑에 참석자 카드가 붙음)
           <textarea id="chQuickPicks" rows="9" placeholder="연구실 운영비=연구실운영비&#10;회의비=회의비=17&#10;식사비=회의비=17=식비&#10;다과비=회의비=17=다과&#10;외부전문가 활용비=외부 전문기술=83"></textarea></label>
+        <label class="wide">첨부 파일 종류 (한 줄에 하나. 패널 청구 준비 줄의 파일마다 고르는 "무슨 파일인지" 목록 — 고르면 파일 이름이 <code>종류_원래이름</code>(화면 캡처는 <code>종류_사이트_시각</code>)으로 바뀌어 그 이름으로 R&amp;D ERP 에 첨부됩니다. 안 고르면 원래 이름. 비우면 고르는 칸을 숨김)
+          <textarea id="chAttachKinds" rows="4" placeholder="거래명세서&#10;교육내용&#10;수료증"></textarea></label>
       </div>
       <p class="help"><b>청구 준비</b>: 패널의 카드미청구 거래 행 밑 줄에서 위 목록의 청구종류를 고르고 첨부 파일을 끌어다 놓아 두면(이 브라우저에만 저장), 그 거래를 클릭해 청구서를 열 때 세목·청구종류를 고르고 파일을 첨부 목록에 올립니다.
         <b>청구서 작성</b> 버튼은 청구서를 백그라운드 탭으로 열어 "내역 추가"까지 누릅니다 (결재요청은 하지 않음).
@@ -148,6 +157,30 @@
         <span id="prepStats" class="muted"></span> <button type="button" id="btnPrepClear">청구 준비 모두 지우기</button> <span id="prepStatus" class="status"></span></p>
     </div>
   </section>
+
+  <details class="card" data-collapse="research" id="researchCard">
+    <summary><h2>연구개발계획서 (연구내용 참조) <span id="researchSummary" class="muted"></span></h2></summary>
+    <p class="help">RND 폴더의 연구개발계획서 스냅샷 <code>KR_&lt;과제&gt;.yaml</code>(재생성본이 있으면 마지막 <code>_rN</code>)을 넣어 두면, 그 차년도의 <b>개발목표·개발내용·성능목표·수행일정</b>과 <b>연구활동비 세부사용계획</b>을 참조로 씁니다:
+      패널의 <b>연구내용</b> 탭(카드미청구 · 과제집행비율 다음)에서 과제별로 보이고, 청구 준비 자동 분류(Help Chat 구역)를 켜 두었으면 Claude 가 청구종류를 고를 때 그 과제의 계획을 근거로 보고, 비어 있는 청구내역(적요)을 쓸 때 개발내용·목표에서 용도를 고릅니다.
+      과제명으로 R&amp;D ERP 과제에 저절로 잇고(이름이 조금 달라도 가장 비슷한 과제), 아래 표에서 바꿀 수 있습니다. 같은 과제·차년도에 다시 넣으면 바뀌고, 이미 넣은 판보다 오래된 판은 넣지 않습니다.
+      <code>history/*.yaml</code> 이력 파일은 쓰지 않습니다. 이 브라우저(확장 저장소)에만 남습니다.</p>
+    <label class="rs-drop" id="researchDrop" tabindex="0">
+      <input type="file" id="researchFile" accept=".yaml,.yml,text/yaml,application/x-yaml,application/yaml" multiple>
+      <span class="rs-drop-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>연구개발계획서 YAML 넣기</span>
+      <span class="rs-drop-sub">RND 폴더의 KR_&lt;과제&gt;.yaml — 끌어다 놓기 · 붙여 넣기(Ctrl+V) · 눌러서 고르기 (여러 개 한꺼번에)</span>
+    </label>
+    <p id="researchStatus" class="rs-status"></p>
+    <p class="help"><b>원노트 링크로 받기</b>: KRS WORKSPACE 확장 R&amp;D 탭의 <b>연구내용 공유</b>가 원노트에 올린 「[연구내용] 과제명」 페이지의 링크(그 단추가 복사해 준 글)를 아래 칸에 붙여 넣으면 그 과제의 연구내용을 받아 오고,
+      그 뒤로는 패널을 열 때(10분에 한 번)와 <b>다시 받기</b>로 같은 페이지를 다시 읽어 맞춥니다. 이 PC 의 OneNote MCP 서버(확장 Plus 의 주소, 기본 <code>localhost:5005</code>)가 떠 있어야 하고, 동료의 페이지면 그 노트북을 OneNote 에서 한 번 열어 두어야 합니다. 원노트에는 쓰지 않습니다.</p>
+    <div class="row">
+      <input type="text" id="researchLink" class="rs-link" placeholder="원노트 페이지 링크 붙여 넣기 (Enter) — 페이지 어디에 Ctrl+V 해도 됩니다" spellcheck="false" autocomplete="off">
+      <button type="button" id="btnResearchBind" class="btn">원노트에서 받기</button>
+      <button type="button" id="btnResearchPull" class="btn">다시 받기</button>
+      <span id="researchLinkStatus" class="status"></span>
+    </div>
+    <div id="researchPages"></div>
+    <div id="researchList"></div>
+  </details>
 
   <details class="card" data-collapse="hr">
     <summary><h2>급여·연구수당 (HR System) <span id="hrSummary" class="muted"></span></h2></summary>
@@ -239,6 +272,13 @@
       Claude 는 파일만 고치고 커밋하지 않으며, R&amp;D ERP 에 쓰는 동작(신청·저장·삭제)은 하지 않습니다(<code>help-server/rules.md</code>). 서버는 처음 연결한 확장에서 온 요청만 받습니다. Claude Code CLI 2.1.280 이상과 로그인(<code>claude</code>)이 필요합니다.</p>
     <div class="grid">
       <label class="check wide"><input type="checkbox" id="helpEnabled"> 팝업에 Help Chat 줄 표시</label>
+      <label class="check wide"><input type="checkbox" id="helpAutoPick"> 청구 준비 자동 분류: Help 서버가 떠 있으면 Claude 가 <b>청구종류</b>와 <b>첨부 파일 종류</b>를 골라 줌</label>
+      <p class="help wide">거래의 청구 준비 줄을 열 때, 파일(끌어다 놓기·화면 캡처)을 넣은 뒤, 청구내역을 고친 뒤 이 PC 의 Help 서버(<code>POST /classify</code>)가 빠른 모델(기본 <code>claude-haiku-5-5</code>, 서버 환경 변수 <code>KRX_HELP_FAST_MODEL</code>)로 한 번 묻습니다 — 보통 몇 초, 줄에 “Claude 분류 중…”이 보입니다.
+        가맹점·금액·사용일·과제명·청구내역·파일 이름과, 아직 종류를 안 정한 이미지·PDF 의 내용(이미지는 줄여서)이 Claude 로 갑니다. Claude 가 고른 값에는 점선 테두리와 <b>AI</b> 표시(툴팁에 이유)가 붙고, <b>직접 고른 값은 바꾸지 않습니다</b>. 서버가 없으면 아무 일도 하지 않습니다.</p>
+      <label class="check wide"><input type="checkbox" id="helpAutoPtcl"> 청구내역(적요)이 비어 있으면 Claude 가 <b>한 줄을 씀</b> — 첨부 파일 내용과 <b>과제 연구내용</b>(연구개발계획서)을 참고</label>
+      <p class="help wide">품목은 첨부 파일(찾아온 인보이스·거래명세서는 내용째, 2개까지)에서, 용도는 그 과제의 연구개발계획서(위 <b>연구개발계획서 (연구내용 참조)</b>에 넣은 KR_&lt;과제&gt;.yaml 이나 원노트로 받은 것)의 개발내용·목표에서 골라 씁니다(예: “Azure 클라우드 사용료(2026년 9월분) - 차단기 제어 알고리즘 시뮬레이션용”).
+        청구종류를 바꾸거나 서류가 새로 들어오면 다시 쓰고, <b>직접 고친 글은 바꾸지 않습니다</b>(지우면 다시 씀). 계획서가 없는 과제는 과제명으로 씁니다. 서버를 0.8.5 개발 중에 띄웠다면 다시 실행해야 합니다.</p>
+      <label class="wide">청구내역 작성 안내 (선택 — Claude 에 그대로 줌, 300자) <input type="text" id="helpPtclGuide" maxlength="300" placeholder="예) &quot;품목(기간) - 용도&quot; 형식, 용도는 개발내용 번호 없이 20자 안팎"></label>
       <label class="wide">Help 서버 주소 <input type="url" id="helpUrl" placeholder="http://127.0.0.1:8106"></label>
       <label class="wide"><button type="button" id="btnHelpProbe" class="btn">연결 확인</button> <span id="helpProbeStatus" class="status"></span></label>
     </div>
@@ -265,6 +305,37 @@
       <label>과제 상세 서비스 (예산기준 확인) <input type="text" id="advProjectDetailService"></label>
     </div>
   </details>
+  </div>
+
+  <div class="tab-panel" data-panel="fetch" hidden>
+  <section class="card">
+    <h2>증빙 찾아오기</h2>
+    <p class="help">패널 청구 준비 줄의 <b>찾아오기</b>는 카드 가맹점 이름에 아래 <b>가맹점 글자</b>가 든 거래를 그 사이트에서 찾아 <b>거래명세서</b>(강의면 <b>수강증·강의내용</b>도)를 첨부 파일로 넣습니다.
+      이 PC 의 Help 서버(<code>node help-server/server.js</code>)가 <b>작업용 Chrome 창</b>(별도 프로필 — 평소 브라우저·회사 시스템 세션과 따로)을 열어 Claude Code 로 로그인 → 구매내역에서 <b>사용일·금액</b>으로 주문 찾기 → 서류를 PDF·이미지로 저장합니다(보통 2~7분). 문자·메일 인증이나 캡차가 나오면 그 창에서 직접 하세요 — 로그인은 그 프로필에 남아 다음에는 바로 갑니다.
+      아이디·비밀번호는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 찾아올 때 이 PC 의 Help 서버로만 갑니다. Claude 에는 보이지 않고 브라우저 손잡이가 로그인 칸에 넣습니다. 여럿이 쓰는 PC 에서는 넣지 마세요.
+      아무것도 사거나 바꾸지 않으며(조회·영수증 보기/내려받기만) 회사 시스템(R&amp;D ERP·eClass·RCMS)으로는 가지 않습니다. 다른 웹 사이트에 가는 부분은 저장소의 <code>site-fetch/</code> 폴더에 따로 있습니다(인프런·ChatGPT·Claude·Azure 는 화면 안내 포함). 아래 <b>저장</b>을 눌러야 반영됩니다(저장 버튼은 두 탭 공통 — 설정 탭에서 바꾼 것도 함께 저장).</p>
+    <label class="check"><input type="checkbox" id="helpFetch"> 청구 준비 줄에 <b>찾아오기 · 자주 사용 등록</b> 버튼 표시</label>
+  </section>
+
+  <section class="card">
+    <h2>종류별 필요 서류</h2>
+    <p class="help">가맹점을 등록할 때 고르는 <b>종류</b>마다 청구에 갖춰야 할 첨부 서류입니다(쉼표로 구분, 6개까지). 가맹점이 <b>종류 기본</b>이면 청구 준비 줄에 <b>필요 서류</b>가 첨부 파일 종류로 다 있는지 ✓/✗ 로 보이고,
+      <b>찾아오기</b>는 아직 없는 서류만 찾습니다. 서류 이름은 첨부 파일 종류(설정 탭 › 청구서(카드) 입력 도우미의 첨부 파일 종류)와 같게 쓰세요 — 그 이름이 파일 이름 앞에 붙어 ERP 에 올라갑니다. 가맹점마다 다르게 하려면 아래 그 가맹점에서 <b>종류 기본</b>을 끄고 고릅니다.</p>
+    <div class="grid fetch-kind-docs">
+      <label>강의 <input type="text" id="fetchDocs_lecture" placeholder="강의내용, 견적서, 수강증"></label>
+      <label>구독 <input type="text" id="fetchDocs_subscription" placeholder="거래명세서"></label>
+      <label>기타 <input type="text" id="fetchDocs_other" placeholder="거래명세서"></label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>자주 사용 가맹점</h2>
+    <div id="fetchSites"></div>
+    <div class="row"><button type="button" id="btnFetchAdd" class="btn">가맹점 추가</button> <button type="button" id="btnFetchPrompt" class="btn" title="새 사이트를 찾아오기에 붙이는 Claude Code 프롬프트(빈 칸 틀)를 복사합니다 — 이 확장 폴더에서 Claude Code 에 붙여 넣고 빈 칸을 채우세요. 등록한 가맹점은 그 가맹점의 [만들기 프롬프트 복사]가 값을 채워 줍니다">새 사이트 만들기 프롬프트 복사</button> <span id="fetchStatus" class="status"></span></div>
+    <p class="help"><b>만들기 프롬프트 복사</b>: 찾아오기가 헤매거나 안내가 없는 사이트는, 복사한 프롬프트를 이 확장 폴더(<code>E:\dev\kr_ext_rerp</code>)에서 연 Claude Code 에 붙여 넣으세요. Claude 가 확장을 건드리지 않는 단독 실행(<code>node site-fetch/run.js</code>)으로 사이트를 시험하며
+      사이트 안내(<code>site-fetch/sites/&lt;이름&gt;.md</code> — 로그인·구매 내역·서류마다 저장하는 곳·함정)를 만들고, 다음 찾아오기부터 그 안내가 붙습니다. 커밋은 하지 않으니 확인 뒤 직접 커밋하세요.</p>
+  </section>
+  </div>
 
   <div class="row sticky">
     <button type="submit" class="btn primary">저장</button>
@@ -273,6 +344,7 @@
   </div>
 </form>
 
+<div class="tab-panel" data-panel="main">
 <section class="card">
   <h2>진단</h2>
   <p class="help">과제 하나를 고르거나 과제번호·과제명 일부를 적어 확장이 실제로 호출하는 서비스(과제 목록, 카드 사용내역, 발급내역, 참여인력, 자금현황 비목별 잔액)의 원본 응답을 확인합니다.
@@ -302,9 +374,12 @@
   </div>
   <div id="captureList" class="cap-list"></div>
 </section>
+</div>
 
 <script src="../lib/format.js"></script>
 <script src="../lib/settings.js"></script>
+<script src="../lib/research.js"></script>
+<script src="../lib/fetch-sites.js"></script>
 <script src="options.js"></script>
 </body>
 </html>

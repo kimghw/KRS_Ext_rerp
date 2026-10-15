@@ -122,7 +122,7 @@
     if (want !== wantInline) { wantInline = want; place(); }
   }
 
-  const state = { mode: 'page', loading: true, data: null, fatal: null, collapsed: false, expanded: new Set(), prepOpen: new Set() /* 청구 준비 요소를 보이는 과제·카드 묶음 (줄 끝 청구 아이콘, lib/prep.js) */, rndUrl: null, view: 'project', section: 'cards', version: '',
+  const state = { mode: 'page', loading: true, data: null, fatal: null, collapsed: false, expanded: new Set(), prepRows: new Set() /* 청구 준비 줄을 연 거래(준비 키) — 거래 행 클릭으로 토글 (lib/prep.js prep-row) */, rndUrl: null, view: 'project', section: 'cards', version: '',
     plans: {}, planEdit: null, planDraft: null, planError: '' };   // 예상 비용 (lib/plan.js)
   await place();
   try { state.version = chrome.runtime.getManifest().version; } catch (e) {}
@@ -131,12 +131,13 @@
     state.collapsed = !!local.panelCollapsed;
     state.data = local.cache || null;
     state.view = local.panelView === 'card' ? 'card' : 'project';
-    state.section = local.panelSection === 'budget' ? 'budget' : 'cards';
+    state.section = KRX_RENDER.secOf(local.panelSection);   // 카드미청구 · 과제집행비율 · 연구내용
   } catch (e) {}
   try { state.plans = await KRX_PLAN.load(); } catch (e) {}
   try { state.payPlans = await KRX_PAY.load(); } catch (e) {}   // 받기 예정 연구수당 (lib/pay.js)
   try { state.partPlans = await KRX_PART.load(); } catch (e) {}   // 예비 참여율(참여 계획) (lib/part.js)
   try { state.prep = await KRX_PREP.load(); } catch (e) {}        // 청구 준비: 거래별 청구종류·첨부 파일 (lib/prep.js)
+  try { state.research = await KRX_RESEARCH.load(); } catch (e) {}   // 연구개발계획서(연구내용) 참조 — 패널의 연구내용 탭 (lib/research.js, render.js researchSection)
   const anchors = Array.from(document.querySelectorAll('a[href]'));
   const link = anchors.find((x) => /rnd\.krs\.co\.kr/i.test(x.href));
   state.rndUrl = link ? link.href : null;
@@ -156,6 +157,7 @@
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 드래그 앤 드롭·지우기, 청구서 작성) 처리
+  KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
 
   /* 확장이 새로고침/업데이트되면 이 스크립트는 확장과 연결이 끊긴다(Extension context invalidated). 예외 대신 안내 표시 */
   const alive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };
@@ -183,7 +185,7 @@
       else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
       else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; safe(() => chrome.storage.local.set({ panelView: state.view })); draw(); }
       else if (act === 'section') {   // 본문 스위치 또는 헤더 칩(미청구/집행비율). 접힌 패널이면 펼친다
-        ev.preventDefault(); state.section = btn.dataset.section === 'budget' ? 'budget' : 'cards';
+        ev.preventDefault(); state.section = KRX_RENDER.secOf(btn.dataset.section);
         if (state.collapsed) { state.collapsed = false; safe(() => chrome.storage.local.set({ panelCollapsed: false })); }
         safe(() => chrome.storage.local.set({ panelSection: state.section })); draw();
       }

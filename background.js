@@ -1,6 +1,7 @@
 /* 서비스워커: 데이터 수집/캐시, 배지, 캡처 로그 저장, 주기 갱신 */
-importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/prep-store.js', 'lib/rcms.js',
-  'lib/plan.js', 'lib/mcp-client.js', 'lib/plus-onenote.js', 'lib/plan-sync.js');   // 확장 Plus: 예상 비용 ↔ 원노트 동기화 (plan.js 는 저장소 키·월간 구독 계산용)
+importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/prep-store.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
+  'lib/plan.js', 'lib/mcp-client.js', 'lib/plus-onenote.js', 'lib/plan-sync.js',   // 확장 Plus: 예상 비용 ↔ 원노트 동기화 (plan.js 는 저장소 키·월간 구독 계산용)
+  'lib/research.js', 'lib/research-sync.js');   // 연구개발계획서(연구내용) 참조 — 원노트 링크로 받기 (researchBind · researchPull)
 
 const CACHE_KEY = 'cache';
 const CAPTURE_KEY = 'captureLog';
@@ -213,6 +214,7 @@ async function prepRun(key, mode) {
   if (!steps.has('add') && !steps.has('apply') && !steps.has('delete')) steps.add('add');
   const auto = ['add', 'apply', 'delete', 'dry'].filter((s) => steps.has(s)).join(',');   // dry: 회의록 등록 직전까지만(payload 검증, 서버에 보내지 않음 — 진단용)
   if (steps.has('add') && !e.type) return { ok: false, error: '청구종류를 먼저 고르세요' };
+  if (steps.has('add')) KRX_PREP_AI.remember(e);   // 이 가맹점·적요에 쓴 청구종류를 Claude 자동 분류의 예로 (Claude 가 고른 것을 그대로 쓴 경우도)
   if (!steps.has('add') && !wasSaved(e.run)) return { ok: false, error: steps.has('delete') ? '내역 추가된 항목이 아닙니다' : '먼저 청구서를 작성(내역 추가)하세요' };
   if (steps.has('delete') && e.run && e.run.state === 'applied') return { ok: false, error: '이미 신청된 결의서는 삭제할 수 없습니다 (R&D ERP 에서 신청 취소 후)' };
   const pk = steps.has('add') ? await pickInfo(e.type) : null;
@@ -551,15 +553,22 @@ chrome.runtime.onInstalled.addListener(() => {   // 설치/업데이트/재로�
 });
 chrome.runtime.onStartup.addListener(() => { ensureHrRules(); scheduleAlarm(); getCache().then(updateBadge); });
 
-/* 사이드 패널(0.8.4): 설정 actionSidePanel 이 켜져 있으면 툴바 아이콘 클릭이 팝업(action.default_popup) 대신 사이드 패널(manifest side_panel = 같은 popup/popup.html)을 연다.
- * 팝업 제목 줄의 버튼(popup.js openSidePanel)과 아이콘 우클릭 메뉴 "사이드 패널 열기"는 이 설정과 무관하게 연다. Chrome 이 이 동작을 다시 시작한 뒤에도 기억하는지에 기대지 않고 워커가 뜰 때마다·설정이 바뀔 때마다 맞춘다 */
+/* 툴바 아이콘 클릭 → 사이드 패널(기본, 0.8.5) 또는 팝업 창(설정 actionPopup). 둘 다 같은 popup/popup.html 이고 어디에 떴는지는 popup/mode.js 가 가린다.
+ * manifest 에는 default_popup 을 두지 않는다(아이콘 클릭이 기본으로 팝업을 열지 않게). 워커가 뜰 때마다·설정이 바뀔 때마다 맞춘다:
+ *   사이드 패널: action.setPopup('') + sidePanel.setPanelBehavior({ openPanelOnActionClick: true }) → 아이콘을 누르면 Chrome 이 사이드 패널을 열고 닫는다(토글)
+ *   팝업 창: action.setPopup('popup/popup.html') + openPanelOnActionClick false. 팝업 제목 줄의 버튼(popup.js openSidePanel)·아이콘 우클릭 메뉴 "사이드 패널 열기"로는 여전히 사이드 패널을 연다
+ * action.onClicked 는 팝업도 사이드 패널 동작도 걸려 있지 않을 때만 온다(이 설정을 맞추기 전 등) — 그때는 클릭(사용자 제스처) 안에서 바로 사이드 패널을 연다 */
 async function applySidePanel() {
-  if (!chrome.sidePanel || !chrome.sidePanel.setPanelBehavior) return;
-  let on = false;
-  try { on = !!(await KRX_SETTINGS.load()).actionSidePanel; } catch (e) {}
-  try { await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: on }); } catch (e) {}
+  let popup = false;
+  try { popup = !!(await KRX_SETTINGS.load()).actionPopup; } catch (e) {}
+  try { await chrome.action.setPopup({ popup: popup ? 'popup/popup.html' : '' }); } catch (e) {}
+  try { if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: !popup }); } catch (e) {}
 }
 applySidePanel();
+chrome.action.onClicked.addListener((tab) => {
+  try { if (chrome.sidePanel && chrome.sidePanel.open && tab && tab.windowId != null) chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {}); } catch (e) {}   // await 없이 먼저 — 제스처가 살아 있을 때
+  applySidePanel();
+});
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); planSync('alarm').catch(() => {}); } });   // 자동 갱신 때 예상 비용 동기화도 (확장 Plus 가 켜져 있을 때만 실제 동작)
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -707,6 +716,82 @@ async function planBind(prjNo, text) {
   const st = await planSync('manual', { prjNo });
   return Object.assign({}, st, { ok: !!st.ok, bound: true });
 }
+/* ----- 연구개발계획서(연구내용) 원노트 받기 (0.8.5, lib/research-sync.js · lib/research.js): KRS WORKSPACE R&D 탭의 "연구내용 공유"가 올린 「[연구내용] 과제명」 페이지의 링크를
+ * 설정 페이지(연구개발계획서 칸)에 붙여 넣으면 그 페이지를 기억하고(storage.local.researchPages = { [pageId]: { pageId, title, webUrl, sectionId, boundAt, at(마지막 받기), ok, error?, kind?,
+ * name, code, by, remoteAt(올린 시각), count(차년도 수), older(더 오래된 판이라 건너뛴 수) } }) 기록을 researchPlans 에 넣는다(src = pageId, 판이 더 오래된 차년도는 KRX_RESEARCH.put 이 건너뜀).
+ * 그 뒤로는 패널을 열 때(load — 마지막 받기 뒤 RESEARCH_PULL_MIN_MS 안이면 건너뜀)와 설정의 "다시 받기"(manual) 때 기억한 페이지를 모두 다시 읽는다. 한 번에 하나만.
+ * 확장 Plus 를 켜지 않아도 된다(읽기만 하고 섹션도 안 씀) — MCP 주소는 plus.onenoteMcpUrl(기본 localhost:5005). researchPullAt = 마지막으로 돈 시각 ----- */
+const RESEARCH_PULL_MIN_MS = 10 * 60 * 1000;
+let researchInflight = null;
+async function researchPull(reason, opts) {
+  opts = opts || {};
+  if (researchInflight) return researchInflight;
+  researchInflight = (async () => {
+    const l = await chrome.storage.local.get(['researchPages', 'researchPullAt']);
+    const pages = l.researchPages || {};
+    const ids = opts.pageId ? [opts.pageId] : Object.keys(pages);
+    if (!ids.length) return { ok: true, skipped: 'none' };
+    if (reason === 'load' && Date.now() - (Number(l.researchPullAt) || 0) < RESEARCH_PULL_MIN_MS) return { ok: true, skipped: 'recent' };
+    const url = plusUrl((await KRX_SETTINGS.load()).plus || {});
+    const allowed = await plusAllowed(url); if (!allowed.ok) return allowed;
+    const out = { ok: true, reason, pages: {}, put: 0 };
+    let client = null;
+    try {
+      client = await KRX_MCP.open(url, { clientName: 'kr-ext-rerp', clientVersion: chrome.runtime.getManifest().version });
+      const map = await KRX_RESEARCH.load();
+      const before = JSON.stringify(map);
+      for (const id of ids) {
+        const pg = Object.assign({ pageId: id }, pages[id] || {}, opts.page && opts.page.pageId === id ? opts.page : {});
+        try {
+          const r = await KRX_RESEARCH_SYNC.pull({ client, onenote: KRX_ONENOTE, pageId: id });
+          let older = 0;
+          for (const rec of r.data.recs) { if (KRX_RESEARCH.put(map, Object.assign(rec, { src: id })).state === 'older') older++; else out.put++; }
+          Object.assign(pg, { title: r.title || pg.title || '', name: r.data.name, code: r.data.code, by: r.data.by, remoteAt: r.data.at, count: r.data.recs.length, older, at: Date.now(), ok: true, error: '', kind: '' });
+        } catch (e) {
+          if (e && /^(offline|timeout)$/.test(e.kind)) throw e;   // 서버가 안 닿으면 다른 페이지도 마찬가지
+          const d = KRX_MCP.describe(e);
+          Object.assign(pg, { at: Date.now(), ok: false, error: d.message, kind: d.kind });
+          out.ok = false; out.error = d.message;
+        }
+        out.pages[id] = pg;
+      }
+      const l2 = await chrome.storage.local.get('projectList');
+      const cache = await getCache();
+      KRX_RESEARCH.link(map, ((l2.projectList && l2.projectList.projects) || []).concat((cache && cache.projects) || []));
+      if (JSON.stringify(map) !== before) await KRX_RESEARCH.save(map);   // 같으면 쓰지 않는다 (패널이 storage.onChanged 로 다시 그림)
+    } catch (e) { return Object.assign({ ok: false, reason }, KRX_MCP.describe(e)); }
+    finally { if (client) { try { await client.close(); } catch (e) {} } }
+    // 받는 동안 설정 페이지에서 끊은 페이지는 되살리지 않는다 (opts.page = 방금 붙여 넣은 링크는 새로 넣음)
+    const cur = (await chrome.storage.local.get('researchPages')).researchPages || {};
+    for (const [id, pg] of Object.entries(out.pages)) if (cur[id] || (opts.page && opts.page.pageId === id)) cur[id] = pg;
+    await chrome.storage.local.set({ researchPages: cur, researchPullAt: Date.now() });
+    return out;
+  })().finally(() => { researchInflight = null; });
+  return researchInflight;
+}
+/* 설정 페이지에 붙여 넣은 링크(웹 링크 · onenote: 링크 · "[연구내용 페이지 ID] 1-…" 줄)를 페이지로 풀어 기억하고 바로 받는다 */
+async function researchBind(text) {
+  const url = plusUrl((await KRX_SETTINGS.load()).plus || {});
+  const allowed = await plusAllowed(url); if (!allowed.ok) return allowed;
+  let client = null, page = null;
+  try { client = await KRX_MCP.open(url, { clientName: 'kr-ext-rerp' }); page = await KRX_ONENOTE.resolveLink(client, text); }
+  catch (e) { return Object.assign({ ok: false }, KRX_MCP.describe(e)); }
+  finally { if (client) { try { await client.close(); } catch (e) {} } }
+  if (researchInflight) { try { await researchInflight; } catch (e) {} }
+  const r = await researchPull('manual', { pageId: page.pageId, page: Object.assign({}, page, { boundAt: Date.now() }) });
+  return Object.assign({ page: (r.pages && r.pages[page.pageId]) || page }, r);
+}
+/* 페이지 끊기: 기억을 지우고 그 페이지에서 온 기록(src)도 뺀다 */
+async function researchUnbind(pageId) {
+  const l = await chrome.storage.local.get('researchPages');
+  const pages = l.researchPages || {};
+  delete pages[pageId];
+  const map = await KRX_RESEARCH.load();
+  let removed = 0;
+  for (const [id, rec] of Object.entries(map)) if (rec && rec.src === pageId) { delete map[id]; removed++; }
+  await chrome.storage.local.set({ researchPages: pages, [KRX_RESEARCH.KEY]: map });
+  return { ok: true, removed };
+}
 async function plusResolveSection() {   // 팝업·설정: 저장된 설정으로 섹션을 다시 찾고(없으면 만들고) 결과를 돌려줌. 노트북을 골라야 하면 { ok:false, kind:'notebook', notebooks }
   const settings = await KRX_SETTINGS.load();
   const p = settings.plus || {};
@@ -718,6 +803,10 @@ async function plusResolveSection() {   // 팝업·설정: 저장된 설정으�
   finally { if (client) { try { await client.close(); } catch (e) {} } }
 }
 
+/* 확장 페이지(사이드 패널·팝업·설정)에서 온 메시지인가 — eClass 패널(콘텐츠 스크립트)은 eClass 페이지 DOM 안이라 비밀번호를 받지 않는다 */
+const fromExtPage = (sender) => !!sender && sender.id === chrome.runtime.id && String(sender.url || '').startsWith(chrome.runtime.getURL(''));
+KRX_PREP_FETCH.resume().catch(() => {});   // 워커가 다시 떴을 때 진행 중이던 찾아오기를 이어서 지켜봄
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg && msg.type) {
@@ -725,6 +814,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'planSync': return await planSync(String(msg.reason || 'manual'), { prjNo: msg.prjNo ? String(msg.prjNo) : '', createAll: !!msg.createAll });   // 확장 Plus: 예상 비용 ↔ 과제별 원노트 페이지 (구름 아이콘 manual+prjNo · 패널 열 때 load · 설정 페이지 지금 동기화/모두 만들기)
       case 'planSyncQueue': queuePlanSync(String(msg.reason || 'edit')); return { ok: true };   // 항목 편집 뒤 4초 모아서
       case 'planBind': return await planBind(String(msg.prjNo || ''), String(msg.text || ''));   // 패널 "원노트에서 가져오기": 페이지 링크 적용
+      case 'researchBind': return await researchBind(String(msg.text || ''));   // 설정 연구개발계획서: KRS WORKSPACE 가 올린 연구내용 페이지 링크 붙여 넣기
+      case 'researchPull': return await researchPull(String(msg.reason || 'manual'));   // 기억한 연구내용 페이지 다시 받기 (패널을 열 때 load · 설정 "다시 받기")
+      case 'researchUnbind': return await researchUnbind(String(msg.pageId || ''));
       case 'planExport': return await planExport(String(msg.prjNo || ''));                        // 패널 "원노트로 내보내기": 페이지 만들고(책임자) 링크 복사
       case 'plusProbe': return await plusProbe(msg.url);                                    // 설정 페이지 "연결 확인"
       case 'plusNotebooks': return await plusNotebooks(msg.url);                            // 설정 페이지·팝업 "노트북 불러오기"
@@ -750,21 +842,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
         return { ok: true };
       }
-      case 'openOptions': await chrome.runtime.openOptionsPage(); return { ok: true };
+      case 'openOptions':   // hash: 설정 페이지의 그 자리로 (예: fetch-new=가맹점 — 증빙 찾아오기 자주 사용 등록, fetch=<id> — 그 사이트 고치기)
+        if (msg.hash) await chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') + '#' + String(msg.hash).replace(/^#/, '') }); else await chrome.runtime.openOptionsPage();
+        return { ok: true };
       case 'openRcms': return await KRX_RCMS.open(sender);          // 패널·팝업 하단 "RCMS 열기": 탭을 열고 자동 로그인을 걸어 둠 (lib/rcms.js)
       case 'rcmsLogin': return await KRX_RCMS.login(msg, sender);   // RCMS 화면(content/rcms.js): 로그인 폼에 넣을 값, 버튼을 누를지
       case 'clearCapture': await chrome.storage.local.set({ [CAPTURE_KEY]: [] }); return { ok: true };
       case 'invalidate': await chrome.storage.local.remove(CACHE_KEY); return { ok: true };
       // 청구 준비 (lib/prep.js 패널 ↔ lib/prep-store.js ↔ content/rnd-claim.js 청구서)
-      case 'prepSetType': return { ok: true, entry: await KRX_PREP_STORE.setType(String(msg.key || ''), msg.meta || {}, msg.value) };
+      case 'prepSetType': { const entry = await KRX_PREP_STORE.setType(String(msg.key || ''), msg.meta || {}, msg.value); KRX_PREP_AI.remember(entry); return { ok: true, entry }; }   // 사용자가 고른 청구종류는 Claude 자동 분류의 예로도 남김
       case 'prepSetPtcl': return { ok: true, entry: await KRX_PREP_STORE.setPtcl(String(msg.key || ''), msg.meta || {}, msg.value) };   // 청구내역(적요) 글
       case 'prepSetAttendees': return { ok: true, entry: await KRX_PREP_STORE.setAttendees(String(msg.key || ''), msg.meta || {}, msg.attendees || {}) };   // 회의록 참석자 카드 (식사비)
       case 'prepSetMinutes': return { ok: true, entry: await KRX_PREP_STORE.setMinutes(String(msg.key || ''), msg.meta || {}, msg.minutes || {}) };   // 회의록 카드의 회의 내용
       case 'prepMeetingInfo': return await meetingInfo(String(msg.prjNo || '').trim(), String(msg.date || ''), !!msg.force);   // 회의록 카드: 과제 참여인력 목록 + 회의록 규칙 + 회의사전신청 목록 + 휴일 여부 (1시간 캐시)
       case 'prepPersonSearch': try { return { ok: true, list: await KRX_API.searchPerson(msg.name) }; } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message }; }   // 내부참석자 검색
       case 'prepAddFiles': return { ok: true, entry: await KRX_PREP_STORE.addFiles(String(msg.key || ''), msg.meta || {}, msg.files || []) };
+      case 'prepAuto': return await KRX_PREP_AI.run(String(msg.key || ''), msg.meta || {});   // Claude 자동 분류 (Help 서버 연결 시): 청구종류 · 첨부 파일 종류 (lib/prep-ai.js)
+      case 'prepSetFileKind': return { ok: true, entry: await KRX_PREP_STORE.setFileKind(String(msg.key || ''), String(msg.id || ''), String(msg.kind || '')) };   // 첨부 파일 종류 → 이름 바꾸기
       case 'prepRemoveFile': return { ok: true, entry: await KRX_PREP_STORE.removeFile(String(msg.key || ''), String(msg.id || '')) };
-      case 'prepClear': await KRX_PREP_STORE.clear(String(msg.key || '')); return { ok: true };
+      case 'prepClear': await KRX_PREP_STORE.clear(String(msg.key || '')); await KRX_PREP_FETCH.clear(String(msg.key || '')); return { ok: true };
       case 'prepClearAll': await KRX_PREP_STORE.clearAll(); return { ok: true };
       case 'prepGet': return await KRX_PREP_STORE.getEntry(msg.appr, msg.card4, !!msg.withFiles);
       case 'prepAttached': return { ok: true, entry: await KRX_PREP_STORE.markAttached(String(msg.key || ''), msg.n) };
@@ -772,6 +868,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepRun': return await prepRun(String(msg.key || ''), String(msg.mode || 'add'));   // 패널 "청구서 작성"(add) · "작성+신청"(add,apply) · "신청"(apply) · "임시저장 삭제"(delete) → 백그라운드 탭
       case 'prepRunResult': return await prepRunResult(msg, sender);           // ERP 청구서(rnd-claim.js)의 결과 보고
       case 'prepFocusTab': return await prepFocusTab(String(msg.key || ''));   // 패널 "탭 보기"
+      // 증빙 찾아오기 (lib/prep-fetch.js → Help 서버 /fetch → site-fetch/): 자주 사용 가맹점 사이트에서 거래명세서 등을 받아 첨부 파일로
+      case 'prepFetch': return await KRX_PREP_FETCH.start(String(msg.key || ''), msg.meta || {});
+      case 'prepFetchCancel': return await KRX_PREP_FETCH.cancel(String(msg.key || ''));
+      case 'fetchSiteSave': try { return { ok: true, site: await KRX_PREP_FETCH.saveSite(msg.site || {}, msg.cred || null, fromExtPage(sender)) }; } catch (e) { return { ok: false, error: String(e.message || e) }; }   // 비밀번호는 확장 페이지에서 온 것만
+      case 'fetchSiteRemove': return { ok: await KRX_PREP_FETCH.removeSite(String(msg.id || '')) };
       case 'callService': return await KRX_API.call(msg.service, msg.input || {});
       case 'diagnose': {   // 진단은 그 과제의 참여인력 캐시를 지금 값으로 바꾸므로, 끝나면 패널도 다시 조회해 반영 (캐시 TTL 무시, 다른 과제의 참여인력은 캐시)
         const r = await KRX_API.diagnose(String(msg.prjNo || '').trim(), await KRX_SETTINGS.load());

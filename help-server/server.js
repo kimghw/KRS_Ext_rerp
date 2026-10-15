@@ -9,17 +9,27 @@
  *   - Host 는 127.0.0.1/localhost 만(DNS 리바인딩 차단), Origin 이 있으면 chrome-extension://<id> 만 — 처음 연결한 확장 id 를 help-server/.state.json 에 고정(TOFU)하고 다른 출처는 403.
  *     (확장을 다른 폴더에서 다시 로드해 id 가 바뀌면 .state.json 의 origin 을 지우거나 KRX_HELP_EXT_ID 로 지정)
  *   - Origin 없는 요청(curl 등 이 PC 의 프로그램)은 받는다 — 브라우저는 다른 출처 POST 에 늘 Origin 을 붙이므로 웹 페이지는 여기 못 온다. CORS 헤더는 주지 않는다(확장 페이지는 호스트 권한으로 읽음)
- * 환경 변수: KRX_HELP_PORT(8106) · KRX_HELP_MODEL(claude-opus-5-5) · KRX_HELP_CLAUDE(claude 실행 파일) · KRX_HELP_PERMISSION(acceptEdits) · KRX_HELP_TIMEOUT_MIN(30) · KRX_HELP_EXT_ID */
+ * 청구 준비 자동 분류(0.8.5): POST /classify — 확장 백그라운드(lib/prep-ai.js)가 거래 하나의 청구종류·첨부 파일 종류를 묻고, 청구내역(적요) 한 줄을 받는다(과제 연구개발계획서 참조). help-server/classify.js 가 빠른 모델로 claude -p 를 짧게 한 번 돌린다
+ *   (/ask 와 따로 돌고 동시에 CLASSIFY_SLOTS 개까지, 나머지는 줄을 선다). GET /health 의 classify 에 그 모델을 적어 확장이 이 기능이 있는 서버인지 알고, classifyPtcl 로 청구내역 작성이 되는 서버인지 안다.
+ * 증빙 찾아오기(0.8.5): POST /fetch → GET /fetch/job?id=&since= → GET /fetch/file?id=&name= · POST /fetch/cancel — 확장 백그라운드(lib/prep-fetch.js)가 "자주 사용" 가맹점 사이트에서
+ *   거래명세서(강의면 수강증·강의내용도)를 찾아 달라고 하면 site-fetch/(별도 폴더 — 이 서버는 경로만 넘김)가 작업용 Chrome 을 CDP 로 열고 Claude 를 헤드리스로 돌려 서류를 저장한다(/ask·/classify 와 따로, 한 번에 하나).
+ *   GET /health 의 fetch 에 그 모델을 적는다(Node 22 미만이면 빈 값).
+ * 환경 변수: KRX_HELP_PORT(8106) · KRX_HELP_MODEL(claude-opus-5-5) · KRX_HELP_FAST_MODEL(claude-haiku-5-5, 자동 분류) · KRX_HELP_CLAUDE(claude 실행 파일) · KRX_HELP_PERMISSION(acceptEdits) · KRX_HELP_TIMEOUT_MIN(30) · KRX_HELP_EXT_ID
+ *   증빙 찾아오기: KRX_FETCH_MODEL(KRX_HELP_MODEL) 외 site-fetch/README.md */
 'use strict';
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
+const classify = require('./classify');
+const siteFetch = require('../site-fetch');   // 증빙 찾아오기 — 다른 웹 사이트에 가는 부분은 site-fetch/ 에 따로 (이 서버는 /fetch 경로만 넘겨 줌)
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.KRX_HELP_PORT) || 8106;
 const MODEL = process.env.KRX_HELP_MODEL || 'claude-opus-5-5';
+const FAST_MODEL = process.env.KRX_HELP_FAST_MODEL || 'claude-haiku-5-5';   // 청구 준비 자동 분류(/classify) — 없거나 막히면 MODEL 로 (--fallback-model)
+const FETCH_MODEL = process.env.KRX_FETCH_MODEL || MODEL;                     // 증빙 찾아오기(/fetch) — 웹 사이트를 돌아다녀야 해서 기본은 MODEL
 const PERMISSION = process.env.KRX_HELP_PERMISSION || 'acceptEdits';
 const TIMEOUT_MS = (Number(process.env.KRX_HELP_TIMEOUT_MIN) || 30) * 60000;
 const RESUME_MS = 2 * 3600000;                       // 마지막 요청 뒤 이 시간 안이면 같은 대화를 잇는다
@@ -27,6 +37,7 @@ const RULES = path.join(__dirname, 'rules.md');      // Claude 에 덧붙이는 
 const LOG_DIR = path.join(__dirname, 'logs');        // 끝난 작업 기록 <id>.json (서버를 다시 띄워도 팝업이 마지막 결과를 볼 수 있게)
 const STATE = path.join(__dirname, '.state.json');   // { origin: 고정된 확장 출처, session: { id, at } }
 const KEEP_LOGS = 50, MAX_TEXT = 2000, MAX_BODY = 64 * 1024, MAX_LINES = 2000;
+const CLASSIFY_BODY = 40 * 1024 * 1024, CLASSIFY_MS = 120000, CLASSIFY_SLOTS = 2, CLASSIFY_QUEUE = 8;   // 자동 분류: 본문(이미지·PDF base64 포함) · 한 번 제한 시간 · 동시 실행 · 대기 줄
 /* acceptEdits 는 파일 수정만 묻지 않고 허용한다. 헤드리스에서는 물어볼 사람이 없어 그 밖의 명령은 거절되므로 문법 검사·테스트·조회에 쓰는 것만 허용 (Windows 는 PowerShell 도구도 있음) */
 const ALLOWED = ['node', 'git status', 'git diff', 'git log', 'git show', 'curl', 'python'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]).concat(['Bash(git status)', 'PowerShell(git status)', 'Bash(git diff)', 'PowerShell(git diff)']);
 const DISALLOWED = ['git commit', 'git push', 'git reset', 'git checkout', 'git restore', 'git stash', 'git clean', 'git rebase', 'git merge'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]);
@@ -247,14 +258,39 @@ function send(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(s), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
   res.end(s);
 }
-function readBody(req) {
+function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) return reject(new Error('Content-Type 은 application/json 이어야 합니다'));
     const chunks = []; let n = 0;
-    req.on('data', (d) => { n += d.length; if (n > MAX_BODY) { reject(new Error('본문이 너무 큽니다')); req.destroy(); } else chunks.push(d); });
+    req.on('data', (d) => { n += d.length; if (n > (limit || MAX_BODY)) { reject(new Error('본문이 너무 큽니다')); req.destroy(); } else chunks.push(d); });
     req.on('end', () => { try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); } catch (e) { reject(new Error('JSON 이 아닙니다')); } });
     req.on('error', reject);
   });
+}
+
+/* 자동 분류 자리: 동시에 CLASSIFY_SLOTS 개, 넘으면 CLASSIFY_QUEUE 개까지 기다린다 (끝난 자리는 기다리던 요청에 바로 넘김) */
+let classifying = 0;
+const classifyWait = [];
+function classifySlot() {
+  if (classifying < CLASSIFY_SLOTS) { classifying++; return Promise.resolve(true); }
+  if (classifyWait.length >= CLASSIFY_QUEUE) return Promise.resolve(false);
+  return new Promise((r) => classifyWait.push(r));
+}
+function classifyDone() { const w = classifyWait.shift(); if (w) w(true); else classifying--; }
+async function classifyRequest(body) {
+  const input = classify.clean(body);
+  if (!input.wantType && !input.wantPtcl && !input.todo.length) return { status: 200, body: { ok: true, type: null, ptcl: null, files: [] } };
+  if (!(await classifySlot())) return { status: 429, body: { ok: false, kind: 'busy', error: '자동 분류 요청이 밀려 있습니다' } };
+  const t0 = Date.now();
+  try {
+    const out = await classify.run(input, { bins: claudeBins(), model: FAST_MODEL, fallback: MODEL, env: childEnv(), timeoutMs: CLASSIFY_MS, kill: killTree });
+    const ms = Date.now() - t0;
+    console.log(`[${new Date().toLocaleTimeString()}] 분류 ${Math.round(ms / 100) / 10}초${out.cost ? ` $${out.cost.toFixed(3)}` : ''}: ${[out.type ? `청구종류 ${out.type.value || '(못 고름)'}` : '', out.ptcl ? `청구내역 ${out.ptcl.value ? `"${out.ptcl.value}"` : '(못 씀)'}` : '', input.todo.length ? `파일 ${out.files.filter((f) => f.kind).length}/${input.todo.length}` : ''].filter(Boolean).join(' · ')}`);
+    return { status: 200, body: { ok: true, model: FAST_MODEL, ms, type: out.type, ptcl: out.ptcl, files: out.files } };
+  } catch (e) {
+    console.log(`[${new Date().toLocaleTimeString()}] 분류 실패: ${oneLine(e && e.message, 200)}`);
+    return { status: 502, body: { ok: false, kind: 'claude', error: oneLine((e && e.message) || e, 300) } };
+  } finally { classifyDone(); }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -264,8 +300,10 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
     if (req.method === 'GET' && u.pathname === '/health') {
       return send(res, 200, { ok: true, name: 'krx-help', version: manifestVersion(), repo: ROOT, model: MODEL, cli: cliVersion, busy: running ? running.job.id : '',
-        session: !!(state.session && Date.now() - state.session.at < RESUME_MS) });
+        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), classify: FAST_MODEL, classifyPtcl: true,
+        fetch: siteFetch.available() ? '' : FETCH_MODEL, fetchNote: siteFetch.available(), fetchBusy: siteFetch.busy() });
     }
+    if (u.pathname === '/fetch' || u.pathname.startsWith('/fetch/')) return fetchRoute(req, res, u);   // 증빙 찾아오기 (site-fetch/)
     if (req.method === 'GET' && u.pathname === '/job') {
       const job = findJob(u.searchParams.get('id') || '');
       if (!job) return send(res, 404, { ok: false, kind: 'nojob', error: '그 작업 기록이 없습니다' });
@@ -281,6 +319,10 @@ const server = http.createServer(async (req, res) => {
       const job = await startJob(text, body.context, !!body.fresh);
       return send(res, 200, { ok: true, id: job.id, resumed: job.resumed });
     }
+    if (req.method === 'POST' && u.pathname === '/classify') {   // 청구 준비 자동 분류 (lib/prep-ai.js) — Help Chat 작업과 따로 돈다
+      const r = await classifyRequest(await readBody(req, CLASSIFY_BODY));
+      return send(res, r.status, r.body);
+    }
     if (req.method === 'POST' && u.pathname === '/cancel') {
       await readBody(req);
       if (!running) return send(res, 200, { ok: true, idle: true });
@@ -293,13 +335,18 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { return send(res, 400, { ok: false, kind: 'error', error: String((e && e.message) || e) }); }
 });
 
+/* 증빙 찾아오기: /fetch, /fetch/* 는 site-fetch 가 처리 (요청 검사 guard 는 위에서 이미 함) */
+function fetchRoute(req, res, u) {
+  return siteFetch.route(req, res, u, { readBody, send, claude: { bins: claudeBins(), model: FETCH_MODEL, fallback: FETCH_MODEL === MODEL ? '' : MODEL, env: childEnv(), kill: killTree } });
+}
+
 server.on('error', (e) => { console.error(e && e.code === 'EADDRINUSE' ? `포트 ${PORT} 를 이미 쓰고 있습니다 (Help 서버가 이미 떠 있거나 KRX_HELP_PORT 로 다른 포트 지정)` : e); process.exit(1); });
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`확장 Help Chat 서버 http://127.0.0.1:${PORT}  저장소 ${ROOT}  모델 ${MODEL}  권한 ${PERMISSION}`);
+  console.log(`확장 Help Chat 서버 http://127.0.0.1:${PORT}  저장소 ${ROOT}  모델 ${MODEL}  권한 ${PERMISSION}  자동 분류 ${FAST_MODEL}  증빙 찾아오기 ${siteFetch.available() || FETCH_MODEL}`);
   const tryVersion = (bins) => execFile(bins[0], ['--version'], { env: childEnv(), windowsHide: true }, (err, out) => {
     if (err) return bins.length > 1 ? tryVersion(bins.slice(1)) : console.error('claude CLI 를 실행하지 못했습니다 — 설치·로그인(claude) 뒤 다시 시도하세요');
     cliVersion = String(out).trim().split(/\s+/)[0]; console.log(`claude CLI ${cliVersion}`);
   });
   tryVersion(claudeBins());
 });
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (running) killTree(running.child); process.exit(0); });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { if (running) killTree(running.child); siteFetch.cancel(siteFetch.busy(), '서버 종료'); process.exit(0); });

@@ -8,7 +8,7 @@
 //   node tests/cdp/reload.mjs --if-changed    # 훅용 — 소스가 지난 리로드 뒤 바뀌었을 때만 올리고, 커밋 상태가 달라졌으면 그것도, 훅 JSON(systemMessage) 한 줄로. 항상 종료 코드 0
 //
 // --if-changed 는 Claude Code 의 Stop 훅(.claude/settings.local.json)이 부른다 — Claude 가 한 차례 작업을 마칠 때마다 돌아,
-//  1) 확장이 읽는 파일(tests·help-server·.claude·.git 과 *.md·*.mp4·package*.json·.gitignore 를 뺀 전부)의 가장 새 mtime 이 도장(임시 폴더의
+//  1) 확장이 읽는 파일(tests·help-server·site-fetch·.claude·.git 과 *.md·*.mp4·package*.json·.gitignore 를 뺀 전부)의 가장 새 mtime 이 도장(임시 폴더의
 //     krx-rerp-reload.stamp)보다 새로우면 리로드하고 도장을 그 mtime 으로 맞춘다. 올리기 전에 그 뒤 바뀐 .js 는 node --check, .json 은 JSON.parse 로
 //     문법을 보고, 깨진 것이 있으면 올리지 않고 보류한다(help-server 의 "적용" 보호와 같다 — 깨진 채 올리면 팝업, 곧 Help Chat 창구까지 죽는다).
 //     디버그 포트 크롬이 없으면 그렇다고만 말한다.
@@ -36,8 +36,8 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const EXT_NAME = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8')).name; } catch { return 'KR eClass + R&D ERP 현황'; } })();
 /** --if-changed 가 "마지막으로 올린 소스의 mtime"·"마지막 받아 오기"·"마지막에 한 커밋 상태 말" 을 남겨 두는 도장. */
 const STAMP = path.join(os.tmpdir(), 'krx-rerp-reload.stamp');
-/** 확장이 읽지 않는 것들 — 여기만 바뀌면 리로드할 까닭이 없다. help-server 는 따로 도는 서버(바뀌면 서버를 다시 띄운다). */
-const NOT_EXTENSION_DIRS = new Set(['.git', '.claude', 'tests', 'help-server', 'node_modules']);
+/** 확장이 읽지 않는 것들 — 여기만 바뀌면 리로드할 까닭이 없다. help-server 는 따로 도는 서버(바뀌면 서버를 다시 띄운다), site-fetch 는 그 서버가 쓰는 증빙 찾아오기 모듈. */
+const NOT_EXTENSION_DIRS = new Set(['.git', '.claude', 'tests', 'help-server', 'site-fetch', 'node_modules']);
 const NOT_EXTENSION_FILE = /(^\.gitignore$|\.md$|\.mp4$|^package\.json$|^package-lock\.json$)/i;
 /** GitHub 받아 오기(fetch) 간격 — kr_ext_workspace 의 git 아이콘과 같다. */
 const FETCH_EVERY_MS = 10 * 60_000;

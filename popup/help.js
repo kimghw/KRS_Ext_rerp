@@ -32,7 +32,7 @@
     try {
       const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']);
       const c = l.cache || {};
-      out.panel = { section: l.panelSection === 'budget' ? '과제집행비율' : '카드미청구', view: l.panelView === 'card' ? '카드별' : '과제별' };
+      out.panel = { section: ({ budget: '과제집행비율', research: '연구내용' })[l.panelSection] || '카드미청구', view: l.panelView === 'card' ? '카드별' : '과제별' };
       out.cache = { at: c.ts ? new Date(c.ts).toLocaleString('ko-KR') : '없음', loginRequired: !!c.loginRequired, eclassLogin: !!c.eclassLogin, projects: (c.projects || []).length, unclaimed: c.totalCount || 0, memberFilter: c.memberFilter || '' };
       const errs = {};
       for (const k of ['error', 'unapprovedError', 'inboxError', 'supplementsError', 'participationError']) if (c[k]) errs[k] = String(c[k]).slice(0, 200);

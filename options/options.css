@@ -1,6 +1,14 @@
 body { margin: 0; padding: 20px 24px 60px; background: #f4f6f9; color: #222; font: 14px/1.5 -apple-system, "Segoe UI", "Malgun Gothic", "맑은 고딕", Roboto, sans-serif; }
 h1 { font-size: 20px; margin: 0 0 16px; }
 h2 { font-size: 15px; margin: 0 0 8px; }
+/* 탭 (설정 · 증빙 찾아오기, options.js showTab) */
+.tabs { display: flex; gap: 2px; max-width: 1014px; margin: -4px 0 14px; border-bottom: 1px solid #dfe4ec; }
+.tabs .tab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: #5b6470; font: inherit; font-weight: 600; cursor: pointer; }
+.tabs .tab:hover { color: #1f4e9c; }
+.tabs .tab[aria-selected="true"] { color: #1f4e9c; border-bottom-color: #1f4e9c; }
+.tab-badge { padding: 0 7px; border-radius: 9px; background: #e6efff; color: #1f4e9c; font-size: 11px; line-height: 17px; }
+.tab-badge.off { background: #eef1f5; color: #8a919c; }
+.tab-badge:empty { display: none; }
 .card { background: #fff; border: 1px solid #dfe4ec; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; max-width: 980px; }
 .help { color: #5b6470; font-size: 12.5px; margin: 4px 0 10px; }
 .muted { color: #8a919c; font-weight: 400; font-size: 12px; }
@@ -76,3 +84,35 @@ details.card > summary h2 { margin: 0; flex: 1; }
 details.card > summary h2 .muted { margin-left: 6px; }
 details.card:not([open]) > summary:hover h2 { color: #1f4e9c; }
 details.card[open] > summary { margin-bottom: 8px; }
+/* 연구개발계획서 (연구내용 참조, 0.8.5): 점선 넣는 칸 · 결과 줄 · 넣은 계획서 표(과제명 · 차년도 · 이은 ERP 과제 · 넣은 때 · 보기/빼기) · 펼친 글 */
+.rs-drop { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 8px 0 6px; padding: 12px 14px; border: 1.5px dashed #9bbcf0; border-radius: 10px; background: #eef4ff; color: #1f4e9c; cursor: pointer; text-align: center; }
+.rs-drop:hover, .rs-drop:focus-visible, .rs-drop.over { border-color: #2f7bf5; background: #e1ecff; outline: none; }
+.rs-drop.busy { opacity: .65; cursor: progress; }
+.rs-drop input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.rs-drop-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 14px; }
+.rs-drop-sub { color: #5b6470; font-size: 12px; }
+.rs-status { margin: 4px 0 8px; font-size: 12.5px; color: #1a7f37; white-space: pre-line; }
+.rs-status:empty { display: none; }
+.rs-status.err { color: #b3261e; }
+.rs-table td.nm .muted { display: block; margin-top: 1px; }
+.rs-table td select { max-width: 300px; font: inherit; font-size: 12.5px; padding: 2px 4px; }
+.rs-table td .btn { padding: 2px 9px; font-size: 12px; }
+.rs-table tr.rs-unlinked td.erp select { border-color: #e0a3a8; color: #b3261e; }
+.rs-table tr.rs-text td { background: #fbfcfe; }
+.rs-table pre { margin: 0; font: 12px/1.5 Consolas, "Malgun Gothic", monospace; white-space: pre-wrap; word-break: keep-all; max-height: 420px; overflow: auto; }
+.rs-link { flex: 1 1 360px; min-width: 240px; }
+.rs-pages { margin: 4px 0 10px; }
+.rs-pages td.err { color: #b3261e; }
+.rs-src { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 8px; background: #e6efff; color: #1f4e9c; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+/* 증빙 찾아오기 탭 · 자주 사용 가맹점 (options.js renderFetchSites) */
+.fetch-site { border: 1px solid #d7e6dc; border-radius: 8px; background: #f7fbf8; padding: 10px 12px; margin: 10px 0; }
+.fetch-site.fetch-new { border-color: #7fbf95; box-shadow: 0 0 0 2px rgba(63,154,100,.15); }
+.fetch-site-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 600; color: #1d6b3f; }
+.fetch-site-head .muted { font-weight: 400; }
+.fetch-site-head .btn { margin-left: auto; padding: 3px 10px; font-size: 12px; }
+.fetch-site-head .btn + .btn { margin-left: 0; }
+.fetch-docs .fetch-own { flex-basis: 100%; color: #555; }
+.fetch-docs input:disabled + span { color: #888; }
+.fetch-docs { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.fetch-docs label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; }
+.fetch-site textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; }

@@ -24,6 +24,21 @@
     return c.acctMatch === null || c.acctMatch === undefined ? true : !!c.acctMatch;
   }
 
+  /* ---------- 탭: 설정 · 증빙 찾아오기 ([data-panel]). 주소가 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=…, 탭을 눌러 둔 #fetch)면 증빙 찾아오기 탭 ---------- */
+  const tabOfHash = () => (/^#fetch/.test(location.hash) ? 'fetch' : 'main');
+  function showTab(name) {
+    if (name !== 'fetch') name = 'main';
+    document.querySelectorAll('[data-panel]').forEach((el) => { el.hidden = el.dataset.panel !== name; });
+    document.querySelectorAll('.tabs [data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  }
+  document.querySelectorAll('.tabs [data-tab]').forEach((b) => b.addEventListener('click', () => {
+    const name = b.dataset.tab;
+    showTab(name);
+    if (tabOfHash() !== name) history.replaceState(null, '', name === 'fetch' ? '#fetch' : location.pathname);   // 새로고침해도 그 탭 (hashchange 는 안 일으킴)
+    window.scrollTo(0, 0);
+  }));
+  showTab(tabOfHash());
+
   /* ---------- 접기/펼치기 (details.card[data-collapse]): 마지막 상태를 storage.local.optCollapse 에 기억 (기본: 접힘) ---------- */
   async function initCollapse() {
     let saved = {};
@@ -349,7 +364,7 @@
     $('eclassPanel').checked = s.eclassPanel !== false;
     togglePanelModeBox();
     document.querySelector(`input[name=panelMode][value="${s.panelMode === 'float' ? 'float' : 'inline'}"]`).checked = true;
-    $('actionSidePanel').checked = !!s.actionSidePanel;
+    $('actionPopup').checked = !!s.actionPopup;
     $('onlyMyProjects').checked = !!s.onlyMyProjects;
     $('myEmpNo').value = s.myEmpNo || '';
     $('myName').value = s.myName || '';
@@ -386,6 +401,11 @@
     const hp = Object.assign({}, S.DEFAULTS.help, s.help || {});   // Help Chat (로컬 Help 서버)
     $('helpEnabled').checked = hp.enabled !== false;
     $('helpUrl').value = hp.url || '';
+    $('helpAutoPick').checked = hp.autoPick !== false;
+    $('helpAutoPtcl').checked = hp.autoPtcl !== false;   // 비어 있는 청구내역을 Claude 가 씀 (연구내용 참조)
+    $('helpPtclGuide').value = hp.ptclGuide || '';
+    $('helpFetch').checked = hp.fetch !== false;   // 증빙 찾아오기 탭
+    for (const [k] of KRX_SITES.KINDS) $('fetchDocs_' + k).value = KRX_SITES.docsFor(k, hp.fetchDocs).join(', ');   // 종류별 필요 서류
     $('helpSummary').textContent = hp.enabled !== false ? '' : '꺼짐';
     const ch = Object.assign({}, S.DEFAULTS.claimHelper, s.claimHelper || {});
     $('chEnabled').checked = ch.enabled !== false;
@@ -394,6 +414,7 @@
     $('chMeetingPlace').value = ch.meetingPlace == null ? (S.DEFAULTS.claimHelper.meetingPlace || '') : ch.meetingPlace;
     $('chDragDrop').checked = ch.dragDrop !== false;
     $('chQuickPicks').value = (Array.isArray(ch.quickPicks) ? ch.quickPicks : []).join('\n');
+    $('chAttachKinds').value = (Array.isArray(ch.attachKinds) ? ch.attachKinds : (S.DEFAULTS.claimHelper.attachKinds || [])).join('\n');
     toggleClaimBox();
     const h = Object.assign({}, S.DEFAULTS.hr, s.hr || {});
     $('hrEnabled').checked = h.enabled !== false;
@@ -451,7 +472,7 @@
     return S.merge(S.DEFAULTS, {
       eclassPanel: $('eclassPanel').checked,
       panelMode: document.querySelector('input[name=panelMode]:checked').value,
-      actionSidePanel: $('actionSidePanel').checked,
+      actionPopup: $('actionPopup').checked,
       accountRule: $('accountRule').checked,
       showShared: $('showShared').checked,
       cardOverrides,
@@ -482,14 +503,16 @@
         notebookLabel: $('plusNotebook').value ? ($('plusNotebook').selectedOptions[0] || {}).textContent || '' : '',
         planSync: $('plusPlanSync').checked
       },
-      help: { enabled: $('helpEnabled').checked, url: $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url },
+      help: { enabled: $('helpEnabled').checked, url: $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url, autoPick: $('helpAutoPick').checked,
+        autoPtcl: $('helpAutoPtcl').checked, ptclGuide: $('helpPtclGuide').value.trim().slice(0, 300), fetch: $('helpFetch').checked, fetchDocs: kindDocsNow() },
       claimHelper: {
         enabled: $('chEnabled').checked,
         defaultBudget: $('chDefaultBudget').value.trim(),
         defaultRcms: $('chDefaultRcms').value.trim(),
         meetingPlace: $('chMeetingPlace').value.trim(),
         dragDrop: $('chDragDrop').checked,
-        quickPicks: $('chQuickPicks').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+        quickPicks: $('chQuickPicks').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean),
+        attachKinds: $('chAttachKinds').value.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
       },
       hr: {
         enabled: $('hrEnabled').checked,
@@ -568,9 +591,209 @@
   loadPrepStats();
   try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.claimPrep) loadPrepStats(); }); } catch (e) {}
 
+  /* ---------- 연구개발계획서 (연구내용 참조, 0.8.5 — lib/research.js): KR_<과제>.yaml 을 끌어다 놓기(페이지 어디든)·붙여 넣기(Ctrl+V, 파일이나 글)·눌러서 고르기로 넣어
+   * storage.local.researchPlans 에 둔다. YAML 은 vendor/yaml(npm yaml 2.9.1 브라우저 빌드, ES 모듈)을 처음 넣을 때만 읽어 들인다.
+   * 과제명으로 R&D ERP 과제(projectList + 패널 캐시)에 잇고(과제 목록이 바뀌면 다시), 표의 select 로 고르면 linkBy 'user' 로 고정 ---------- */
+  const RS = KRX_RESEARCH;
+  let research = {};
+  const rsOpen = new Set();   // 글을 펼친 계획서 id
+  let yamlLib = null;
+  const loadYaml = async () => (yamlLib = yamlLib || await import(chrome.runtime.getURL('vendor/yaml/index.js')));
+  const isYaml = (f) => /\.ya?ml$/i.test((f && f.name) || '') || /yaml/i.test((f && f.type) || '');
+  async function rsProjects() {
+    try { const l = await chrome.storage.local.get(['projectList', 'cache']); return RS.uniq(((l.projectList && l.projectList.projects) || []).concat((l.cache && l.cache.projects) || [])); } catch (e) { return []; }
+  }
+  function rsStatus(text, isErr) { const el = $('researchStatus'); el.textContent = text || ''; el.classList.toggle('err', !!isErr); }
+
+  function renderResearch(ps) {
+    const recs = Object.values(research).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.n - b.n);
+    const opts = (r) => {
+      const has = ps.some((p) => p.prjNo === r.prjNo);
+      return '<option value="">(잇지 않음)</option>' + ps.map((p) => `<option value="${F.esc(p.prjNo)}"${p.prjNo === r.prjNo ? ' selected' : ''}>${F.esc(p.prjNo)} ${F.esc((p.prjNm || '').slice(0, 44))}</option>`).join('')
+        + (r.prjNo && !has ? `<option value="${F.esc(r.prjNo)}" selected>${F.esc(r.prjNo)} ${F.esc(r.prjNm || '(과제 목록에 없음)')}</option>` : '');
+    };
+    const rows = recs.map((r) => {
+      const meta = [r.code, r.goals.length ? `목표 ${r.goals.length}` : '', r.spend.length ? `연구활동비 계획 ${r.spend.length}건 · ${F.money(RS.spendTotal(r))}원` : ''].filter(Boolean).join(' · ');
+      const how = r.linkBy === 'user' ? '직접 고른 과제' : r.linkBy === 'auto' ? '과제명으로 저절로 이은 과제' : 'R&D ERP 과제 목록에서 과제명을 찾지 못했습니다 — 고르세요';
+      const open = rsOpen.has(r.id);
+      return `<tr class="${r.prjNo ? '' : 'rs-unlinked'}"><td class="nm">${F.esc(r.name)}<span class="muted">${F.esc(meta)}</span></td>
+        <td class="tag">${r.n}차년도${r.rev ? ` ${F.esc(r.rev)}` : ''}${r.src ? '<span class="rs-src" title="원노트 페이지에서 받은 것 — 위 목록의 페이지를 끊으면 빠집니다">원노트</span>' : ''}</td>
+        <td class="erp"><select data-rs-link="${F.esc(r.id)}" title="${F.esc(how)}">${opts(r)}</select></td>
+        <td class="tag" title="${F.esc(`${r.src ? '원노트에서 받음 · ' : ''}${r.file ? `파일 ${r.file}` : '붙여 넣은 글'}`)}">${F.esc(F.fmtClock(r.at))}</td>
+        <td class="tag"><button type="button" class="btn" data-rs-view="${F.esc(r.id)}">${open ? '접기' : '보기'}</button> <button type="button" class="btn danger" data-rs-del="${F.esc(r.id)}">빼기</button></td></tr>`
+        + (open ? `<tr class="rs-text"><td colspan="5"><pre>${F.esc(RS.textOf(r))}</pre></td></tr>` : '');
+    }).join('');
+    $('researchList').innerHTML = rows ? `<div class="prj-list"><table class="prj-table rs-table"><thead><tr><th>과제 (계획서)</th><th>차년도</th><th>R&amp;D ERP 과제</th><th>넣은 때</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
+    const unlinked = recs.filter((r) => !r.prjNo).length;
+    $('researchSummary').textContent = recs.length ? `${recs.length}개${unlinked ? ` · 잇지 않음 ${unlinked}` : ''}` : '';
+  }
+  /* 저장된 계획서를 읽어 과제 목록에 다시 잇고(바뀌었으면 저장) 그린다 — 처음 · 과제 목록이 바뀔 때 · 다른 창에서 넣고 뺄 때 */
+  async function loadResearch() {
+    research = await RS.load();
+    const ps = await rsProjects();
+    if (RS.link(research, ps)) await RS.save(research);
+    renderResearch(ps);
+    await renderResearchPages();
+  }
+
+  /* 원노트 링크로 이어 둔 연구내용 페이지 (background.js researchBind · researchPull · researchUnbind, storage.local.researchPages) */
+  async function renderResearchPages() {
+    let pages = {};
+    try { pages = (await chrome.storage.local.get('researchPages')).researchPages || {}; } catch (e) {}
+    const list = Object.values(pages).sort((a, b) => String(a.name || a.title).localeCompare(String(b.name || b.title), 'ko'));
+    const rows = list.map((p) => {
+      const what = p.ok ? [`차년도 ${p.count || 0}개`, p.older ? `오래된 판 ${p.older} 건너뜀` : '', p.remoteAt ? `올림 ${F.fmtClock(p.remoteAt)}${p.by ? ` ${p.by}` : ''}` : ''].filter(Boolean).join(' · ') : (p.error || '아직 받지 않음');
+      return `<tr><td class="nm">${p.webUrl ? `<a href="${F.esc(p.webUrl)}" target="_blank" rel="noopener">${F.esc(p.title || p.pageId)}</a>` : F.esc(p.title || p.pageId)}<span class="muted">${F.esc(p.code || '')}</span></td>
+        <td class="${p.ok ? 'tag' : 'tag err'}">${F.esc(what)}</td><td class="tag">${p.at ? F.esc(F.fmtClock(p.at)) : ''}</td>
+        <td class="tag"><button type="button" class="btn danger" data-rs-unbind="${F.esc(p.pageId)}" title="이 페이지를 더 받지 않고, 이 페이지에서 받은 차년도 기록도 뺍니다">끊기</button></td></tr>`;
+    }).join('');
+    $('researchPages').innerHTML = rows ? `<div class="prj-list rs-pages"><table class="prj-table rs-table"><thead><tr><th>이어 둔 원노트 페이지</th><th>받은 것</th><th>마지막 받기</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
+    $('btnResearchPull').disabled = !list.length;
+  }
+  /* 링크(웹 링크 · onenote: 링크 · "[연구내용 페이지 ID] 1-…" 줄)를 백그라운드가 페이지로 풀어 기억하고 받는다 */
+  const isNoteLink = (s) => /onenote|wd=target\(|page-id=|1-[0-9a-f]{32}![0-9]+-[0-9a-f-]{36}/i.test(String(s || ''));
+  async function bindResearchLink(text) {
+    const t = String(text || '').trim();
+    if (!t) return;
+    $('researchCard').open = true;
+    $('btnResearchBind').disabled = true;
+    rsStatus('원노트 페이지를 찾아 받는 중…');
+    try {
+      const r = await chrome.runtime.sendMessage({ type: 'researchBind', text: t });
+      const pg = (r && r.page) || {};
+      if (r && r.ok) { $('researchLink').value = ''; rsStatus(`${pg.title || '연구내용 페이지'} 받음 — 차년도 ${pg.count || 0}개${pg.older ? ` (더 오래된 판 ${pg.older}개는 건너뜀)` : ''} · 이 페이지를 기억해 다시 받습니다`); }
+      else rsStatus(`받지 못했습니다: ${(r && (r.error || r.message)) || '응답 없음'}${r && r.kind === 'offline' ? ' — 이 PC 의 OneNote MCP 서버(KR_MS365_mcp onenote)를 띄우세요' : ''}`, true);
+    } catch (e) { rsStatus(`받지 못했습니다: ${String((e && e.message) || e)}`, true); }
+    finally { $('btnResearchBind').disabled = false; }
+  }
+  $('btnResearchBind').addEventListener('click', () => bindResearchLink($('researchLink').value));
+  $('researchLink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); bindResearchLink($('researchLink').value); } });
+  $('btnResearchPull').addEventListener('click', async () => {
+    setStatus('researchLinkStatus', '받는 중…');
+    try {
+      const r = await chrome.runtime.sendMessage({ type: 'researchPull', reason: 'manual' });
+      if (r && r.ok) setStatus('researchLinkStatus', r.skipped === 'none' ? '이어 둔 페이지가 없습니다' : `다시 받았습니다 — 페이지 ${Object.keys(r.pages || {}).length}개`);
+      else setStatus('researchLinkStatus', `일부 못 받음: ${(r && (r.error || r.message)) || '응답 없음'}`, true);
+    } catch (e) { setStatus('researchLinkStatus', String((e && e.message) || e), true); }
+  });
+  $('researchPages').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-rs-unbind]');
+    if (!b || !confirm('이 원노트 페이지를 끊을까요? 이 페이지에서 받은 차년도 기록도 빠집니다 (링크를 다시 붙여 넣으면 돌아옵니다)')) return;
+    const r = await chrome.runtime.sendMessage({ type: 'researchUnbind', pageId: b.dataset.rsUnbind });
+    rsStatus(r && r.ok ? `페이지를 끊었습니다 — 기록 ${r.removed}개 뺌` : '끊지 못했습니다', !(r && r.ok));
+  });
+
+  /* items: [{ name(파일 이름, 붙여 넣은 글이면 ''), text }] — 풀고, 스냅샷만 판 차례(r0 → rN)로 넣고, 잇고, 저장. 결과는 넣은 칸 밑에 한 줄씩 */
+  async function intakeResearch(items) {
+    if (!items.length) return;
+    const drop = $('researchDrop');
+    drop.classList.add('busy');
+    $('researchCard').open = true;
+    const lines = [], done = [];
+    let bad = 0;
+    try {
+      const { parse } = await loadYaml();
+      const docs = [];
+      for (const it of items) {
+        const what = it.name || '붙여 넣은 글';
+        let o;
+        try { o = parse(it.text); } catch (e) { lines.push(`${what}: YAML 을 읽지 못했습니다 — ${String((e && e.message) || e).split('\n')[0]}`); bad++; continue; }
+        const kind = RS.kindOf(o);
+        if (kind === 'history') { lines.push(`${what}: history 이력 파일은 쓰지 않습니다 — 같은 폴더의 KR_<과제>.yaml(재생성본이 있으면 마지막 _rN)을 넣으세요`); continue; }
+        if (kind !== 'snapshot') { lines.push(`${what}: 연구개발계획서 스냅샷(meta.과제명)이 아닙니다`); bad++; continue; }
+        try { docs.push({ what, rec: RS.readSnapshot(o, { text: it.text, file: it.name }) }); } catch (e) { lines.push(`${what}: ${e.message}`); bad++; }
+      }
+      docs.sort((a, b) => RS.revNo(a.rec.rev) - RS.revNo(b.rec.rev));   // 같은 과제·차년도의 판이 섞여 와도 최종본이 남게
+      const map = await RS.load();   // 다른 창에서 바뀌었을 수 있어 넣기 직전에 다시 읽는다
+      for (const d of docs) {
+        const r = RS.put(map, d.rec);
+        if (r.state === 'older') lines.push(`${d.what}: ${d.rec.name} ${d.rec.n}차년도에는 이미 ${r.prev.rev} 가 들어 있어 더 오래된 ${d.rec.rev || '판'} 는 넣지 않았습니다`);
+        else done.push({ d, state: r.state });
+      }
+      if (done.length) {
+        const ps = await rsProjects();
+        RS.link(map, ps);
+        await RS.save(map);
+        research = map;
+        for (const { d, state } of done) {
+          const rec = map[d.rec.id];
+          const where = rec.prjNo ? `${rec.prjNo} 에 이음` : 'R&D ERP 과제를 찾지 못함 — 아래 표에서 고르세요';
+          const what = [rec.goals.length ? `목표 ${rec.goals.length}` : '', rec.spend.length ? `연구활동비 계획 ${rec.spend.length}건` : ''].filter(Boolean).join(' · ');
+          lines.unshift(`${rec.name} ${rec.n}차년도${rec.rev ? ` ${rec.rev}` : ''} ${state === 'added' ? '넣음' : '바꿈'} → ${where}${what ? ` · ${what}` : ''}`);
+        }
+        renderResearch(ps);
+      }
+      rsStatus(lines.join('\n'), !done.length && bad > 0);
+    } catch (e) {
+      rsStatus(`${lines.length ? lines.join('\n') + '\n' : ''}넣지 못했습니다: ${String((e && e.message) || e)}`, true);
+    } finally { drop.classList.remove('busy'); }
+  }
+  async function intakeFiles(files) {
+    const list = Array.from(files || []);
+    const yaml = list.filter(isYaml);
+    if (!yaml.length) { $('researchCard').open = true; rsStatus('YAML 파일(.yaml · .yml)만 넣을 수 있습니다 — RND 폴더의 KR_<과제>.yaml', true); return; }
+    const items = [];
+    for (const f of yaml) { try { items.push({ name: f.name, text: await f.text() }); } catch (e) { rsStatus(`${f.name}: 파일을 읽지 못했습니다`, true); return; } }
+    await intakeResearch(items);
+  }
+
+  $('researchFile').addEventListener('change', () => { const files = Array.from($('researchFile').files || []); $('researchFile').value = ''; intakeFiles(files); });
+  $('researchDrop').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('researchFile').click(); } });
+  // 끌어다 놓기는 페이지 어디에 놓아도 된다 — 파일을 놓으면 브라우저가 그 파일로 넘어가 버리므로 페이지 전체에서 받는다
+  const hasFiles = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes('Files');
+  document.addEventListener('dragover', (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; $('researchDrop').classList.add('over'); });
+  document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) $('researchDrop').classList.remove('over'); });
+  document.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    $('researchDrop').classList.remove('over');
+    intakeFiles(e.dataTransfer.files);
+    showTab('main');   // 증빙 찾아오기 탭에 놓아도 결과는 설정 탭의 연구개발계획서 구역에
+    $('researchCard').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  // 붙여 넣기: 입력 칸이 아닌 곳에서 Ctrl+V — 복사한 YAML 파일, meta: 로 시작하는 줄이 있는 글, 또는 원노트 페이지 링크(연구내용 공유가 복사해 준 글)
+  document.addEventListener('paste', (e) => {
+    const t = e.target;
+    if (t && t !== $('researchDrop') && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const files = Array.from((e.clipboardData && e.clipboardData.files) || []).filter(isYaml);
+    if (files.length) { e.preventDefault(); showTab('main'); intakeFiles(files); return; }
+    const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+    if (/^meta\s*:/m.test(text)) { e.preventDefault(); showTab('main'); intakeResearch([{ name: '', text }]); }
+    else if (isNoteLink(text)) { e.preventDefault(); showTab('main'); bindResearchLink(text); }
+  });
+  $('researchList').addEventListener('change', async (e) => {
+    const sel = e.target.closest('select[data-rs-link]');
+    if (!sel) return;
+    const map = await RS.load();
+    const rec = map[sel.dataset.rsLink];
+    if (!rec) return;
+    const p = (await rsProjects()).find((x) => x.prjNo === sel.value);
+    Object.assign(rec, { prjNo: sel.value, prjNm: p ? p.prjNm : '', linkBy: 'user' });   // 비워도 'user' — 다시 저절로 잇지 않게
+    await RS.save(map);
+    rsStatus(sel.value ? `${rec.name} ${rec.n}차년도 → ${sel.value} 에 이음` : `${rec.name} ${rec.n}차년도 — 잇지 않음`);
+  });
+  $('researchList').addEventListener('click', async (e) => {
+    const view = e.target.closest('[data-rs-view]'), del = e.target.closest('[data-rs-del]');
+    if (view) { const id = view.dataset.rsView; if (rsOpen.has(id)) rsOpen.delete(id); else rsOpen.add(id); renderResearch(await rsProjects()); }
+    if (del) {
+      const map = await RS.load();
+      const rec = map[del.dataset.rsDel];
+      if (!rec || !confirm(`${rec.name} ${rec.n}차년도 연구개발계획서를 뺄까요? (파일을 다시 넣으면 돌아옵니다${rec.src ? ' — 원노트에서 받은 것이라 페이지를 끊지 않으면 다음 받기 때 다시 옵니다' : ''})`)) return;
+      delete map[rec.id];
+      await RS.save(map);
+      rsStatus(`${rec.name} ${rec.n}차년도 뺌`);
+    }
+  });
+  try {
+    chrome.storage.onChanged.addListener((ch, area) => {
+      if (area === 'local' && (ch[RS.KEY] || ch.projectList || (ch.cache && ch.cache.newValue))) loadResearch().catch(() => {});
+      else if (area === 'local' && ch.researchPages) renderResearchPages().catch(() => {});
+    });
+  } catch (e) {}
+
   $('form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    try { await S.save(read()); await saveRcmsCred(); setStatus('saveStatus', '저장했습니다. eClass 화면은 자동으로 다시 조회됩니다.'); }
+    try { await saveFetchSites(); await S.save(read()); await saveRcmsCred(); setStatus('saveStatus', '저장했습니다. eClass 화면은 자동으로 다시 조회됩니다.'); }
     catch (e) { setStatus('saveStatus', String(e.message || e), true); }
   });
 
@@ -591,6 +814,129 @@
     else await chrome.storage.local.remove('rcmsCred');
   }
   ['rcmsAutoLogin', 'rcmsId', 'rcmsPw'].forEach((id) => $(id).addEventListener('input', updateRcmsSummary));
+
+  /* ---------- 증빙 찾아오기 · 자주 사용 가맹점 (lib/fetch-sites.js): storage.local.fetchSites(비밀번호 없음) + fetchCred { [id]: { id, pw } }. 저장 버튼으로 함께 저장.
+   * 패널이 여는 주소: #fetch-new=<가맹점 이름>(새 등록 칸, eClass 패널의 자주 사용 등록) · #fetch=<id>(그 사이트 고치기). 찾아오기가 끝나 백그라운드가 last·howto 를 바꾸면 고치는 중이 아닐 때 다시 읽는다 ---------- */
+  const SITES = KRX_SITES;
+  let fetchList = [], fetchDirty = false, fetchNewIdx = -1;
+  /* 종류별 필요 서류 칸의 지금 값 (비운 칸은 기본) — 저장(help.fetchDocs)과 가맹점 칸의 "종류 기본 (…)" 표시에 */
+  function kindDocsNow() {
+    const out = {};
+    for (const [k] of SITES.KINDS) { const v = SITES.docList(($('fetchDocs_' + k) || {}).value || ''); out[k] = v.length ? v : SITES.DOCS[k].slice(); }
+    return out;
+  }
+  for (const [k] of SITES.KINDS) $('fetchDocs_' + k).addEventListener('change', () => renderFetchSites());
+  async function loadFetchSites() {
+    const sites = await SITES.load();
+    let cred = {};
+    try { cred = (await chrome.storage.local.get(SITES.CRED))[SITES.CRED] || {}; } catch (e) {}
+    fetchList = sites.map((s) => Object.assign({}, s, { loginId: (cred[s.id] || {}).id || '', loginPw: (cred[s.id] || {}).pw || '' }));
+    fetchDirty = false;
+    renderFetchSites();
+  }
+  function updateFetchSummary() {   // 증빙 찾아오기 탭 이름 옆 칩: 꺼짐 · 등록한 가맹점 수 (툴팁에 이름)
+    const el = $('fetchSummary'), on = $('helpFetch').checked;
+    el.textContent = !on ? '꺼짐' : fetchList.length ? `${fetchList.length}곳` : '';
+    el.title = !on ? '청구 준비 줄에 찾아오기 버튼을 표시하지 않음' : fetchList.map((s) => s.label || s.match || '새 가맹점').join(', ');
+    el.classList.toggle('off', !on);
+  }
+  function renderFetchSites() {
+    const kinds = (v) => SITES.KINDS.map(([id, nm]) => `<option value="${id}"${v === id ? ' selected' : ''}>${nm}</option>`).join('');
+    const extra = String($('chAttachKinds').value || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    const map = kindDocsNow();
+    $('fetchSites').innerHTML = fetchList.map((s, i) => {
+      const own = SITES.docList(s.docs).length > 0;   // 이 가맹점만 따로 고른 서류 (아니면 종류 기본)
+      const need = SITES.docsOf(s, map);
+      const docs = Array.from(new Set(SITES.DOC_CHOICES.concat(extra, need)));
+      const last = s.last ? `마지막 ${F.fmtClock(s.last.ts)} · ${s.last.state === 'done' ? `${s.last.n}개 찾아옴` : s.last.state === 'empty' ? '찾지 못함' : s.last.state === 'canceled' ? '중지' : '실패'}${s.last.msg ? ` — ${s.last.msg}` : ''}` : '아직 찾아오지 않음';
+      return `<div class="fetch-site${i === fetchNewIdx ? ' fetch-new' : ''}" data-fs="${i}" id="fs-${F.esc(s.id || 'new' + i)}">
+        <div class="fetch-site-head">${F.esc(s.label || '새 가맹점')} <span class="muted">${F.esc(last)}</span><button type="button" class="btn" data-fs-prompt="${i}" title="이 가맹점 사이트를 찾아오기에 붙이는(사이트 안내 만들기) Claude Code 프롬프트를 이 칸의 값으로 채워 복사합니다 — 이 확장 폴더에서 연 Claude Code 에 붙여 넣으세요">만들기 프롬프트 복사</button><button type="button" class="btn danger" data-fs-del="${i}">삭제</button></div>
+        <div class="grid">
+          <label>이름 <input type="text" data-ff="label" value="${F.esc(s.label || '')}" placeholder="예) 인프런"></label>
+          <label>가맹점 글자 (카드 내역의 가맹점 이름에 든 글자, 쉼표로 여럿) <input type="text" data-ff="match" value="${F.esc(s.match || '')}" placeholder="예) 인프랩"></label>
+          <label class="wide">사이트 주소 (구매내역·청구 화면이면 빠름) <input type="url" data-ff="url" value="${F.esc(s.url || '')}" placeholder="https://www.inflearn.com/my/orders"></label>
+          <label>종류 <select data-ff="kind">${kinds(s.kind)}</select></label>
+          <div><span>필요 서류 (찾아오기가 찾고 청구 준비 줄에 ✓/✗ 로 보임)</span><div class="fetch-docs"><label class="fetch-own"><input type="checkbox" data-fown${own ? '' : ' checked'}>종류 기본 따름 — ${F.esc(SITES.kindLabel(s.kind))}: ${F.esc(SITES.docsFor(s.kind, map).join('·'))}</label>${docs.map((d) => `<label><input type="checkbox" data-fd="${F.esc(d)}"${need.includes(d) ? ' checked' : ''}${own ? '' : ' disabled'}><span>${F.esc(d)}</span></label>`).join('')}</div></div>
+          <label>아이디 <input type="text" data-ff="loginId" value="${F.esc(s.loginId || '')}" autocomplete="off" spellcheck="false"></label>
+          <label>비밀번호 <input type="password" data-ff="loginPw" value="${F.esc(s.loginPw || '')}" autocomplete="new-password"></label>
+          <label class="wide">찾는 곳 메모 (선택 — Claude 에 그대로 줌) <input type="text" data-ff="hint" value="${F.esc(s.hint || '')}" placeholder="예) 마이페이지 › 구매내역 › 거래명세서"></label>
+          <label class="wide">기억한 찾는 방법 (지난번에 Claude 가 찾은 길 — 다음 찾아오기에 참고로 줌. 사이트가 바뀌어 헤매면 비우세요) <textarea data-ff="howto" rows="2">${F.esc(s.howto || '')}</textarea></label>
+        </div></div>`;
+    }).join('') || '<p class="muted">등록한 가맹점이 없습니다. 패널 청구 준비 줄의 <b>자주 사용 등록</b>이나 아래 <b>가맹점 추가</b>로 등록하세요.</p>';
+    updateFetchSummary();
+  }
+  $('fetchSites').addEventListener('input', (ev) => {
+    const el = ev.target, box = el.closest('[data-fs]'); if (!box) return;
+    const s = fetchList[Number(box.dataset.fs)]; if (!s) return;
+    if (el.dataset.ff) { s[el.dataset.ff] = el.value; if (el.dataset.ff === 'kind') renderFetchSites(); }   // 종류 기본이면 필요 서류 표시가 바뀜
+    else if ('fown' in el.dataset) { s.docs = el.checked ? [] : SITES.docsFor(s.kind, kindDocsNow()); renderFetchSites(); }   // 끄면 지금 종류 기본에서 시작해 이 가맹점만 고름
+    else if (el.dataset.fd) { const set = new Set(SITES.docsOf(s, kindDocsNow())); if (el.checked) set.add(el.dataset.fd); else set.delete(el.dataset.fd); s.docs = Array.from(set); }
+    fetchDirty = true;
+    if (el.dataset.ff === 'label') updateFetchSummary();
+  });
+  /* 새 사이트 만들기 프롬프트 (lib/fetch-sites.js buildPrompt) 복사 — 가맹점 칸이면 그 값으로, 아래 버튼이면 빈 칸 틀 */
+  async function copyFetchPrompt(site) {
+    const text = SITES.buildPrompt(site, kindDocsNow());
+    try { await navigator.clipboard.writeText(text); setStatus('fetchStatus', `${site ? `${site.label || site.match || '새 가맹점'} ` : '새 사이트 '}만들기 프롬프트를 복사했습니다 — 이 확장 폴더(E:\\dev\\kr_ext_rerp)에서 연 Claude Code 에 붙여 넣으세요${site ? ' (시험할 거래의 사용일·금액 칸을 채우면 좋음)' : ' (＿＿ 칸을 채우세요)'}`); }
+    catch (e) { setStatus('fetchStatus', `복사하지 못했습니다: ${e.message}`, true); }
+  }
+  $('btnFetchPrompt').addEventListener('click', () => copyFetchPrompt(null));
+  $('fetchSites').addEventListener('click', (ev) => {
+    const p = ev.target.closest('[data-fs-prompt]');
+    if (p) { const s = fetchList[Number(p.dataset.fsPrompt)]; if (s) copyFetchPrompt(s); return; }
+    const b = ev.target.closest('[data-fs-del]'); if (!b) return;
+    const s = fetchList[Number(b.dataset.fsDel)];
+    if (s && s.id && !confirm(`${s.label || s.match} 등록을 지울까요? (아이디·비밀번호도 지워집니다. 아래 저장을 눌러야 반영)`)) return;
+    fetchList.splice(Number(b.dataset.fsDel), 1); fetchDirty = true; fetchNewIdx = -1; renderFetchSites();
+  });
+  function addFetchSite(shop) {
+    const d = Object.assign(shop ? SITES.defaultsFor(shop) : { label: '', match: '', url: '', kind: 'other', hint: '' }, { docs: [] });   // 필요 서류는 종류 기본
+    fetchList.push(Object.assign(d, { id: '', loginId: '', loginPw: '', howto: '' }));
+    fetchNewIdx = fetchList.length - 1; fetchDirty = true;
+    showTab('fetch');
+    renderFetchSites();
+    const box = $('fetchSites').querySelector(`[data-fs="${fetchNewIdx}"]`);
+    if (box) { box.scrollIntoView({ block: 'center' }); const el = box.querySelector(d.url ? '[data-ff="loginId"]' : '[data-ff="url"]'); if (el) el.focus(); }
+  }
+  $('btnFetchAdd').addEventListener('click', () => addFetchSite(''));
+  $('helpFetch').addEventListener('change', updateFetchSummary);
+  /* 저장 버튼: 빈 새 칸은 버리고, 칸마다 검사(lib/fetch-sites.js sanitize) → fetchSites + fetchCred. last(마지막 결과)는 저장소의 지금 값을 살린다 */
+  async function saveFetchSites() {
+    if (!fetchDirty) return;
+    const stored = await SITES.load();
+    const sites = [], cred = {};
+    for (const s of fetchList) {
+      if (!s.id && !String(s.url || '').trim() && !String(s.match || '').trim()) continue;
+      let c;
+      try { c = SITES.sanitize(s); } catch (e) { showTab('fetch'); throw new Error(`증빙 찾아오기 › ${s.label || s.match || '새 가맹점'}: ${e.message}`); }
+      if (!c.id) c.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + sites.length;
+      const old = stored.find((x) => x.id === c.id);
+      if (old) c.last = old.last || null;
+      s.id = c.id;
+      sites.push(c);
+      const id = String(s.loginId || '').trim(), pw = String(s.loginPw || '');
+      if (id || pw) cred[c.id] = { id, pw };
+    }
+    await chrome.storage.local.set({ [SITES.KEY]: sites, [SITES.CRED]: cred });
+    fetchDirty = false; fetchNewIdx = -1;
+  }
+  chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch[SITES.KEY] && !fetchDirty) loadFetchSites().catch(() => {}); });
+  /* 패널이 연 주소의 #fetch-new=… / #fetch=… */
+  async function fetchFromHash() {
+    const h = decodeURIComponent(String(location.hash || '').slice(1));
+    if (h.startsWith('fetch-new=')) {
+      const shop = h.slice('fetch-new='.length);
+      const hit = SITES.match(fetchList, shop);
+      if (hit) { location.hash = 'fetch=' + hit.id; return fetchFromHash(); }
+      addFetchSite(shop);
+      setStatus('fetchStatus', `"${shop}" 가맹점을 등록합니다 — 사이트 주소·아이디·비밀번호를 넣고 아래 저장을 누르세요`);
+    } else if (h.startsWith('fetch=')) {
+      showTab('fetch');
+      const box = $(`fs-${h.slice('fetch='.length)}`);
+      if (box) { box.classList.add('fetch-new'); box.scrollIntoView({ block: 'center' }); }
+    }
+  }
+  window.addEventListener('hashchange', () => { showTab(tabOfHash()); fetchFromHash().catch(() => {}); });
   $('btnReset').addEventListener('click', () => { if (confirm('모든 설정을 기본값으로 되돌릴까요?')) fill(S.merge(S.DEFAULTS, {})); });
 
   /* ---------- Help Chat: 이 PC 의 Help 서버(help-server/server.js) 연결 확인. 설정 페이지도 확장 페이지라 localhost 호스트 권한으로 직접 부른다 (popup/help.js 와 같은 방식) ---------- */
@@ -601,7 +947,7 @@
     setStatus('helpProbeStatus', 'Help 서버에 연결하는 중…');
     let r = null;
     try { r = await (await fetch(url + '/health', { cache: 'no-store' })).json(); } catch (e) { r = null; }
-    if (r && r.ok && r.name === 'krx-help') setStatus('helpProbeStatus', `연결됨: 모델 ${r.model} · claude CLI ${r.cli || '(확인 안 됨)'} · 저장소 ${r.repo}${r.busy ? ' · 요청 처리 중' : ''}`, !r.cli);
+    if (r && r.ok && r.name === 'krx-help') setStatus('helpProbeStatus', `연결됨: 모델 ${r.model} · 자동 분류 ${r.classify || '없음 (이전 버전 서버 — 다시 실행하세요)'} · 증빙 찾아오기 ${r.fetch || r.fetchNote || '없음 (이전 버전 서버 — 다시 실행하세요)'} · claude CLI ${r.cli || '(확인 안 됨)'} · 저장소 ${r.repo}${r.busy ? ' · 요청 처리 중' : ''}`, !r.cli || !r.classify);
     else setStatus('helpProbeStatus', r && r.error ? `거절됨: ${r.error}` : `연결할 수 없습니다 (${url}) — 이 PC 에서 node help-server/server.js 를 실행하세요`, true);
   });
 
@@ -866,7 +1212,10 @@
   await initCollapse();
   fill(await S.load());
   await loadRcmsCred();
+  await loadFetchSites();
+  await fetchFromHash();
   await loadProjects();
+  await loadResearch();
   await showRndUser();
   await showNameCandidates();
   await showSnapshot();

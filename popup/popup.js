@@ -1,22 +1,24 @@
 /* 툴바 팝업 · 사이드 패널(같은 문서 — 어디에 떴는지는 popup/mode.js 가 구분): 패널 렌더러 재사용 */
 (async () => {
   const host = document.getElementById('krext-panel');
-  const state = { mode: 'popup', loading: true, data: null, fatal: null, collapsed: false, expanded: new Set(), prepOpen: new Set() /* 청구 준비 요소를 보이는 과제·카드 묶음 (줄 끝 청구 아이콘, lib/prep.js) */, rndUrl: null, view: 'project', section: 'cards', version: '',
+  const state = { mode: 'popup', loading: true, data: null, fatal: null, collapsed: false, expanded: new Set(), prepRows: new Set() /* 청구 준비 줄을 연 거래(준비 키) — 거래 행 클릭으로 토글 (lib/prep.js prep-row) */, rndUrl: null, view: 'project', section: 'cards', version: '',
     plans: {}, planEdit: null, planDraft: null, planError: '' };   // 예상 비용 (lib/plan.js)
   try { state.version = chrome.runtime.getManifest().version; } catch (e) {}
-  // 사이드 패널·탭에 떴으면(popup/mode.js → KRX_SIDE) 창이 닫히지 않으므로 청구 준비 줄에 파일을 끌어다 놓을 수 있고(render.js prepCtx.files), 팝업 창이면 제목 줄에 "사이드 패널로 열기" 버튼(chrome.sidePanel.open, Chrome 116+)
+  // 사이드 패널·탭에 떴으면(popup/mode.js → KRX_SIDE) 창이 닫히지 않으므로 청구 준비 줄에 파일을 끌어다 놓을 수 있고(render.js prepCtx.files), 팝업 창(설정 actionPopup)이면 제목 줄에 "사이드 패널로 열기" 버튼(chrome.sidePanel.open, Chrome 116+)
   state.sidePanel = !!window.KRX_SIDE;
   state.sideOpen = !state.sidePanel && !!(chrome.sidePanel && chrome.sidePanel.open);
-  try { const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']); state.data = l.cache || null; state.view = l.panelView === 'card' ? 'card' : 'project'; state.section = l.panelSection === 'budget' ? 'budget' : 'cards'; } catch (e) {}
+  try { const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']); state.data = l.cache || null; state.view = l.panelView === 'card' ? 'card' : 'project'; state.section = KRX_RENDER.secOf(l.panelSection); } catch (e) {}   // 카드미청구 · 과제집행비율 · 연구내용
   try { state.plans = await KRX_PLAN.load(); } catch (e) {}
   try { state.payPlans = await KRX_PAY.load(); } catch (e) {}   // 받기 예정 연구수당 (lib/pay.js)
   try { state.partPlans = await KRX_PART.load(); } catch (e) {}   // 예비 참여율(참여 계획) (lib/part.js)
   try { state.prep = await KRX_PREP.load(); } catch (e) {}        // 청구 준비: 거래별 청구종류·첨부 파일 (lib/prep.js)
+  try { state.research = await KRX_RESEARCH.load(); } catch (e) {}   // 연구개발계획서(연구내용) 참조 — 패널의 연구내용 탭 (lib/research.js, render.js researchSection)
   const draw = () => KRX_RENDER.render(host, state);
   KRX_PLAN.bind(host, state, draw);   // 과제집행비율 표의 예상 비용 입력(＋/수정/삭제) 처리
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
-  KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
+  KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
+  const prepApi = KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
 
   host.addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-act]');
@@ -26,12 +28,13 @@
     else if (act === 'settings') { ev.preventDefault(); chrome.runtime.openOptionsPage(); }
     else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
     else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; chrome.storage.local.set({ panelView: state.view }); draw(); }
-    else if (act === 'section') { ev.preventDefault(); state.section = btn.dataset.section === 'budget' ? 'budget' : 'cards'; chrome.storage.local.set({ panelSection: state.section }); draw(); }
+    else if (act === 'section') { ev.preventDefault(); state.section = KRX_RENDER.secOf(btn.dataset.section); chrome.storage.local.set({ panelSection: state.section }); draw(); }
     else if (act === 'claim') { if (ev.target.closest('a')) return; ev.preventDefault(); if (btn.dataset.href) chrome.tabs.create({ url: btn.dataset.href }); }
     else if (act === 'rcms') { ev.preventDefault(); openRcms(btn.href); }
     else if (act === 'sidepanel') { ev.preventDefault(); openSidePanel(); }
   });
-  // 제목 줄 "사이드 패널로 열기"(팝업 창에만): 같은 문서를 이 창의 사이드 패널로 열고 팝업은 닫는다. 사용자 클릭 안에서 불러야 하므로 여기서 바로 연다. 아이콘 클릭 자체를 사이드 패널로 바꾸는 것은 설정 actionSidePanel (background.js applySidePanel)
+  // 제목 줄 "사이드 패널로 열기"(팝업 창에만): 같은 문서를 이 창의 사이드 패널로 열고 팝업은 닫는다. 사용자 클릭 안에서 불러야 하므로 여기서 바로 연다. 아이콘 클릭이 팝업을 열지 사이드 패널을 열지는 설정 actionPopup (background.js applySidePanel, 기본 사이드 패널)
+  if (state.sidePanel) KRX_CAP.bind(host, state, draw, prepApi);   // 청구 준비 줄의 화면 캡처(화면 전체·영역 선택): 왼쪽 탭을 찍어 첨부 파일로 (popup/capture.js, 사이드 패널만)
   async function openSidePanel() {
     try {
       const w = await chrome.windows.getCurrent();
