@@ -55,7 +55,7 @@ function clean(body) {
   const docs = Array.from(new Set((Array.isArray(site.docs) ? site.docs : []).slice(0, LIMIT.docs).map((d) => str(d, 20).replace(/[\\/:*?"<>|]+/g, '')).filter(Boolean)));
   if (!docs.length) docs.push('거래명세서');
   return {
-    site: { label: str(site.label, 60) || host.replace(/^www\./, ''), url, host, kind: KINDS[site.kind] ? site.kind : 'other', docs, hint: str(site.hint, LIMIT.hint), howto: str(site.howto, LIMIT.howto) },
+    site: { label: str(site.label, 60) || host.replace(/^www\./, ''), url, host, kind: KINDS[site.kind] ? site.kind : 'other', docs, hint: str(site.hint, LIMIT.hint), howto: str(site.howto, LIMIT.howto), browser: str(site.browser, 120) },   // browser: 가맹점이 고른 Chrome — 바탕화면 바로가기 이름·디버그 포트·주소 (chrome.js parseSpec), 프롬프트에는 넣지 않음
     cred: { id: raw(cred.id), pw: raw(cred.pw) },
     tx: { shop: str(tx.shop, 80), amount: Number(tx.amount) || 0, usedDate: str(tx.usedDate, 30), abroad: !!tx.abroad, appr: str(tx.appr, 30), project: str(tx.project, 120), ptcl: str(tx.ptcl, 200), type: str(tx.type, 60) },
   };

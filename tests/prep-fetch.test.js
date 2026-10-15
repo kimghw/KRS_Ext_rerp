@@ -78,6 +78,9 @@ test('저장 전 검사: 주소·가맹점 글자가 없으면 거절, 종류가
   assert.deepStrictEqual(s.docs, ['거래명세서', 'ab']);
   assert.strictEqual(s.label, '인프랩');
   assert.deepStrictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com', kind: 'lecture' }).docs, [], '서류를 안 고르면 [] = 종류 기본을 따름');
+  assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com', browser: '  SUB 전용  ' }).browser, 'SUB 전용', '로그인해 둔 Chrome(바로가기 이름·포트·주소)');
+  assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com' }).browser, '');
+  assert.strictEqual(SITES.defaultsFor('주식회사 인프랩').browser, '');
 });
 test('필요 서류: 가맹점이 따로 고른 서류 → 설정의 종류별 필요 서류 → 기본, 0.8.5 개발 중 저장된 기본 서류는 종류 기본으로 읽음', async () => {
   const map = { lecture: ['강의내용', '견적서'], subscription: [] };
@@ -91,8 +94,8 @@ test('필요 서류: 가맹점이 따로 고른 서류 → 설정의 종류별 �
   store = {};
 });
 test('만들기 프롬프트: 가맹점 값·필요 서류를 채우고, 확장에서 찾아오기를 시작하지 말라는 규칙을 넣음 (없으면 빈 칸 틀)', () => {
-  const p = SITES.buildPrompt({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [] }, { lecture: ['강의내용', '견적서', '수강증'] }, { usedDate: '2026-10-06', amount: 43560 });
-  assert.ok(p.includes('인프랩') && p.includes('https://www.inflearn.com/my/orders') && p.includes('강의내용·견적서·수강증 (종류 기본)') && p.includes('43,560원'), p);
+  const p = SITES.buildPrompt({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [], browser: 'SUB 전용' }, { lecture: ['강의내용', '견적서', '수강증'] }, { usedDate: '2026-10-06', amount: 43560 });
+  assert.ok(p.includes('인프랩') && p.includes('https://www.inflearn.com/my/orders') && p.includes('강의내용·견적서·수강증 (종류 기본)') && p.includes('43,560원') && p.includes('로그인해 둔 Chrome: SUB 전용'), p);
   assert.ok(p.includes('node site-fetch/run.js') && p.includes('site-fetch/sites/') && p.includes('KRX_PREP_FETCH.start') && p.includes('커밋하지 않는다'));
   const blank = SITES.buildPrompt(null);
   assert.ok(blank.includes('- 이름: ＿＿') && blank.includes('필요 서류: ＿＿'));
@@ -107,6 +110,8 @@ test('요청 정리: 회사 시스템·이 PC 주소와 http(s) 아닌 주소는
   const c = P.clean(body);
   assert.strictEqual(c.cred.pw, ' sp ace ');
   assert.strictEqual(c.site.host, 'www.inflearn.com');
+  assert.strictEqual(c.site.browser, '', '브라우저를 안 고르면 빈 값');
+  assert.strictEqual(P.clean(Object.assign({}, body, { site: Object.assign({}, body.site, { browser: ' SUB 전용 ' }) })).site.browser, 'SUB 전용', '고른 Chrome 은 그대로(다듬어서)');
   assert.deepStrictEqual(P.clean({ site: { url: 'https://a.com' } }).site.docs, ['거래명세서'], '서류가 없으면 거래명세서');
 });
 test('프롬프트: 거래·서류 설명과 그 사이트 안내(sites/inflearn.md)를 붙이고 비밀번호는 넣지 않음, 스키마 enum = 요청 서류', () => {
@@ -181,7 +186,7 @@ test('찾아오기: 등록 안 된 가맹점·꺼진 설정·옛 서버는 시�
 });
 test('찾아오기: 시작 → 진행 줄 → 끝나면 서류를 받아 첨부하고 사이트에 결과·찾는 방법을 남김', async () => {
   reset();
-  const site = await PF.saveSite({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture' }, { id: 'me@x.com', pw: 'pw!' }, true);
+  const site = await PF.saveSite({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', browser: 'SUB 전용' }, { id: 'me@x.com', pw: 'pw!' }, true);
   let posted = null, polls = 0;
   server = (url, init) => {
     if (/\/health$/.test(url)) return { status: 200, json: { ok: true, name: 'krx-help', fetch: 'claude-opus-5-5' } };
@@ -198,6 +203,7 @@ test('찾아오기: 시작 → 진행 줄 → 끝나면 서류를 받아 첨부�
   const r = await PF.start('39202010|4126', meta);
   assert.ok(r.ok, JSON.stringify(r));
   assert.deepStrictEqual(posted.cred, { id: 'me@x.com', pw: 'pw!' });
+  assert.strictEqual(posted.site.browser, 'SUB 전용', '로그인해 둔 Chrome 이 요청에 감');
   assert.deepStrictEqual(posted.site.docs, ['강의내용', '견적서', '수강증'], '종류 기본 = 강의의 필요 서류');
   assert.deepStrictEqual(r.docs, ['강의내용', '견적서', '수강증']);
   assert.strictEqual(posted.tx.amount, 43560);
@@ -239,6 +245,33 @@ test('찾아오기: 필요 서류 중 이미 첨부 파일 종류로 있는 것�
   assert.ok((await PF.start('1|2', meta)).ok);
   assert.deepStrictEqual(posts[1].site.docs, ['강의내용', '견적서', '수강증'], '다 있으면 다시 찾아 달라는 것');
   await PF.cancel('1|2');
+});
+
+/* ---------- site-fetch/chrome.js: 가맹점이 고른 브라우저 ---------- */
+test('브라우저 지정: 바로가기 이름·포트·주소를 가르고, .lnk 파일에서 디버그 포트·프로필을 읽으며, 없는 것은 이유를 말함', async () => {
+  const C = require(path.join(root, 'site-fetch/chrome.js'));
+  assert.strictEqual(C.parseSpec(''), null);
+  assert.deepStrictEqual(C.parseSpec(' 9444 '), { kind: 'port', port: 9444, http: 'http://127.0.0.1:9444', label: '포트 9444' });
+  assert.strictEqual(C.parseSpec('127.0.0.1:9333').http, 'http://127.0.0.1:9333');
+  assert.deepStrictEqual(C.parseSpec('http://127.0.0.1:9444/'), { kind: 'url', http: 'http://127.0.0.1:9444', label: 'http://127.0.0.1:9444' });
+  assert.deepStrictEqual(C.parseSpec('SUB 전용.lnk'), { kind: 'name', name: 'SUB 전용', label: 'SUB 전용' });
+  assert.deepStrictEqual(C.parseLnkArgs('--remote-debugging-port=9444 --user-data-dir="E:\\a b\\SUB" x'), { port: 9444, profile: 'E:\\a b\\SUB' });
+  assert.deepStrictEqual(C.parseLnkArgs('--profile-directory="Default"'), { port: 0, profile: '' });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'krx-lnk-test-'));
+  try {
+    const args = '--remote-debugging-port=9444 --remote-debugging-address=127.0.0.1 --user-data-dir=E:\\dev\\krs-web-agents\\chrome_profile\\SUB';
+    const head = Buffer.alloc(0x4c); head.writeUInt32LE(0x4c, 0); head.writeUInt32LE(0x04 | 0x20 | 0x80, 0x14);   // ShellLink: HasName · HasArguments · IsUnicode
+    const u16 = (s) => { const b = Buffer.alloc(2); b.writeUInt16LE(s.length, 0); return Buffer.concat([b, Buffer.from(s, 'utf16le')]); };
+    fs.writeFileSync(path.join(dir, 'SUB 전용.lnk'), Buffer.concat([head, u16('설명'), u16(args)]));
+    fs.writeFileSync(path.join(dir, 'bad.lnk'), Buffer.from('not a shortcut'));
+    const l = C.readLnk(path.join(dir, 'SUB 전용.lnk'));
+    assert.strictEqual(l.port, 9444);
+    assert.strictEqual(l.profile, 'E:\\dev\\krs-web-agents\\chrome_profile\\SUB');
+    assert.strictEqual(C.readLnk(path.join(dir, 'bad.lnk')), null);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  server = () => { throw new Error('연결 거부'); };   // chrome.js alive() 가 쓰는 fetch 도 위의 가짜 — 브라우저가 없는 것처럼
+  await assert.rejects(C.ensureBrowser('http://127.0.0.1:9'), /연결할 수 없습니다/, '주소는 떠 있어야 함');
+  await assert.rejects(C.ensureBrowser('없는 바로가기 이름 xyz'), /바로가기가 없습니다/, '바탕화면에 없는 바로가기');
 });
 
 /* ---------- site-fetch/cdp.mjs ---------- */

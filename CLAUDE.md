@@ -34,7 +34,7 @@ node help-server/server.js
 
 `KRX_HELP_PORT`(8106 — 바꾸면 설정 페이지의 Help 서버 주소도 맞출 것) · `KRX_HELP_MODEL`(claude-opus-5-5) · `KRX_HELP_FAST_MODEL`(claude-haiku-5-5 — 청구 준비 자동 분류 `POST /classify`) · `KRX_HELP_CLAUDE`(claude 실행 파일 경로) · `KRX_HELP_PERMISSION`(acceptEdits) · `KRX_HELP_TIMEOUT_MIN`(30) · `KRX_HELP_EXT_ID`(허용할 확장 id)
 
-증빙 찾아오기(`site-fetch/`): `KRX_FETCH_MODEL`(KRX_HELP_MODEL) · `KRX_FETCH_TIMEOUT_MIN`(15) · `KRX_FETCH_BUDGET_USD`(0 = 제한 없음) · `KRX_FETCH_CHROME`(chrome.exe) · `KRX_FETCH_PROFILE`(작업용 Chrome 프로필) · `KRX_FETCH_CDP`(이미 떠 있는 디버그 Chrome — 예 krs-web-agents 의 `http://127.0.0.1:9444`) · `KRX_FETCH_HEADLESS` — 자세히는 [site-fetch/README.md](site-fetch/README.md). 이 PC 는 `site-fetch/local.json`(git 제외)으로 평소 쓰는 "KRS 전용" Chrome(krs-web-agents `chrome_profile/KRS`, 9333)에 붙어 작업마다 새 창에서 찾는다 — 그 프로필의 ChatGPT·Microsoft·Claude 로그인 공유. 그 Chrome 이 떠 있어야 함
+증빙 찾아오기(`site-fetch/`): `KRX_FETCH_MODEL`(KRX_HELP_MODEL) · `KRX_FETCH_TIMEOUT_MIN`(15) · `KRX_FETCH_BUDGET_USD`(0 = 제한 없음) · `KRX_FETCH_CHROME`(chrome.exe) · `KRX_FETCH_PROFILE`(작업용 Chrome 프로필) · `KRX_FETCH_CDP`(이미 떠 있는 디버그 Chrome — 예 krs-web-agents 의 `http://127.0.0.1:9444`) · `KRX_FETCH_HEADLESS` — 자세히는 [site-fetch/README.md](site-fetch/README.md). 이 PC 는 `site-fetch/local.json`(git 제외)으로 평소 쓰는 "KRS 전용" Chrome(krs-web-agents `chrome_profile/KRS`, 9333)에 붙어 작업마다 새 창에서 찾는다 — 그 프로필의 ChatGPT·Microsoft·Claude 로그인 공유. 그 Chrome 이 떠 있어야 함. 가맹점 등록의 **로그인해 둔 Chrome**(바탕화면 바로가기 이름 "SUB 전용" · 포트 9444 · 주소)이 있으면 그 가맹점은 그 Chrome 에 붙는다 — 바탕화면 `.lnk` 인수에서 포트를 읽고, 안 떠 있으면 그 바로가기로 띄움(`site-fetch/chrome.js ensureBrowser(spec)`)
 
 ### 안 될 때
 

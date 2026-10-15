@@ -6,7 +6,7 @@
  *    --permission-mode dontAsk(허용 목록 밖은 묻지 않고 거절) · 세션 기록 없음. 브라우저 손잡이는 cdp.mjs 를 그 폴더에 복사한 것. 규칙·사이트 안내는 prompt.js · sites/*.md
  *  - 비밀번호: 작업 폴더 밖의 파일(KRX_FETCH_SECRET)로만 손잡이에 넘기고 작업이 끝나면 지운다. 손잡이가 출력에서 가리고 인자로도 받지 않아 Claude 에는 보이지 않는다.
  *  - 결과: 손잡이가 out/ 에 저장하고 out/files.json 에 적은 서류 중 Claude 의 구조화 출력(files)이 고른 것 → 확장이 GET /fetch/file 로 받아 청구 준비 첨부 파일로 넣는다.
- * 한 번에 하나만 돈다(작업용 Chrome 창 하나).
+ * 한 번에 하나만 돈다(작업용 Chrome 창 하나). 가맹점이 브라우저를 골랐으면(요청의 site.browser — 바탕화면 Chrome 바로가기 이름·디버그 포트·주소) 작업용 창 대신 그 Chrome 에 붙는다(chrome.js ensureBrowser(spec)).
  * 환경 변수: KRX_FETCH_MODEL(Help 서버의 KRX_HELP_MODEL) · KRX_FETCH_TIMEOUT_MIN(15) · KRX_FETCH_BUDGET_USD(0 = 제한 없음) · KRX_FETCH_CHROME · KRX_FETCH_PROFILE · KRX_FETCH_CDP · KRX_FETCH_HEADLESS (chrome.js) */
 'use strict';
 const fs = require('fs');
@@ -109,9 +109,9 @@ function start(input, opts) {
   return job;
 }
 async function run(job, input, opts) {
-  const browser = await chrome.ensureBrowser();
+  const browser = await chrome.ensureBrowser(input.site.browser);   // 가맹점이 고른 Chrome(바로가기 이름·포트·주소) → 없으면 local.json·환경 변수·기본 작업용 프로필
   if (job.state !== 'running') return;
-  log(job, 'info', browser.external ? `브라우저 ${browser.http} 에 연결` : browser.launched ? '작업용 Chrome 을 띄움' : '작업용 Chrome 에 연결');
+  log(job, 'info', browser.external ? `브라우저 ${browser.label || browser.http} 에 연결${browser.launched ? ' (바로가기로 띄움)' : ''}` : browser.launched ? '작업용 Chrome 을 띄움' : '작업용 Chrome 에 연결');
   fs.mkdirSync(path.join(job.dir, 'out'), { recursive: true });
   fs.copyFileSync(HELPER, path.join(job.dir, 'cdp.mjs'));
   fs.writeFileSync(path.join(job.dir, 'state.json'), JSON.stringify({ cdp: browser.http, external: !!browser.external, site: input.site.url, tabs: [], cur: '' }));
@@ -208,7 +208,7 @@ async function route(req, res, u, ctx) {
       const job = start(input, Object.assign({}, ctx.claude, {
         onDone: (j) => console.log(`[${new Date().toLocaleTimeString()}] 찾아오기 ${j.id} ${j.state} (${Math.round((j.endedAt - j.startedAt) / 1000)}초${j.cost ? ` $${j.cost.toFixed(2)}` : ''}) ${j.label}: ${oneLine(j.summary || j.error, 120)}`),
       }));
-      console.log(`[${new Date().toLocaleTimeString()}] 찾아오기 ${job.id} 시작: ${input.site.label} (${input.site.docs.join('·')}) · ${input.tx.shop} ${input.tx.usedDate}`);
+      console.log(`[${new Date().toLocaleTimeString()}] 찾아오기 ${job.id} 시작: ${input.site.label} (${input.site.docs.join('·')}) · ${input.tx.shop} ${input.tx.usedDate}${input.site.browser ? ` · 브라우저 ${input.site.browser}` : ''}`);
       return send(res, 200, { ok: true, id: job.id });
     } catch (e) { return send(res, e.kind === 'busy' ? 409 : 500, { ok: false, kind: e.kind || 'error', id: e.id, error: String(e.message || e) }); }
   }

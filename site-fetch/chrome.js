@@ -4,14 +4,17 @@
  * 창이 보이므로 사용자가 지켜보거나 추가 인증을 직접 할 수 있다(KRX_FETCH_HEADLESS=1 이면 창 없이).
  * 회사 시스템 세션이 있는 평소 브라우저와는 따로다. 프로필·고정 포트는 local.json(아래)이나 KRX_FETCH_PROFILE · KRX_FETCH_PORT 로 바꾸고,
  * KRX_FETCH_CDP=http://127.0.0.1:<포트>(또는 local.json 의 cdp)를 주면 이미 떠 있는 그 디버그 Chrome 을 띄우지 않고 쓴다 — 작업은 그 브라우저의 새 창에서 돌고(external),
- * 사용자 탭은 건드리지 않는다. 이 PC 는 평소 쓰는 KRS 프로필 Chrome(9333, 확장이 올라간 브라우저 — ChatGPT·Microsoft 로그인이 있는 곳)을 쓴다 */
+ * 사용자 탭은 건드리지 않는다. 이 PC 는 평소 쓰는 KRS 프로필 Chrome(9333, 확장이 올라간 브라우저 — ChatGPT·Microsoft 로그인이 있는 곳)을 쓴다.
+ * 가맹점마다 고른 브라우저(확장의 fetchSites[].browser → 요청의 site.browser, ensureBrowser(spec)): 그 가맹점에 로그인해 둔 Chrome 을 고른다 — 값은
+ *   바탕화면 Chrome 바로가기(아이콘) 이름("SUB 전용" — .lnk 의 인수 --remote-debugging-port 로 포트를 알고, 안 떠 있으면 그 바로가기로 띄움. krs-web-agents chrome-bind 규약: 아이콘 = 채널(포트+프로필) 정의이자 기동 수단),
+ *   디버그 포트("9444" — 안 떠 있으면 그 포트를 쓰는 바탕화면 바로가기를 찾아 띄움), 주소("http://127.0.0.1:9444" — 떠 있어야 함). 이 값이 있으면 local.json·환경 변수보다 먼저다 */
 'use strict';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execFile } = require('child_process');
 
-/* 이 PC 만의 설정 site-fetch/local.json (git 제외): { profile, port, cdp, chrome, headless } — 환경 변수가 있으면 그것이 먼저.
+/* 이 PC 만의 설정 site-fetch/local.json (git 제외): { profile, port, cdp, chrome, headless, shortcuts: [바로가기를 더 찾을 폴더] } — 환경 변수가 있으면 그것이 먼저.
  * 예) krs-web-agents 의 sr-receipt·ed-course-evidence 와 같은 브라우저(그쪽에 로그인해 둔 ChatGPT·Microsoft·인프런 세션)를 쓰려면
  *     { "profile": "E:/dev/krs-web-agents/chrome_profile/SUB", "port": 9444 } (바탕화면 "SUB 전용" 바로가기와 같은 Chrome), 이미 떠 있는 브라우저에 붙기만 하려면 { "cdp": "http://127.0.0.1:9333" } — 포트를 같게 두면 어느 쪽이 먼저 띄워도 둘 다 붙는다 */
 const LOCAL = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'local.json'), 'utf8')) || {}; } catch (e) { return {}; } })();
@@ -32,9 +35,121 @@ function chromeExe() {
   list.push('/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
   return list.filter(Boolean).find((f) => { try { return fs.statSync(f).isFile(); } catch (e) { return false; } }) || '';
 }
+
+/* ---------- 가맹점이 고른 브라우저 (요청의 site.browser) ---------- */
+/* "SUB 전용" · "SUB 전용.lnk" → 바로가기 이름, "9444" · ":9444" · "127.0.0.1:9444" → 포트, "http://127.0.0.1:9444" → 주소. 빈 값은 null */
+function parseSpec(spec) {
+  const s = String(spec == null ? '' : spec).trim();
+  if (!s) return null;
+  let m;
+  if ((m = /^https?:\/\/[^/\s?#]+/i.exec(s))) return { kind: 'url', http: m[0], label: m[0] };
+  if ((m = /^(?:(?:localhost|127\.0\.0\.1)?:)?(\d{2,5})$/i.exec(s))) { const port = Number(m[1]); if (port > 0 && port < 65536) return { kind: 'port', port, http: `http://127.0.0.1:${port}`, label: `포트 ${port}` }; }
+  const name = s.replace(/\.lnk$/i, '').trim();
+  return { kind: 'name', name, label: name };
+}
+/* Chrome 바로가기 인수 → { port, profile } */
+function parseLnkArgs(args) {
+  const a = String(args || '');
+  const port = Number((/--remote-debugging-port=(\d+)/.exec(a) || [])[1]) || 0;
+  const pm = /--user-data-dir=(?:"([^"]*)"|(\S+))/.exec(a);
+  return { port, profile: pm ? (pm[1] != null ? pm[1] : pm[2]) : '' };
+}
+const nullU16 = (b, start) => { for (let i = start; i + 1 < b.length; i += 2) if (b[i] === 0 && b[i + 1] === 0) return i; return -1; };
+/* Windows 바로가기(.lnk, ShellLink) 파일에서 대상·인수를 읽는다 — COM(WScript.Shell) 없이 파일을 직접 읽으므로 한글 이름 .lnk 도 된다. 못 읽으면 null */
+function readLnk(file) {
+  let b; try { b = fs.readFileSync(file); } catch (e) { return null; }
+  if (b.length < 0x4c || b.readUInt32LE(0) !== 0x4c) return null;
+  const flags = b.readUInt32LE(0x14), uni = !!(flags & 0x80);
+  let p = 0x4c, target = '';
+  if (flags & 0x1) { if (p + 2 > b.length) return null; p += 2 + b.readUInt16LE(p); }   // LinkTargetIDList
+  if (flags & 0x2) {   // LinkInfo: 대상 파일(LocalBasePath)
+    if (p + 0x14 > b.length) return null;
+    const size = b.readUInt32LE(p), hsize = b.readUInt32LE(p + 4), lflags = b.readUInt32LE(p + 8);
+    if (lflags & 0x1) {
+      let off = b.readUInt32LE(p + 0x10), enc = 'latin1';
+      if (hsize >= 0x24 && p + 0x20 <= b.length) { const u = b.readUInt32LE(p + 0x1c); if (u) { off = u; enc = 'utf16le'; } }
+      const start = p + off, lim = Math.min(p + size, b.length);
+      if (start > p && start < lim) { const end = enc === 'latin1' ? b.indexOf(0, start) : nullU16(b, start); target = b.toString(enc, start, end < 0 || end > lim ? lim : end); }
+    }
+    p += size;
+  }
+  const str = () => { if (p + 2 > b.length) return ''; const n = b.readUInt16LE(p); p += 2; const len = uni ? n * 2 : n; const s = b.toString(uni ? 'utf16le' : 'latin1', p, Math.min(p + len, b.length)); p += len; return s; };
+  if (flags & 0x4) str();    // NAME_STRING
+  if (flags & 0x8) str();    // RELATIVE_PATH
+  if (flags & 0x10) str();   // WORKING_DIR
+  const args = (flags & 0x20) ? str() : '';
+  return Object.assign({ target, args }, parseLnkArgs(args));
+}
+/* 바탕화면 폴더들: 사용자 바탕화면(OneDrive 로 옮겨졌으면 그곳 — 레지스트리 User Shell Folders) · 공용 · OneDrive · local.json 의 shortcuts 폴더 */
+async function desktopDirs() {
+  const out = new Set();
+  const add = (d) => { try { if (d && fs.statSync(d).isDirectory()) out.add(path.resolve(d)); } catch (e) {} };
+  if (process.platform === 'win32') {
+    const reg = await new Promise((r) => execFile('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders', '/v', 'Desktop'], { windowsHide: true, timeout: 4000 }, (err, so) => r(err ? '' : String(so || ''))));
+    const m = /\bDesktop\s+REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/m.exec(reg);
+    if (m) add(m[1].replace(/%([^%]+)%/g, (_, k) => process.env[k] || process.env[k.toUpperCase()] || ''));
+    add(path.join(process.env.PUBLIC || 'C:\\Users\\Public', 'Desktop'));
+    for (const k of ['OneDrive', 'OneDriveCommercial', 'OneDriveConsumer']) if (process.env[k]) add(path.join(process.env[k], 'Desktop'));
+  }
+  add(path.join(os.homedir(), 'Desktop'));
+  for (const d of [].concat(LOCAL.shortcuts || [])) add(String(d));
+  return Array.from(out);
+}
+let lnkCache = { at: 0, list: [] };
+/* 바탕화면의 바로가기 목록 [{ name, file, target, args, port, profile }] (30초 캐시) — 디버그 포트(port)가 있는 것만 붙을 수 있다 */
+async function shortcuts(force) {
+  if (!force && Date.now() - lnkCache.at < 30000) return lnkCache.list;
+  const list = [];
+  for (const dir of await desktopDirs()) {
+    let names = []; try { names = fs.readdirSync(dir); } catch (e) { continue; }
+    for (const f of names) {
+      if (!/\.lnk$/i.test(f)) continue;
+      const l = readLnk(path.join(dir, f));
+      if (l) list.push({ name: f.replace(/\.lnk$/i, ''), file: path.join(dir, f), target: l.target, args: l.args, port: l.port, profile: l.profile });
+    }
+  }
+  lnkCache = { at: Date.now(), list };
+  return list;
+}
+const sameName = (a, b) => String(a || '').normalize('NFC').replace(/\s+/g, '').toLowerCase() === String(b || '').normalize('NFC').replace(/\s+/g, '').toLowerCase();
+const withPort = (list) => { const l = list.filter((x) => x.port).map((x) => `${x.name}(${x.port})`); return l.length ? ` — 바탕화면의 디버그 포트 Chrome 바로가기: ${l.join(' · ')}` : ' — 바탕화면에 디버그 포트(--remote-debugging-port)가 있는 Chrome 바로가기가 없습니다'; };
+/* 바로가기를 실행해 그 Chrome 을 띄운다 — 한글 이름 .lnk 는 셸이 깨뜨릴 수 있어 ASCII 이름으로 복사한 것을 실행 (바로가기 복사본도 같은 대상·인수로 뜬다) */
+function launchLnk(file) {
+  const tmp = path.join(os.tmpdir(), 'krx-help-fetch', `launch-${process.pid}-${Date.now()}.lnk`);
+  fs.mkdirSync(path.dirname(tmp), { recursive: true });
+  fs.copyFileSync(file, tmp);
+  const child = spawn('cmd.exe', [`/d /c start "" "${tmp}"`], { detached: true, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true });
+  child.on('error', () => {});
+  child.unref();
+  setTimeout(() => { try { fs.unlinkSync(tmp); } catch (e) {} }, 60000).unref();
+}
+/* 가맹점이 고른 브라우저에 붙는다(안 떠 있으면 바로가기로 띄움) → { http, external: true, label, launched? } (못 쓰면 throw) */
+async function attachTo(want) {
+  if (want.kind === 'url') {
+    if (await alive(want.http)) return { http: want.http, external: true, label: want.label };
+    throw new Error(`이 가맹점의 Chrome(${want.http})에 연결할 수 없습니다 — 그 Chrome(디버그 포트로 연 창)을 먼저 여세요`);
+  }
+  let lnk = null, http = want.http || '', label = want.label;
+  if (want.kind === 'name') {
+    const list = await shortcuts(true);
+    lnk = list.find((x) => sameName(x.name, want.name)) || null;
+    if (!lnk) throw new Error(`바탕화면에 "${want.name}" 바로가기가 없습니다${withPort(list)}`);
+    if (!lnk.port) throw new Error(`"${lnk.name}" 바로가기에는 디버그 포트(--remote-debugging-port)가 없어 붙을 수 없습니다${withPort(list)}`);
+    http = `http://127.0.0.1:${lnk.port}`; label = `${lnk.name}(${lnk.port})`;
+  }
+  if (await alive(http)) return { http, external: true, label };
+  if (!lnk) { lnk = (await shortcuts(true)).find((x) => x.port === want.port) || null; if (lnk) label = `${lnk.name}(${lnk.port})`; }
+  if (!lnk || process.platform !== 'win32') throw new Error(`${label} 에 Chrome 이 없습니다 — 그 Chrome(디버그 포트로 연 창)을 먼저 여세요`);
+  launchLnk(lnk.file);
+  for (let i = 0; i < 80; i++) { await sleep(250); if (await alive(http)) return { http, external: true, label, launched: true }; }
+  throw new Error(`"${lnk.name}" 바로가기로 띄운 Chrome 이 20초 안에 뜨지 않았습니다 — 같은 프로필의 Chrome 창이 디버그 포트 없이 열려 있으면 모두 닫고 다시`);
+}
+
 let launching = null;
-/* → { http: 'http://127.0.0.1:<포트>', external, launched? } (못 쓰면 throw) */
-async function ensureBrowser() {
+/* spec = 가맹점이 고른 브라우저(없으면 local.json·환경 변수·기본 작업용 프로필) → { http: 'http://127.0.0.1:<포트>', external, launched?, label? } (못 쓰면 throw) */
+async function ensureBrowser(spec) {
+  const want = parseSpec(spec);
+  if (want) return attachTo(want);
   if (EXTERNAL) {
     if (await alive(EXTERNAL)) return { http: EXTERNAL, external: true };
     throw new Error(`${process.env.KRX_FETCH_CDP ? 'KRX_FETCH_CDP' : 'site-fetch/local.json 의 cdp'}(${EXTERNAL}) Chrome 에 연결할 수 없습니다 — 그 Chrome(디버그 포트로 연 창)을 먼저 여세요`);
@@ -66,4 +181,4 @@ async function ensureBrowser() {
   return launching;
 }
 
-module.exports = { ensureBrowser, chromeExe, alive, PROFILE, PORT, EXTERNAL };
+module.exports = { ensureBrowser, chromeExe, alive, parseSpec, parseLnkArgs, readLnk, desktopDirs, shortcuts, PROFILE, PORT, EXTERNAL };

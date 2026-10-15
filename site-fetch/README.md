@@ -13,7 +13,7 @@
 | 파일 | 하는 일 |
 | --- | --- |
 | `index.js` | 작업 하나: 작업 폴더 만들기 · 비밀 파일 · 사이트 먼저 열기 · `claude -p` 실행(도구 제한) · 진행 줄 · 결과 모으기 · HTTP `route()`(Help 서버가 `/fetch*` 를 그대로 넘김) |
-| `chrome.js` | 작업용 Chrome 찾기·띄우기 (별도 프로필, 빈 디버그 포트 → `DevToolsActivePort`) |
+| `chrome.js` | 작업용 Chrome 찾기·띄우기 (별도 프로필, 빈 디버그 포트 → `DevToolsActivePort`) · 가맹점이 고른 Chrome 에 붙기(요청의 `site.browser` — 바탕화면 바로가기 이름·디버그 포트·주소, `.lnk` 를 읽어 포트를 알고 안 떠 있으면 바로가기로 띄움 — 아래 "가맹점마다 브라우저") |
 | `cdp.mjs` | 브라우저 손잡이 — Claude 가 쓰는 유일한 명령 `node cdp.mjs <명령>` (look · click · login · pdf · capture · download …, `node cdp.mjs help`) |
 | `prompt.js` | 요청 정리(`clean`) · Claude 에 줄 규칙(`SYSTEM`)과 글(`build`) · 결과 검사(`parse`) · 사이트 안내 고르기 |
 | `sites/*.md` | 사이트별 화면 안내(첫 줄 `hosts:` 에 맞는 주소면 프롬프트에 붙음) — 인프런·ChatGPT·Claude·Azure. krs-web-agents 의 수집 지식(`references/인프런_교육증빙수집.md` · `references/구독결제포털_영수증수집.md`)에서 옮기고 실제 찾아오기로 고침 |
@@ -28,7 +28,7 @@ node site-fetch/run.js 요청.json [--out 폴더]
 `요청.json` 은 확장이 보내는 것과 같습니다 (비밀번호를 파일에 두기 싫으면 `cred` 를 빼고 환경 변수 `KRX_FETCH_ID` · `KRX_FETCH_PW`):
 
 ```json
-{ "site": { "label": "인프런", "url": "https://www.inflearn.com/my/orders", "kind": "lecture", "docs": ["거래명세서", "수강증", "강의내용"] },
+{ "site": { "label": "인프런", "url": "https://www.inflearn.com/my/orders", "kind": "lecture", "docs": ["거래명세서", "수강증", "강의내용"], "browser": "SUB 전용" },
   "cred": { "id": "아이디", "pw": "비밀번호" },
   "tx": { "shop": "주식회사 인프랩", "amount": 43560, "usedDate": "2026-10-06 09:53:35", "appr": "39202010" } }
 ```
@@ -75,6 +75,18 @@ Help 서버의 요청 검사(Host 는 127.0.0.1/localhost, Origin 은 처음 연
 회사 세션이 있는 브라우저라 손잡이가 `*.krs.co.kr`·`rcms.go.kr`·이 PC 주소로 가는 것을 막습니다. 내려받기 동안(최대 90초)은 그 브라우저의 내려받기 위치가 작업 폴더로 바뀌었다가 되돌아갑니다.
 
 다른 키: `profile` · `port`(그 프로필로 직접 띄울 때 — 예 `{ "profile": "E:/dev/krs-web-agents/chrome_profile/SUB", "port": 9444 }` 는 바탕화면 "SUB 전용" 바로가기와 같은 창, 포트를 같게 두면 krs-web-agents 와 어느 쪽이 먼저 띄워도 둘 다 붙음) · `chrome` · `headless`. 이 파일이 없으면 기본 작업용 프로필(`%LOCALAPPDATA%\krx-help\fetch-chrome`, 빈 포트). 환경 변수가 있으면 그것이 먼저입니다.
+
+## 가맹점마다 브라우저 — 요청의 `site.browser` (확장 등록의 "로그인해 둔 Chrome")
+
+가맹점 등록(설정 › 증빙 찾아오기, 패널의 자주 사용 등록 칸)에 적은 값이 요청의 `site.browser` 로 와서 `chrome.js ensureBrowser(spec)` 가 local.json·환경 변수보다 먼저 본다. 빈 값이면 아래 "이 PC 의 브라우저 설정" 대로.
+
+| 값 | 붙는 곳 | 안 떠 있으면 |
+| --- | --- | --- |
+| `SUB 전용` (바탕화면 Chrome 바로가기 이름 — `.lnk` 생략 가능, 띄어쓰기·대소문자 무시) | 그 `.lnk` 의 인수 `--remote-debugging-port=<포트>` 의 Chrome | 그 바로가기를 실행해(한글 이름은 ASCII 이름으로 복사한 것을 `cmd /c start`) 포트가 뜰 때까지 20초 기다림 |
+| `9444` · `:9444` · `127.0.0.1:9444` (디버그 포트) | `http://127.0.0.1:9444` | 그 포트를 쓰는 바탕화면 바로가기를 찾아 실행, 없으면 오류 |
+| `http://127.0.0.1:9444` (주소) | 그 주소 | 오류 ("먼저 여세요") |
+
+바로가기는 바탕화면(레지스트리 `User Shell Folders\Desktop` — OneDrive 로 옮긴 바탕화면 포함 · 공용 `%PUBLIC%\Desktop` · `%OneDrive%\Desktop` · local.json 의 `shortcuts` 폴더들)의 `.lnk` 를 **파일로 직접 읽어**(ShellLink 형식 — COM 을 쓰지 않아 한글 이름 .lnk 의 인수도 읽힘, `readLnk`) 대상·인수를 알고, 디버그 포트가 없는 바로가기(`거화 - Chrome`·`Google Chrome` 등)는 거절한다(오류 글에 디버그 포트가 있는 바로가기 목록을 붙임). 이 PC 의 바로가기(krs-web-agents chrome-bind 규약 — 아이콘 = 채널(포트+프로필) 정의이자 기동 수단): `KRS 전용`(9333, `chrome_profile\KRS` — KRS·ChatGPT·Microsoft 로그인) · `SUB 전용`(9444, `chrome_profile\SUB` — 구독·인프런 로그인). 같은 프로필의 Chrome 이 디버그 포트 없이 이미 떠 있으면 바로가기를 눌러도 그 창에 탭만 열려 포트가 안 생기므로 그 창을 모두 닫고 다시 한다. 붙은 뒤는 external 과 같다 — 그 브라우저의 새 창에서만 움직이고 사용자 탭은 건드리지 않으며, 회사 시스템·이 PC 주소로는 가지 않는다. 작업 로그에 `브라우저 SUB 전용(9444) 에 연결 (바로가기로 띄움)` 처럼 남는다.
 
 ## 환경 변수 (Help 서버를 띄울 때)
 

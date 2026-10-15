@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* site-fetch 단독 실행 — 확장·Help 서버 없이 찾아오기 한 번을 돌려 본다 (사이트 안내를 고치거나 새 사이트를 시험할 때).
  *   node site-fetch/run.js <요청.json> [--out <폴더>]
- * 요청.json = { site: { label, url, kind: lecture|subscription|other, docs: [...], hint, howto }, cred: { id, pw }, tx: { shop, amount, usedDate, appr, ptcl, type } }
+ * 요청.json = { site: { label, url, kind: lecture|subscription|other, docs: [...], hint, howto, browser }, cred: { id, pw }, tx: { shop, amount, usedDate, appr, ptcl, type } }
+ *   (site.browser = 로그인해 둔 Chrome — 바탕화면 바로가기 이름 "SUB 전용" · 디버그 포트 "9444" · 주소. 비우면 local.json·환경 변수·기본 작업용 프로필 — chrome.js)
  *   (확장이 POST /fetch 로 보내는 것과 같음. 비밀번호를 파일에 두기 싫으면 cred 를 빼고 환경 변수 KRX_FETCH_ID / KRX_FETCH_PW 로)
  * 진행 줄을 그대로 찍고, 끝나면 받은 서류를 --out(기본 현재 폴더의 site-fetch-out/)에 복사하고 결과 JSON 을 찍는다. 모델은 KRX_FETCH_MODEL(기본 claude-opus-5-5) */
 'use strict';

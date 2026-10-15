@@ -859,6 +859,7 @@
           <div><span>필요 서류 (찾아오기가 찾고 청구 준비 줄에 ✓/✗ 로 보임)</span><div class="fetch-docs"><label class="fetch-own"><input type="checkbox" data-fown${own ? '' : ' checked'}>종류 기본 따름 — ${F.esc(SITES.kindLabel(s.kind))}: ${F.esc(SITES.docsFor(s.kind, map).join('·'))}</label>${docs.map((d) => `<label><input type="checkbox" data-fd="${F.esc(d)}"${need.includes(d) ? ' checked' : ''}${own ? '' : ' disabled'}><span>${F.esc(d)}</span></label>`).join('')}</div></div>
           <label>아이디 <input type="text" data-ff="loginId" value="${F.esc(s.loginId || '')}" autocomplete="off" spellcheck="false"></label>
           <label>비밀번호 <input type="password" data-ff="loginPw" value="${F.esc(s.loginPw || '')}" autocomplete="new-password"></label>
+          <label class="wide">로그인해 둔 Chrome (선택 — 바탕화면 Chrome 바로가기 이름 · 디버그 포트 · 주소. 작업용 창 대신 그 Chrome 에 붙어 찾고, 안 떠 있으면 그 바로가기로 띄움. 비우면 서버 기본 site-fetch/local.json) <input type="text" data-ff="browser" value="${F.esc(s.browser || '')}" placeholder="예) SUB 전용 · 9444 · http://127.0.0.1:9444" spellcheck="false"></label>
           <label class="wide">찾는 곳 메모 (선택 — Claude 에 그대로 줌) <input type="text" data-ff="hint" value="${F.esc(s.hint || '')}" placeholder="예) 마이페이지 › 구매내역 › 거래명세서"></label>
           <label class="wide">기억한 찾는 방법 (지난번에 Claude 가 찾은 길 — 다음 찾아오기에 참고로 줌. 사이트가 바뀌어 헤매면 비우세요) <textarea data-ff="howto" rows="2">${F.esc(s.howto || '')}</textarea></label>
         </div></div>`;
@@ -890,7 +891,7 @@
     fetchList.splice(Number(b.dataset.fsDel), 1); fetchDirty = true; fetchNewIdx = -1; renderFetchSites();
   });
   function addFetchSite(shop) {
-    const d = Object.assign(shop ? SITES.defaultsFor(shop) : { label: '', match: '', url: '', kind: 'other', hint: '' }, { docs: [] });   // 필요 서류는 종류 기본
+    const d = Object.assign(shop ? SITES.defaultsFor(shop) : { label: '', match: '', url: '', kind: 'other', hint: '', browser: '' }, { docs: [] });   // 필요 서류는 종류 기본
     fetchList.push(Object.assign(d, { id: '', loginId: '', loginPw: '', howto: '' }));
     fetchNewIdx = fetchList.length - 1; fetchDirty = true;
     showTab('fetch');
