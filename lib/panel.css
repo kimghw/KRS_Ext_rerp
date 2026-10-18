@@ -510,3 +510,39 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-rs-spend tfoot td { font-weight: 700; border-top: 1px solid #cfdcf0; }
 .krext-rs-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .krext-rs-foot .krext-dim { flex: 1; min-width: 0; font-size: 11px; }
+
+/* 사업비 변경 구역 (0.8.7, lib/staff-ui.js) — 기간·예산·단추 줄, 사람 표(월급여·계상인건비·참여율 칸은 표 안에서 바로 적는다), 달마다의 지급 줄, rERP 등록 줄, 알림 줄 */
+.krext-st-bar { margin: 2px 0 4px; }
+.krext-st-bar input[type="month"] { height: 24px; padding: 2px 6px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; font-family: inherit; font-size: 12px; }
+.krext-st-bar input[data-stp="budget"] { width: 76px; text-align: right; font-variant-numeric: tabular-nums; }
+.krext-st-acts { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.krext-st-status { margin: 0 0 4px; }
+.krext-st-table { margin-top: 4px; }
+.krext-st-table th { font-size: 11px; color: #607089; text-align: left; padding: 3px 6px; border-bottom: 1px solid #e3eaf3; white-space: nowrap; }
+.krext-st-table th.krext-num { text-align: right; }
+.krext-st-table td { padding: 3px 6px; border-bottom: 1px solid #edf1f6; vertical-align: middle; }
+.krext-st-table td.krext-num { text-align: right; white-space: nowrap; }
+.krext-st-table .krext-st-in { width: 68px; height: 24px; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #222; font-family: inherit; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.krext-st-table .krext-st-in:hover, .krext-st-table .krext-st-in:focus { background: #fff; border-color: #c9d1dc; outline: none; }
+.krext-st-table .krext-st-rate { width: 60px; }
+.krext-st-tag { display: block; font-size: 10px; color: #8a919c; text-align: right; line-height: 1.2; padding-right: 6px; }
+.krext-st-maxtag { color: #245fbd; white-space: nowrap; }
+.krext-st-act { width: 1%; white-space: nowrap; text-align: right; }
+.krext-st-months td, .krext-st-erp td { padding: 0 6px 5px; font-size: 11px; color: #6b7480; line-height: 1.7; }
+.krext-st-months .krext-st-mo { display: inline-block; margin-right: 8px; white-space: nowrap; }
+.krext-st-months .krext-st-mo b { color: #222; font-weight: 600; font-variant-numeric: tabular-nums; }
+.krext-st-months .krext-st-mo.krext-st-off b { color: #a0a7b2; text-decoration: line-through; }
+.krext-st-months .krext-st-mo.krext-st-max b { color: #245fbd; }
+.krext-st-form td { padding: 2px 0 6px; }
+.krext-st-form .krext-plan-form input[data-stf="name"], .krext-st-form .krext-plan-form input[data-stf="role"] { width: 84px; }
+.krext-st-form .krext-plan-form input[data-stf="manual"], .krext-st-form .krext-plan-form input[data-stf="value"] { width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.krext-st-form .krext-plan-form select { height: 24px; padding: 1px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; font-family: inherit; font-size: 12px; }
+.krext-st-warn { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.5; }
+.krext-st-warn li { position: relative; padding-left: 14px; color: #6b7480; overflow-wrap: anywhere; }
+.krext-st-warn li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 6px; height: 6px; border-radius: 50%; background: #a0a7b2; }
+.krext-st-warn li.krext-st-warn { color: #222; }
+.krext-st-warn li.krext-st-warn::before { background: #f2ad3d; }
+.krext-st-warn li.krext-st-error { color: #d7263d; font-weight: 600; }
+.krext-st-warn li.krext-st-error::before { background: #d7263d; }
+.krext-st-msg { margin-top: 6px; }
+.krext-st-amt { width: 118px; white-space: nowrap; font-size: 12px; }   /* 계획 합 / 예산 — 두 수가 한 줄에 */
