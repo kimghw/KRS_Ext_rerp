@@ -276,7 +276,7 @@
   <div class="tab-panel" id="panel-share" role="tabpanel" aria-labelledby="tab-share" data-panel="share" hidden>
   <section class="card" data-help-key="공유 (Plus)">
     <h2>공유 (Plus): 과제별 공유 폴더 (과제 정보 · 예산 · 참여연구원 · 연구내용 · 변경이력 · 예상 비용) <span id="plusSummary" class="muted"></span></h2>
-    <p class="section-description">과제마다 OneDrive(SharePoint) 폴더 하나 — 연차별 파일과 예상 비용 파일 — 를 두고 참여연구원과 맞춥니다. KRS WORKSPACE 에도 같은 폴더 주소를 주면 같은 파일로 동기화됩니다.</p>
+    <p class="section-description">과제마다 OneDrive(SharePoint) 폴더 하나 — 연차별 파일과 예상 비용 파일 — 를 두고 참여연구원과 맞춥니다. KRS WORKSPACE 는 이 공유 폴더 설정을 저절로 따릅니다(그쪽 공유 폴더 칸이 비어 있을 때) — 두 확장이 같은 파일로 동기화됩니다.</p>
     <p class="help">켜 두면 확장이 내 OneDrive 의 <b>문서/업무/shared</b> 밑에 과제마다 폴더(이름은 <b>과제 약칭 → 없으면 Job Id → 없으면 과제번호</b>)를 만들고, 그 안에 연차마다 <code>n차년도.json</code> 하나(과제 정보 · 사업비 예산 줄 · 참여연구원 참여율·지급액 계획 · 연구내용 기록 · 변경이력)와 <code>예상비용.json</code> 하나(모든 연차의 과제집행비율 예상 비용 — 연차에 걸치는 항목이 두 파일에 나뉘지 않게 따로)를 둡니다. 패널·팝업을 열 때와 항목을 바꾼 4초 뒤, 자동 갱신 때 저절로 맞춥니다.
       파일은 이 브라우저가 <b>SharePoint(OneDrive)에 로그인돼 있는 것만으로</b> 읽고 씁니다 — 서버·앱 등록·별도 로그인이 없습니다. 쓸 때는 SharePoint 탭을 잠깐(최소화된 창에) 열어 그 안에서 저장하고 닫습니다.
       과제 폴더는 과제 책임자(또는 그 과제의 자료를 먼저 넣은 사람)의 OneDrive 에 만들어지고, <b>자동 공유</b>를 켜 두면 만들 때 R&amp;D ERP 참여인력에게 편집 권한으로 공유됩니다. 참여연구원은 공유 (Plus) 만 켜 두면 됩니다 — <b>자동 찾기</b>가 OneDrive 의 "나와 공유" 목록에서 내 참여 과제의 폴더를 찾아 맞춥니다(ⓘ 동료에게 공유하는 법). 폴더 이름은 보기 좋게 붙인 것일 뿐이고 과제는 파일 안의 과제번호로 알아보므로 이름을 바꿔도 됩니다. 팀 사이트 문서함의 폴더(<code>https://krclass.sharepoint.com/sites/…/Shared Documents/…</code>)를 밑폴더로 써도 됩니다.
@@ -287,13 +287,13 @@
         <label>공유 폴더 주소 (밑폴더) <input type="text" id="plusFolder" placeholder="비우면 내 OneDrive 의 문서/업무/shared — 동료의 밑폴더 주소나 팀 사이트 폴더 주소를 붙여 넣으면 그 폴더" spellcheck="false" autocomplete="off"></label>
         <button type="button" id="btnShareProbe" class="btn" title="지금 칸의 주소를 저장하고 그 폴더에 연결해 봅니다 — 폴더 경로와 과제 폴더 수, 나와 공유에서 찾은 과제 폴더 수가 보이면 됩니다">연결 확인</button>
       </div>
-      <p class="field-hint wide">비우면 내 OneDrive 의 <b>문서/업무/shared</b>(없으면 만듦)가 밑폴더가 되고 과제 폴더는 그 아래에 생깁니다. 다른 폴더를 쓰려면 OneDrive 나 문서함에서 연 뒤 주소창의 주소(<code>…/onedrive.aspx?id=…</code> · <code>…/Forms/AllItems.aspx?id=…</code>), 폴더 경로(<code>https://krclass-my.sharepoint.com/personal/…/Documents/업무/shared</code>), 공유 링크(<code>https://…sharepoint.com/:f:/…</code>) 중 어느 것이든 됩니다. 바꾼 뒤 <b>저장</b>하거나 <b>연결 확인</b>을 누르면 저장됩니다.</p>
+      <p class="field-hint wide">비우면 내 OneDrive 의 <b>문서/업무/shared</b>(없으면 만듦)가 밑폴더가 되고 과제 폴더는 그 아래에 생깁니다. 다른 폴더를 쓰려면 OneDrive 나 문서함에서 연 뒤 주소창의 주소(<code>…/onedrive.aspx?id=…</code> · <code>…/Forms/AllItems.aspx?id=…</code>), 폴더 경로(<code>https://krclass-my.sharepoint.com/personal/…/Documents/업무/shared</code>), 공유 링크(<code>https://…sharepoint.com/:f:/…</code>) 중 어느 것이든 됩니다. 바꾼 뒤 <b>저장</b>하거나 <b>연결 확인</b>을 누르면 저장됩니다. <b>KRS WORKSPACE</b> 는 이 칸의 값을 저절로 따릅니다 — 그쪽 R&amp;D 설정 › 공유 (SharePoint) 의 공유 폴더 칸이 비어 있으면 이 확장에 물어 같은 밑폴더를 씁니다(그쪽 칸에 값을 넣으면 그것이 이김).</p>
       <div class="wide share-state" id="shareProbeState" role="status"></div>
       <div class="wide row share-folder-row">
         <span id="shareFolderNow" class="share-folder"></span>
         <a id="shareFolderOpen" class="btn" href="#" target="_blank" rel="noopener" hidden title="밑폴더를 OneDrive(문서함) 화면으로 엽니다 — 과제 폴더들이 이 안에 있습니다">폴더 열기</a>
-        <button type="button" id="btnShareFolderCopy" class="btn" title="지금 쓰는 밑폴더의 주소를 복사합니다 — KRS WORKSPACE 의 공유 폴더 설정이나 동료의 공유 폴더 주소 칸에 붙여 넣습니다">주소 복사</button>
-        <button type="button" id="btnShareOrgLink" class="btn" title="밑폴더의 조직 내 편집 링크(회사 계정으로 로그인한 사람은 누구나 열고 편집)를 만들어 복사합니다 — 자동 공유가 안 된 사람에게 보내거나 WORKSPACE 에 넣을 때">조직 내 링크 만들기·복사</button>
+        <button type="button" id="btnShareFolderCopy" class="btn" title="지금 쓰는 밑폴더의 주소를 복사합니다 — 동료의 공유 폴더 주소 칸에 붙여 넣습니다(KRS WORKSPACE 는 이 설정을 저절로 따르므로 넣지 않아도 됨)">주소 복사</button>
+        <button type="button" id="btnShareOrgLink" class="btn" title="밑폴더의 조직 내 편집 링크(회사 계정으로 로그인한 사람은 누구나 열고 편집)를 만들어 복사합니다 — 자동 공유가 안 된 사람에게 보낼 때">조직 내 링크 만들기·복사</button>
         <button type="button" id="btnShareHow" class="desc-toggle" aria-expanded="false" aria-controls="shareHowGuide" title="동료에게 공유하는 법 보기">동료에게 공유하는 법</button>
         <span id="shareFolderStatus" class="status" role="status"></span>
       </div>
@@ -302,7 +302,7 @@
           <li><b>저절로 되는 길(기본)</b>: 과제 책임자가 공유 (Plus) 를 켜 두면 첫 동기화 때 과제 폴더가 만들어지고, <b>자동 공유</b>가 켜져 있으면 R&amp;D ERP 참여인력에게 편집 권한으로 바로 공유됩니다. 참여연구원은 공유 (Plus) 만 켜 두면 됩니다 — <b>자동 찾기</b>가 OneDrive 의 "나와 공유" 에서 그 폴더를 찾아 아래 표에 <b>주인</b> 과 함께 보입니다. 아무 주소도 주고받을 필요가 없습니다.</li>
           <li><b>자동 공유가 안 된 사람</b>(아래 표의 공유 결과에 <b>이름 겹침</b> · <b>못 찾음</b>): 표의 <b>참여연구원에게 공유</b>를 다시 누르거나, 폴더 이름을 눌러 OneDrive 에서 그 과제 폴더를 열고 <b>공유</b> › 사람을 골라 <b>편집 가능</b>으로 보냅니다. 또는 <b>링크 복사</b>(조직 내 편집 링크)를 메일·Teams 로 보내면 받은 사람이 한 번 열기만 해도 "나와 공유" 에 들어와 자동으로 찾아집니다.</li>
           <li><b>주소로 잇는 길</b>(자동 찾기를 꺼 두었거나 팀 사이트 문서함 폴더를 쓸 때): 밑폴더의 <b>주소 복사</b>나 <b>조직 내 링크</b>를 받아 위 <b>공유 폴더 주소</b> 칸에 붙여 넣고 <b>연결 확인</b> — "연결됨" 과 과제 폴더 수가 보이면 됩니다. 로그인이 필요하다고 나오면 이 브라우저에서 OneDrive(<code>krclass-my.sharepoint.com</code>)에 한 번 로그인한 뒤 다시 누릅니다.</li>
-          <li><b>KRS WORKSPACE 와 같이 쓰기</b>: WORKSPACE 의 공유 폴더 설정에 같은 밑폴더 주소(<b>주소 복사</b>)를 넣으면 같은 과제 폴더의 연차 파일·예상 비용 파일을 양쪽이 번갈아 고칩니다 — Job Id · IO · 메모 · 변경이력은 WORKSPACE 가, 과제명 · 책임자 · 기간은 R&amp;D ERP 값이 늘 이깁니다.</li>
+          <li><b>KRS WORKSPACE 와 같이 쓰기</b>: WORKSPACE 는 이 확장의 공유 폴더 설정을 저절로 따릅니다(그쪽 R&amp;D 설정 › 공유 (SharePoint) 의 공유 폴더 칸이 비어 있을 때 — 값을 넣으면 그것이 이김). 그러면 같은 과제 폴더의 연차 파일·예상 비용 파일을 양쪽이 번갈아 고칩니다 — 단, WORKSPACE 는 자기 R&amp;D 탭에 등록된 과제만 맞추므로 과제 수는 이 확장(내 참여 과제 전부)보다 적을 수 있습니다.Job Id · IO · 메모 · 변경이력은 WORKSPACE 가, 과제명 · 책임자 · 기간은 R&amp;D ERP 값이 늘 이깁니다.</li>
         </ol></div>
       <label class="check wide"><input type="checkbox" id="plusShareWith"> 과제 폴더를 만들 때 <b>참여연구원에게 자동 공유(편집)</b> — R&amp;D ERP 참여인력의 이름으로 SharePoint 에서 사람을 찾아 폴더를 편집 권한으로 공유합니다(메일은 보내지 않음). 같은 이름이 여럿이거나 못 찾은 사람은 아래 표의 공유 결과에 남으니 폴더를 열어 OneDrive 에서 직접 공유하거나 <b>참여연구원에게 공유</b>를 다시 누릅니다</label>
       <label class="check wide"><input type="checkbox" id="plusDiscover"> <b>나와 공유된 과제 폴더 자동 찾기</b> — 동기화 때 OneDrive 의 "나와 공유" 목록에서 내 참여 과제의 폴더(다른 사람의 업무/shared 아래)를 찾아 함께 맞춥니다. 끄면 위 공유 폴더 주소 칸의 밑폴더만 봅니다</label>

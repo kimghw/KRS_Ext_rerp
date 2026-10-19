@@ -1,4 +1,4 @@
-/* lib/staff-ui.js (제목 줄 아이콘으로 여는 사업비 관리 화면 — kr_ext_workspace R&D 탭 꼴, 0.8.7) 그리기 테스트 — DOM 없이 section() 이 만드는 HTML 만 본다(bind 는 브라우저에서). 실행: node tests/staff-ui.test.js
+/* lib/staff-ui.js (제목 줄 아이콘으로 여는 사업비 관리 화면 — kr_ext_workspace R&D 탭 꼴, 0.8.7) 그리기·보기 상태 테스트 — DOM 없이 section() HTML 과 bind 의 위임 이벤트를 확인한다. 실행: node tests/staff-ui.test.js
  * 과제 칩·별칭, 과제 카드(연차 칩 · 기간 줄), 예산 카드(기본값: 현재 연차 rERP 예산액 · 다른 연차 계획서 · 비목만, 집행 = 승인 + 사용계획 + 미청구, 미청구 보조 줄, 합계, 막대), 참여인력 카드, 보기/고치기, 옛 계획 이동(adopt) */
 globalThis.self = globalThis;
 const path = require('path');
@@ -89,6 +89,7 @@ test('화면 — 과제 칩 · 과제 카드 · 연차 칩 · 예산 카드 · �
   assert.ok(html.includes('<b>1차년도</b> · <input type="month" data-stp="from" value="2026-04"') && html.includes('R&amp;D ERP 현재 연차'));
   assert.ok(html.includes('data-card="budget"') && html.includes('계획 107,425 · 집행 30,913 (29%)') && html.includes('data-stb="name" data-i="0" value="인건비"') && html.includes('data-stb="plan" data-i="0" value="31,425"'), '예산 카드 머리·칸');
   assert.ok(html.includes('data-stinc="unbilled" checked') && html.includes('data-act="st-bcopy"') && html.includes('rERP 자금현황(원) · 예산 107,425,000') && html.includes('data-act="st-bdel" data-i="3"') && html.includes('data-act="st-badd"'));
+  assert.ok(html.includes('<div class="krext-ws-budget-scroll" tabindex="0" role="region" aria-label="비목별 예산 표"><div class="krext-ws-budget-grid"><div class="krext-ws-bhead">'), '예산 금액이 좁은 패널에서도 잘리지 않도록 키보드 스크롤 구역');
   assert.ok(html.includes('data-card="staff"') && html.includes('계획 없음') && html.includes('data-act="st-init-erp"') && !html.includes('data-page="staff"'), '참여인력 카드 · 탭으로 가는 링크 없음');
   assert.ok(/표시할 과제가 없습니다/.test(U.section({ projects: [] }, {}, mk(), '')));
 });
@@ -121,6 +122,24 @@ test('2차년도 기본 기간·계획서 예산, 직접 적은 줄, 접기, 별
   html = U.section(d, {}, st, '', EDIT);
   assert.ok(html.includes('data-stf="name"') && html.includes('<option value="2026-10" selected>10월</option>') && html.includes('data-act="st-apply" data-id="new"') && !html.includes('value="exclude"'), '더하기 폼에는 제외가 없다');
 });
+
+test('Workspace 과제 머리 — 기본 접힘, 펼치면 메타·링크, 별칭 폼과 연차·기간은 접힌 상태에서도 사용', () => {
+  const st = mk({ staffAliases: { [P.prjNo]: 'SSCB' } });
+  let html = U.section(d, {}, st, '', EDIT);
+  assert.ok(html.includes('data-card="project" aria-expanded="false"') && !html.includes('krext-ws-project-meta'));
+  assert.ok(html.includes('data-act="st-proj" data-prj="2026-0063-01" aria-pressed="true"') && html.includes('data-act="st-proj" data-prj="2026-0064-01" aria-pressed="false"'));
+  assert.ok(html.includes('data-act="st-year" data-year="1" aria-pressed="true"') && html.includes('data-act="st-year" data-year="2" aria-pressed="false"'));
+  assert.ok(/<button type="button" class="krext-ws-cardhead[^>]*data-card="project"/.test(html));
+  assert.ok(/<\/button><button type="button" class="krext-ws-edit"/.test(html), '별칭 단추는 접기 단추와 형제');
+  st.staffAliasEdit = P.prjNo;
+  html = U.section(d, {}, st, '', EDIT);
+  assert.ok(html.includes('data-stalias') && html.includes('data-act="st-year"') && html.includes('data-stp="from"') && !html.includes('krext-ws-project-meta'));
+  st.staffView.fold.project = false;
+  html = U.section(d, {}, st, '', EDIT);
+  assert.ok(html.includes('data-card="project" aria-expanded="true"') && html.includes('<dt>과제명</dt><dd>MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발</dd><dt>과제번호</dt><dd>2026-0063-01</dd><dt>책임자</dt><dd>김거화</dd>'));
+  assert.ok(html.includes('krext-ws-project-info') && html.includes('krext-ws-links'));
+  for (const card of ['budget', 'staff', 'changes']) assert.ok(new RegExp(`<button type="button" class="krext-ws-cardhead" data-act="st-fold" data-card="${card}" aria-expanded="(?:true|false)"`).test(html), '기본 단추의 키보드 접기/펴기');
+});
 test('참여인력 계획이 있으면 — 카드 머리(인원 · 합 / 예산), 사람 표(칸·월 최대·✎ ×), 달마다의 지급, rERP 등록(같음/다름), 알림, 예산 칸 인건비 줄의 참여연구원 합 메모', () => {
   const rows = S.rowsOfErp(REC);
   const staff = S.peopleOfErp(rows, { prjNo: P.prjNo, now: 1 });
@@ -133,6 +152,13 @@ test('참여인력 계획이 있으면 — 카드 머리(인원 · 합 / 예산)
   assert.ok(html.includes('data-stc="monthly"') && html.includes('data-stc="total"') && html.includes('data-stc="rate"') && html.includes('월 최대 20.01%') && html.includes('월 최대 27.46%'));
   assert.ok(html.includes('data-act="st-edit"') && html.includes('data-act="st-drop"') && html.includes('data-act="st-copy"') && html.includes('data-act="st-clear"'));
   assert.ok(html.includes('krext-st-months') && html.includes('4월 <b>1,165</b>') && html.includes('12월 <b>1,159</b>'));
+  assert.ok(html.includes('data-act="st-months" aria-pressed="false"') && !html.includes('krext-st-months-open'), '월별 지급은 기본 접힘, 데이터는 유지');
+  assert.ok(html.includes('<div class="krext-ws-table-scroll" tabindex="0" role="region" aria-label="참여인력 계획 표"><table class="krext-cards krext-st-table">'), '좁은 패널에서 사람 표만 키보드 가로 스크롤');
+  const staffTools = html.slice(html.indexOf('<span class="krext-sub krext-dim krext-st-status">'), html.indexOf('<div class="krext-ws-table-scroll"'));
+  assert.ok(staffTools.includes('class="krext-ico-btn" data-act="st-refresh" aria-label="rERP 참여인력 다시 조회"') && staffTools.includes('data-act="st-months"') && staffTools.includes('class="krext-ico-btn" data-act="st-copy" aria-label="참여인력 표 복사"'), '조회 상태와 새로고침·M·복사는 별도 도구 줄');
+  st.staffView.months = true;
+  const monthlyHtml = U.section(d, {}, st, '', EDIT);
+  assert.ok(monthlyHtml.includes('krext-st-months-open') && monthlyHtml.includes('data-act="st-months" aria-pressed="true"'));
   assert.ok(html.includes('rERP 등록: 4~11월 1,165 · 12월 1,159 · 20.00% (월 최대 20.01%) · 같음'));
   assert.ok(html.includes('문창재 — 5월 참여율 합 105.01% (이 과제 20.01% · rERP 다른 과제 85.00%)'), '100% 초과 알림');
   assert.ok(html.includes('rERP 등록 지급계획(4~12월) 그대로') === false || true);
@@ -161,7 +187,7 @@ test('변경이력 — changeEntry(WORKSPACE CHANGE_KINDS 와 같은 칸) · app
   assert.deepStrictEqual(U.changesOf({ staffChanges: { [K1]: [a] } }, P.prjNo, 1), [a]);
   assert.deepStrictEqual([U.changesOf({}, P.prjNo, 1), U.changesOf({ staffChanges: { [K1]: 'x' } }, P.prjNo, 1)], [[], []]);
 });
-test('변경이력 카드 — 기본 접힘(머리에 건수·마지막 날짜), fold.changes=false 면 날짜 역순 표(WORKSPACE 의 auto 줄도), 없으면 안내; openOf 토글 규칙', () => {
+test('변경이력 카드 — 기본 접힘, 펼치면 날짜 역순 이벤트와 사유(WORKSPACE 의 auto 줄도), 없으면 안내; openOf 토글 규칙', () => {
   const ch = [
     { id: 'a', date: '2026-10-01', kind: '예산', item: '인건비', before: '31,425천원', after: '35,900천원', reason: '', by: '김거화', at: 1, auto: false },
     { id: 'b', date: '2026-10-05', kind: '연구기간', item: '연구기간', before: '2026-04-01 ~ 2026-12-31', after: '2026-04-01 ~ 2027-03-31', reason: '연장', by: '', at: 2, auto: true },
@@ -172,18 +198,22 @@ test('변경이력 카드 — 기본 접힘(머리에 건수·마지막 날짜),
   st.staffView.fold.changes = false;
   html = U.section(d, {}, st, '', EDIT);
   const i1 = html.indexOf('2026-10-05'), i2 = html.indexOf('2026-10-01');
-  assert.ok(html.includes('krext-ws-changes') && i1 > 0 && i2 > i1, '펼침: 날짜 역순 표');
-  assert.ok(html.includes('<td class="krext-mono krext-dim">2026-10-01</td><td><span class="krext-ws-kind">예산</span></td><td>인건비</td><td class="krext-ws-diff">31,425천원 → <b>35,900천원</b></td>') && html.includes('연장') && html.includes('자동</small>'));
+  assert.ok(html.includes('<ul class="krext-ws-changes krext-ws-change-list">') && i1 > 0 && i2 > i1, '펼침: 날짜 역순 이벤트');
+  assert.ok(html.includes('<span class="krext-ws-change-date">2026-10-01</span><span class="krext-ws-kind">예산</span><strong class="krext-ws-change-title">인건비</strong>') && html.includes('<p class="krext-ws-diff"><s>31,425천원</s><span class="krext-ws-arrow">→</span><b>35,900천원</b></p>') && html.includes('연장') && html.includes('자동</small>'));
+  assert.ok(html.includes('<details class="krext-ws-reason" data-streason="b">') && !html.includes('data-streason="a"'), '사유가 있는 변경만 펼침 제공');
+  st.staffView.reasons.b = true;
+  assert.ok(U.section(d, {}, st, '', EDIT).includes('<details class="krext-ws-reason" data-streason="b" open>'), '다시 그려도 펼친 사유를 유지');
   st.staffView.years[P.prjNo] = 2;
   assert.ok(/변경이력이 없습니다/.test(U.section(d, {}, st, '', EDIT)), '다른 연차는 없음 안내');
   const v = { fold: {} };
-  assert.deepStrictEqual([U.openOf(v, 'budget'), U.openOf(v, 'changes')], [true, false], '기본: 예산 펴짐 · 변경이력 접힘');
+  assert.deepStrictEqual([U.openOf(v, 'budget'), U.openOf(v, 'staff'), U.openOf(v, 'changes'), U.openOf(v, 'project')], [true, true, false, false], '기본: 예산·참여인력 펴짐, 과제 정보·변경이력 접힘');
   assert.deepStrictEqual([U.openOf({ fold: { budget: true } }, 'budget'), U.openOf({ fold: { changes: false } }, 'changes'), U.openOf({ fold: { changes: true } }, 'changes')], [false, true, false]);
 });
 test('공유 줄 — 공유 (Plus) 가 켜져 있을 때만: 폴더 이름 · 폴더 열기 · 참여연구원에게 공유 · 링크 복사 · 주소 복사 · 공유 결과(n명 · 겹침 · 못 찾음); 남의 폴더면 공유 단추 없음; 폴더를 모르면 지금 동기화; 연차 파일 링크', () => {
   const pages = { [P.prjNo]: { prjNo: P.prjNo, title: P.prjNm, folder: 'SSCB', folderUrl: 'https://x.sharepoint.com/personal/u/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fu%2FDocuments%2F%EC%97%85%EB%AC%B4%2Fshared%2FSSCB', webUrl: 'https://x.sharepoint.com/personal/u/Documents/%EC%97%85%EB%AC%B4/shared/SSCB/1%EC%B0%A8%EB%85%84%EB%8F%84.json', years: [1], at: 5,
     share: { shared: [{ name: '문창재', email: 'a@krs.co.kr' }], ambiguous: [{ name: '김철수', candidates: ['김철수(A)', '김철수(B)'] }], notFound: ['홍길동'], role: 'edit', at: 6 } } };
   const st = mk({ staffSync: { at: 5, ok: true, count: 1, base: { path: '/personal/u/Documents/업무/shared' }, pages } });
+  st.staffView.fold.project = false;
   const off = U.section(d, {}, st, '', EDIT);
   assert.ok(!off.includes('krext-ws-share') && !off.includes('data-act="st-share-people"') && off.includes('연차 파일'), '꺼짐: 공유 줄 없음(연차 파일 링크는 있음)');
   const on = U.section(d, { plus: { enabled: true } }, st, '', EDIT);
@@ -202,6 +232,56 @@ test('공유 줄 — 공유 (Plus) 가 켜져 있을 때만: 폴더 이름 · �
   assert.ok(busy.includes('동기화 중…') && busy.includes('disabled') && busy.includes('krext-ws-share-r">맞추는 중…'));
   st.staffSync = null; st.staffShareBusy = null; st.staffShareMsg = null;
   assert.ok(U.section(d, { plus: { enabled: true } }, st, '', EDIT).includes('과제 폴더를 아직 모릅니다'), '공유 결과가 아직 없어도 줄은 보임');
+});
+
+test('보기 상태 이벤트 — 과제·연차·접기·월별 지급 초점 유지와 저장, 사유는 DOM 유지하며 저장', () => {
+  const listeners = {}, writes = [], focused = [];
+  const st = mk({ data: d });
+  let redraws = 0;
+  const priorChrome = globalThis.chrome, priorTimeout = globalThis.setTimeout;
+  globalThis.chrome = { storage: { local: { get: () => ({}), set: (value) => writes.push(JSON.parse(JSON.stringify(value))) }, onChanged: { addListener() {} } } };
+  globalThis.setTimeout = () => 0;
+  try {
+    const host = { addEventListener: (name, fn, capture) => { listeners[name] = { fn, capture }; }, contains: (el) => el.connected !== false, querySelector: (selector) => ({ focus: (options) => focused.push({ selector, options, redraws }) }) };
+    U.bind(host, st, () => { redraws++; });
+    const click = (act, card, extra = {}) => {
+      const btn = { dataset: { act, card, ...extra }, closest: () => ({ dataset: { stprj: P.prjNo, styr: '1' } }) };
+      listeners.click.fn({ target: { closest: () => btn }, preventDefault() {} });
+    };
+    click('st-fold', 'project');
+    assert.strictEqual(st.staffView.fold.project, false);
+    click('st-fold', 'project');
+    assert.strictEqual(st.staffView.fold.project, true);
+    click('st-months');
+    assert.strictEqual(st.staffView.months, true);
+    assert.strictEqual(writes[writes.length - 1].staffView.months, true);
+    click('st-months');
+    assert.strictEqual(st.staffView.months, false);
+    assert.strictEqual(redraws, 4);
+    assert.deepStrictEqual(focused.map((f) => f.selector), ['[data-act="st-fold"][data-card="project"]', '[data-act="st-fold"][data-card="project"]', '[data-act="st-months"]', '[data-act="st-months"]']);
+    assert.ok(focused.every((f, i) => f.redraws === i + 1 && f.options.preventScroll === true), '다시 그린 단추로 스크롤 없이 초점 복원');
+    click('st-proj', undefined, { prj: P2.prjNo });
+    click('st-year', undefined, { year: '2' });
+    click('st-year-add', undefined, { year: '3' });
+    assert.deepStrictEqual(focused.slice(4).map((f) => f.selector), ['[data-act="st-proj"][aria-pressed="true"]', '[data-act="st-year"][data-year="2"]', '[data-act="st-year"][data-year="3"]'], '더한 연차는 새로 생긴 연차 단추로 초점 이동');
+    assert.strictEqual(st.staffView.prjNo, P2.prjNo);
+    assert.strictEqual(st.staffView.extra[P.prjNo], 3);
+    assert.strictEqual(listeners.toggle.capture, true, 'details toggle 는 버블링하지 않으므로 캡처');
+    const reason = { dataset: { streason: 'change-1' }, open: true };
+    listeners.toggle.fn({ target: reason });
+    assert.strictEqual(writes[writes.length - 1].staffView.reasons['change-1'], true);
+    assert.strictEqual(redraws, 7, '사유를 펴는 동안 초점·DOM 유지');
+    const count = writes.length;
+    listeners.toggle.fn({ target: reason });
+    listeners.toggle.fn({ target: { dataset: { streason: 'change-1' }, open: false, connected: false } });
+    assert.strictEqual(writes.length, count, '동일 상태·이전 렌더의 toggle 무시');
+    reason.open = false;
+    listeners.toggle.fn({ target: reason });
+    assert.strictEqual(st.staffView.reasons['change-1'], undefined);
+  } finally {
+    globalThis.chrome = priorChrome;
+    globalThis.setTimeout = priorTimeout;
+  }
 });
 
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

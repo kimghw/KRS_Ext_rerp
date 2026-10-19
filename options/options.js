@@ -1247,10 +1247,10 @@
         if (!r || !r.ok) { setStatus('shareFolderStatus', shareFail(r, '복사 실패'), true); return; }
         url = String(r.url || r.viewUrl || (r.folder && r.folder.viewUrl) || '');
         if (r.folder) { takeFolder(r.folder, Date.now()); renderShareFolder(); }
-        if (!url) { setStatus('shareFolderStatus', '밑폴더 주소를 복사했습니다 — KRS WORKSPACE 의 공유 폴더 설정이나 동료의 공유 폴더 주소 칸에 붙여 넣으면 됩니다'); return; }   // 백그라운드가 복사까지 한 경우
+        if (!url) { setStatus('shareFolderStatus', '밑폴더 주소를 복사했습니다 — 동료의 공유 폴더 주소 칸에 붙여 넣으면 됩니다'); return; }   // 백그라운드가 복사까지 한 경우
       }
       await navigator.clipboard.writeText(url);
-      setStatus('shareFolderStatus', `밑폴더 주소를 복사했습니다: ${url} — KRS WORKSPACE 의 공유 폴더 설정이나 동료의 공유 폴더 주소 칸에 붙여 넣으면 됩니다`);
+      setStatus('shareFolderStatus', `밑폴더 주소를 복사했습니다: ${url} — 동료의 공유 폴더 주소 칸에 붙여 넣으면 됩니다`);
     } catch (e) { setStatus('shareFolderStatus', `복사하지 못했습니다: ${String((e && e.message) || e)}`, true); }
   });
   /* 조직 내 편집 링크: shareOrgLink { prjNo? } → { ok, url, copied } — prjNo 가 없으면 밑폴더, 있으면 그 과제 폴더. 백그라운드가 복사까지 했으면(copied) 그대로, 아니면 이 페이지에서. 결과는 사라지지 않는 줄에(주소를 읽어 쓸 수 있게) */

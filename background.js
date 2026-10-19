@@ -1102,6 +1102,26 @@ const fromExtPage = (sender) => !!sender && sender.id === chrome.runtime.id && S
 KRX_PREP_FETCH.resume().catch(() => {});   // 워커가 다시 떴을 때 진행 중이던 찾아오기를 이어서 지켜봄
 try { KRX_SP.sweepWorkers({ chrome }).catch(() => {}); } catch (e) {}   // 지난 워커가 공유 (Plus) 쓰기 도중 끝나 남긴 SharePoint 작업 창(최소화된 XML 페이지)을 거둔다 — writer 가 살아 있을 수 없는 자리(워커 시작)라 안전
 
+/* 다른 확장(KRS WORKSPACE)이 공유 (Plus) 의 밑폴더 **설정**을 물을 때 — 2026-10-19 사용자 "SharePoint workspace 경로 연결 … 상의해서 통일" 로 두 확장 세션이 합의: 공유 폴더 설정(plus.folder · driveHost)은 이 확장이 정본이고
+ *   WORKSPACE 는 자기 공유 폴더 칸이 비어 있으면 이것을 따른다(한 방향 · 읽기만 — 쓰기는 받지 않는다). 요청 { type:'shareFolder' } → { ok:true, enabled(plus.enabled), folder(설정 칸 원문 — 비면 ''), driveHost,
+ *   url · path · mine · at(풀어 둔 캐시 storage.local.shareFolder — 설정 input·driveHost·baseName 과 맞을 때만 붙임), version(manifest) }. 네트워크 없음. 다른 type 이나 확장이 아닌 보낸 이(sender.id 없음 · sender.url 이 chrome-extension:// 아님)는
+ *   응답하지 않는다(false — 채널 닫힘). manifest 에 externally_connectable 을 적지 않으므로 다른 확장의 sendMessage 는 기본으로 받고, WORKSPACE 는 chrome.management 로 이 확장을 이름("KR eClass + R&D ERP 현황")으로 찾는다
+ *   (압축해제 확장이라 id 가 PC 마다 다름 — manifest key 로 고정하면 양쪽 id 가 바뀌어 저장소·리로드 훅·Help 서버 출처가 끊기므로 쓰지 않음). 내용이 폴더 주소뿐이라 보낸 확장을 더 가리지 않는다. README "공유 (Plus)" › KRS WORKSPACE 와의 관계 · SPEC PLS-11 */
+chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+  if (!msg || msg.type !== 'shareFolder') return false;
+  if (!sender || !sender.id || (sender.url && !String(sender.url).startsWith('chrome-extension://'))) return false;
+  (async () => {
+    const p = (await KRX_SETTINGS.load()).plus || {};
+    const out = { ok: true, enabled: !!p.enabled, folder: String(p.folder || '').trim(), driveHost: shareDriveHost(p), version: String((chrome.runtime.getManifest() || {}).version || '') };
+    try {
+      const c = (await chrome.storage.local.get('shareFolder')).shareFolder;
+      if (c && c.origin && (c.path || c.folderPath) && c.input === out.folder && c.driveHost === out.driveHost && c.baseName === SHARE_BASE_NAME) Object.assign(out, { url: String(c.url || shareFolderUrl(c)), path: String(c.path || c.folderPath), mine: !!c.mine, at: Number(c.at) || 0 });
+    } catch (e) {}   // 캐시가 없거나 모양이 다르면 설정만 — WORKSPACE 가 같은 sp-store 로 푼다
+    return out;
+  })().then(sendResponse, (e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
+  return true;
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg && msg.type) {
