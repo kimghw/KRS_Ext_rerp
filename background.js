@@ -2,7 +2,7 @@
 importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/prep-store.js', 'lib/classify-core.js', 'lib/claude-api.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · classify-core·claude-api: 자동 분류를 Claude API 로 직접 (0.8.6) · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
   'lib/plan.js', 'lib/plan-sync.js',   // 공유 (Plus) 의 예상 비용 몫: plan.js 는 저장소 키·월간 구독 계산용, plan-sync.js 는 병합 규칙(merge)
   'lib/research.js', 'lib/research-sync.js',   // 연구개발계획서(연구내용) 참조 · 공유 (Plus) 의 연구내용 병합 규칙(merge)
-  'lib/staff.js', 'lib/staff-sync.js',   // 사업비(참여연구원 참여율·지급액 계획, 0.8.7) · 공유 (Plus) 의 사업비 병합 규칙(merge)
+  'lib/staff.js', 'lib/staff-sync.js', 'lib/collect.js',   // 사업비(참여연구원 참여율·지급액 계획, 0.8.7) · 공유 (Plus) 의 사업비 병합 규칙(merge) · 참여연구원 자료 요청(SharePoint 응답 목록 · 팀즈 딥 링크 · 응답 취합, 0.8.9 — 배선은 아래 collect*)
   'lib/sp-store.js', 'lib/prjdoc.js', 'lib/prjdoc-sync.js');   // 공유 (Plus, 2026-10-18 부터 SharePoint 폴더의 과제별 JSON 파일): sp-store 저장소 접근(브라우저 로그인 쿠키 · 작업 탭) · prjdoc 문서 모양·병합 · prjdoc-sync 과제별 차례 — 배선은 아래 shareSync
 
 const CACHE_KEY = 'cache';
@@ -1129,6 +1129,153 @@ async function shareRename(msg) {
   } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
 
+/* ----- 참여연구원 자료 요청(0.8.9, 2026-10-20 사용자 "참여연구원 변경에서 참여연구자들에게 sharepoint 로 자료 수집을 위한 웹링크를 팀즈로 보내고 거기에 응답하면 데이터를 취합하는 시스템 … 문창재, 김거화 이런게.. 팀즈랑 연동이 잘되어야" — lib/collect.js KRX_COLLECT) -----
+ * 내 OneDrive(personal 사이트 — 밑폴더 설정과 상관없이 늘 내 사이트: 응답자에게 개별 공유하므로)에 응답 **목록**(SharePoint List, KRX_SP writer.createList — 칸은 KRX_COLLECT.FIELDS, 응답자는 자기 항목만)을 만들고 참여연구원에게 **편집** 공유한다(writer.sharePeople — 폴더 공유와 같은 길, 피커에 이메일을 넘김).
+ * 이름 → 이메일은 캐시(storage.local.peopleEmails — 찾은 것 · 탭에서 적은 것) → KRX_SP.findPeople(사이트 search 의 People — 한글 이름도 찾힘, 2026-10-19 실측)로 푼다. 팀즈 딥 링크(users=이메일 · message=글)는 탭(lib/staff-ui.js collectSection)이 만들어 여니 여기는 네트워크 없는 일이 없다.
+ * collectCreate(msg = { prjNo, year, names[], alias?, prjNm?, from?, to?, title? }) → { ok, req, existed, warnings } | { ok:false, kind, message, error } — 이미 요청이 있으면 같은 제목의 목록을 다시 쓰고(createList 가 existed) 새 이름만 더해 공유.
+ * collectShare(msg = { prjNo, year, people?:[{ name, email }] }) → 이메일을 다시 풀거나 탭에서 적은 이메일로 공유(공유된 사람은 건너뜀) → { ok, req }. collectFetch(msg = { prjNo, year }) → 목록 항목(KRX_SP.listItems) → req.responses(KRX_COLLECT.responsesOfItems) → { ok, req, count }.
+ * collectRemove(msg = { prjNo, year, recycle }) → 요청을 지우고(recycle 이면 목록도 재활용통) → { ok, removed, recycled, warning? }. 저장은 storage.local.staffCollect["과제번호@연차"](KRX_COLLECT.put — 그 키만). 응답(월급여 등)은 이 브라우저에만 남는다. 쿠키·다이제스트는 어디에도 남기지 않는다 */
+const collectFieldNames = () => KRX_COLLECT.FIELDS.map((f) => f.name);
+const collectYear = (msg) => (Number(msg && msg.year) >= 1 ? Math.floor(Number(msg.year)) : 1);
+/* 내 OneDrive(personal 사이트)의 cfg — resolveMyFolder 가 주는 밑폴더 cfg(siteUrl · api · origin 이 내 사이트) */
+async function collectSiteCfg(p) { return KRX_SP.resolveMyFolder({ fetch: spFetch, driveHost: shareDriveHost(p), name: SHARE_BASE_NAME }); }
+/* 이름들 → 사람 [{ name, email, title, status, candidates }] — hint({ 이름: 이메일 } — 탭에서 적은 것) → 캐시(peopleEmails) → 없는 이름은 findPeople. 찾은 이메일은 캐시에 남긴다. 찾기 자체가 실패하면(auth·offline) 그 까닭을 error 에 */
+async function collectResolve(cfg, names, hint) {
+  const cache = await KRX_COLLECT.loadEmails();
+  const h = KRX_COLLECT.normalizeEmails(hint || {});
+  const out = [], ask = [];
+  for (const raw of Array.isArray(names) ? names : []) {
+    const name = String(raw || '').trim();
+    if (!name || out.some((x) => KRX_STAFF.sameName(x.name, name))) continue;
+    const k = KRX_COLLECT.nameKeyOf(name);
+    const em = h[k] || cache[k] || '';
+    out.push({ name, email: em, title: '', status: '', candidates: [] });
+    if (!em) ask.push(name);
+  }
+  if (ask.length) {
+    let r = null;
+    try { r = await KRX_SP.findPeople(cfg, ask, spIo()); }
+    catch (e) { const d = describeShare(e); for (const p of out) if (!p.email) p.error = `사람 찾기 실패: ${d.message}`; return out; }
+    const learned = {};
+    for (const f of r.found || []) { const p = out.find((x) => KRX_STAFF.sameName(x.name, f.name)); if (p) { p.email = String(f.email || '').toLowerCase(); p.title = String(f.title || ''); learned[p.name] = p.email; } }
+    for (const a of r.ambiguous || []) { const p = out.find((x) => KRX_STAFF.sameName(x.name, a.name)); if (p) { p.status = 'ambiguous'; p.candidates = (a.candidates || []).slice(0, 10).map(String); } }
+    for (const n of r.notFound || []) { const p = out.find((x) => KRX_STAFF.sameName(x.name, n)); if (p) p.status = 'notFound'; }
+    if (Object.keys(learned).length) { try { await KRX_COLLECT.rememberEmails(learned); } catch (e) {} }
+  }
+  return out;
+}
+/* 이메일이 있고 아직 공유하지 않은 사람들에게 목록(req.path)을 편집 공유 — writer.sharePeople 에 이메일을 넘기면 피커가 이메일로 찾는다(표시 이름이 영문이라 이름으로는 못 맞추는 사람도). 결과를 people[].status 에 */
+async function collectShareWith(w, req, people) {
+  const targets = people.filter((p) => p.email && p.status !== 'shared');
+  if (!targets.length) return;
+  let r;
+  try { r = await w.sharePeople(req.path, targets.map((p) => p.email), { role: 'edit' }); }
+  catch (e) { const d = describeShare(e); for (const p of targets) { p.status = 'failed'; p.error = d.message; } return; }
+  const low = (x) => String((x && typeof x === 'object' ? (x.email || x.name) : x) || '').toLowerCase();
+  const shared = new Set((r.shared || []).map(low)), amb = new Set((r.ambiguous || []).map(low)), nf = new Set((r.notFound || []).map(low));
+  const failed = new Map((r.failed || []).map((x) => [low(x), String((x && x.error) || '')]));
+  for (const p of targets) {
+    const k = p.email.toLowerCase();
+    if (shared.has(k)) { p.status = 'shared'; p.sharedAt = Date.now(); p.error = ''; }
+    else if (failed.has(k)) { p.status = 'failed'; p.error = failed.get(k) || '공유 실패'; }
+    else if (amb.has(k)) { p.status = 'ambiguous'; p.error = '이메일로도 한 사람을 고르지 못함'; }
+    else if (nf.has(k)) { p.status = 'notFound'; p.error = '그 이메일의 사용자를 찾지 못함'; }
+    else { p.status = 'failed'; p.error = String(r.error || '공유 결과에 없음'); }
+  }
+}
+/* 참여연구원 변경 탭 [자료 요청 만들기] */
+async function collectCreate(msg) {
+  const settings = await KRX_SETTINGS.load(), p = settings.plus || {};
+  const prjNo = String((msg && msg.prjNo) || '').trim(), year = collectYear(msg);
+  if (!prjNo) return shareFail('error', '과제번호가 없습니다');
+  try {
+    const cfg = await collectSiteCfg(p);
+    const key = KRX_COLLECT.planKey(prjNo, year);
+    const prev = (await KRX_COLLECT.load())[key] || null;
+    const l = await chrome.storage.local.get('rndUser');
+    const who = String((l.rndUser || {}).userNm || settings.myName || '');
+    const label = String((msg && msg.alias) || '').trim() || String((msg && msg.prjNm) || '').trim().slice(0, 20) || prjNo;
+    const title = (prev && prev.title) || String((msg && msg.title) || '').trim() || KRX_COLLECT.listTitleFor({ alias: msg && msg.alias, prjNm: msg && msg.prjNm, prjNo, year });
+    const known = prev ? prev.people : [];
+    const names = (Array.isArray(msg && msg.names) ? msg.names : []).map((s) => String(s || '').trim()).filter((n) => n && !(who && KRX_STAFF.sameName(n, who))).concat(known.map((x) => x.name));
+    const hint = {};
+    for (const x of known) if (x.email) hint[x.name] = x.email;
+    const w = await shareStore.openWriter(cfg);
+    let list, people;
+    try {
+      list = await w.createList({ title, description: KRX_COLLECT.listDescription({ label, year }), fields: KRX_COLLECT.fieldsOf(), titleField: KRX_COLLECT.TITLE_FIELD, ownOnly: true });
+      people = await collectResolve(cfg, names, hint);
+      if (prev && prev.listId === list.id) for (const q of people) { const k = known.find((x) => KRX_STAFF.sameName(x.name, q.name)); if (k && k.status === 'shared' && k.email === q.email) Object.assign(q, { status: 'shared', sharedAt: k.sharedAt, sentAt: k.sentAt, title: q.title || k.title }); }   // 같은 목록이면 이미 공유한 사람은 그대로
+      await collectShareWith(w, { path: list.path }, people);
+    } finally { try { await w.close(); } catch (e) {} }
+    const same = !!(prev && prev.listId === list.id);
+    const req = KRX_COLLECT.normalizeRequest(Object.assign({}, prev || {}, { prjNo, year, title: list.title, listId: list.id, site: cfg.siteUrl, path: list.path, listUrl: list.viewUrl || list.url, formUrl: list.newFormUrl || list.url,
+      createdAt: (same && prev.createdAt) || Date.now(), by: who, people, responses: same ? prev.responses : [], applied: same ? prev.applied : {}, fetchedAt: same ? prev.fetchedAt : 0, fetchError: '' }), key);
+    await KRX_COLLECT.put(prjNo, year, req);
+    return { ok: true, req, existed: !!list.existed, warnings: list.warnings || [] };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
+}
+/* [공유] — 탭에서 적은 이메일(people[].email)로, 이름 겹침·못 찾음을 다시 풀어서 */
+async function collectShare(msg) {
+  const settings = await KRX_SETTINGS.load(), p = settings.plus || {};
+  const prjNo = String((msg && msg.prjNo) || '').trim(), year = collectYear(msg);
+  try {
+    const req = (await KRX_COLLECT.load())[KRX_COLLECT.planKey(prjNo, year)];
+    if (!req || !req.listId) return shareFail('notfound', '이 연차의 자료 요청이 아직 없습니다 — 먼저 [자료 요청 만들기]');
+    const given = (Array.isArray(msg && msg.people) ? msg.people : []).filter((x) => x && x.name);
+    const hint = {};
+    for (const x of req.people) if (x.email) hint[x.name] = x.email;
+    for (const x of given) if (x.email) hint[String(x.name)] = String(x.email);   // 탭에서 적은 것이 앞선다
+    const names = req.people.map((x) => x.name).concat(given.map((x) => String(x.name).trim()));
+    const cfg = await collectSiteCfg(p);
+    const people = await collectResolve(cfg, names, hint);
+    for (const q of people) { const k = req.people.find((x) => KRX_STAFF.sameName(x.name, q.name)); if (!k) continue; if (k.status === 'shared' && k.email === q.email) { q.status = 'shared'; q.sharedAt = k.sharedAt; } q.sentAt = k.sentAt; if (!q.title) q.title = k.title; }
+    const learn = {};
+    for (const x of given) if (x.email && KRX_COLLECT.email(x.email)) learn[String(x.name)] = String(x.email);
+    if (Object.keys(learn).length) { try { await KRX_COLLECT.rememberEmails(learn); } catch (e) {} }
+    if (people.some((q) => q.email && q.status !== 'shared')) {
+      const w = await shareStore.openWriter(cfg);
+      try { await collectShareWith(w, req, people); } finally { try { await w.close(); } catch (e) {} }
+    }
+    req.people = people;
+    await KRX_COLLECT.put(prjNo, year, req);
+    return { ok: true, req };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
+}
+/* [응답 받기] — 목록 항목을 읽어 응답 줄로. 읽기 실패는 req.fetchError 에도 남긴다(탭이 보임) */
+async function collectFetch(msg) {
+  const prjNo = String((msg && msg.prjNo) || '').trim(), year = collectYear(msg);
+  try {
+    const req = (await KRX_COLLECT.load())[KRX_COLLECT.planKey(prjNo, year)];
+    if (!req || !req.listId) return shareFail('notfound', '이 연차의 자료 요청이 아직 없습니다 — 먼저 [자료 요청 만들기]');
+    let items;
+    try { items = await KRX_SP.listItems(req.site, req.listId, spIo(), { fields: collectFieldNames() }); }
+    catch (e) { const d = describeShare(e); req.fetchError = d.message; req.fetchedAt = Date.now(); await KRX_COLLECT.put(prjNo, year, req); return Object.assign(shareFail(d.kind, d.message), { req }); }
+    req.responses = KRX_COLLECT.responsesOfItems(items, req, req.people.map((x) => x.name));
+    req.fetchedAt = Date.now(); req.fetchError = '';
+    await KRX_COLLECT.put(prjNo, year, req);
+    return { ok: true, req, count: req.responses.length };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
+}
+/* [요청 지우기] — 요청을 지우고 recycle 이면 목록도 재활용통으로(응답은 거기 남는다). 목록을 못 지워도 요청은 지운다(warning) */
+async function collectRemove(msg) {
+  const p = (await KRX_SETTINGS.load()).plus || {};
+  const prjNo = String((msg && msg.prjNo) || '').trim(), year = collectYear(msg);
+  try {
+    const req = (await KRX_COLLECT.load())[KRX_COLLECT.planKey(prjNo, year)];
+    if (!req) return { ok: true, removed: false, recycled: false };
+    let recycled = false, warning = '';
+    if (msg && msg.recycle && req.listId) {
+      try {
+        const w = await shareStore.openWriter(await collectSiteCfg(p));
+        try { recycled = !!(await w.recycleList(req.listId)).removed; } finally { try { await w.close(); } catch (e) {} }
+      } catch (e) { warning = describeShare(e).message; }
+    }
+    await KRX_COLLECT.put(prjNo, year, null);
+    return { ok: true, removed: true, recycled, warning };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
+}
+
 /* 확장 페이지(사이드 패널·팝업·설정)에서 온 메시지인가 — eClass 패널(콘텐츠 스크립트)은 eClass 페이지 DOM 안이라 비밀번호를 받지 않는다 */
 const fromExtPage = (sender) => !!sender && sender.id === chrome.runtime.id && String(sender.url || '').startsWith(chrome.runtime.getURL(''));
 KRX_PREP_FETCH.resume().catch(() => {});   // 워커가 다시 떴을 때 진행 중이던 찾아오기를 이어서 지켜봄
@@ -1165,6 +1312,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'shareFolderPeople': return await shareFolderPeople(msg);                       // 사업비 관리·설정 [참여연구원에게 공유]: 과제 폴더를 사람들(names 또는 참여인력 전부)에게 편집 공유 → { ok, share:{ shared, ambiguous, notFound } }
       case 'shareOrgLink': return await shareOrgLink(msg);                                 // 사업비 관리·설정 [링크 복사]: 조직 내 편집 링크를 만들어 클립보드에 → { ok, url, copied }
       case 'shareRename': return await shareRename(msg);                                   // 과제 폴더 이름 바꾸기(선택) → { ok, name }
+      case 'collectCreate': return await collectCreate(msg);                               // 참여연구원 변경 탭 [자료 요청 만들기]: 내 OneDrive 에 응답 목록을 만들고 참여연구원에게 편집 공유 → { ok, req } (lib/collect.js, 0.8.9)
+      case 'collectShare': return await collectShare(msg);                                 // [공유]: 탭에서 적은 이메일·다시 찾기로 공유 → { ok, req }
+      case 'collectFetch': return await collectFetch(msg);                                 // [응답 받기]: 목록 항목 → req.responses → { ok, req, count }
+      case 'collectRemove': return await collectRemove(msg);                               // [요청 지우기]: 요청을 지우고 목록은 재활용통 → { ok, removed, recycled }
       case 'jctCaptured': refreshAfterWrite(msg.entry); await appendCapture(msg.entry, sender); return { ok: true };
       case 'unapprovedSnapshot': await chrome.storage.local.set({ unapprovedSnapshot: msg.snapshot }); return { ok: true };
       case 'hrPay': { const merged = await mergeHrPay(msg.patch || {}); await patchCacheHrPay(merged); return { ok: true }; }

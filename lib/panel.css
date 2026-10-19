@@ -532,16 +532,18 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-st-months .krext-st-mo-none i { color: #c3c9d3; }
 .krext-st-months .krext-st-mo b.krext-st-off { color: #a0a7b2; text-decoration: line-through; }
 .krext-st-months .krext-st-mo b.krext-st-max { color: #245fbd; }
-/* rERP 지급 완료 달 — 라벨 오른쪽 "지급" 꼬리표, 탭에서는 잠긴 칸(단추 아님) */
-.krext-st-months .krext-st-mo i em.krext-st-paidtag { display: inline-block; margin-left: 4px; padding: 0 3px; border-radius: 3px; font-style: normal; font-size: 9px; font-weight: 600; line-height: 1.4; color: #1f7a3f; background: #e6f4ea; vertical-align: 1px; }
-.krext-st-editable .krext-st-months .krext-st-mo.krext-st-paid { border-color: #cfe5d6; background: #eef7f1; cursor: not-allowed; }
+/* rERP 지급 완료 달 — 박스 없이 라벨 오른쪽 "지급" 글자만, 탭에서는 잠긴 칸(단추 아님) */
+.krext-st-months .krext-st-mo i em.krext-st-paidtag { display: inline-block; margin-left: 4px; font-style: normal; font-size: 9px; font-weight: 500; line-height: 1.4; color: #6b7a8e; vertical-align: 1px; }
+.krext-st-editable .krext-st-months .krext-st-mo.krext-st-paid { border-color: transparent; background: transparent; cursor: default; }
 .krext-st-paidst { color: #1f7a3f; font-weight: 600; }
 .krext-st-form-hint { font-size: 11px; }
-/* 폼 아래 증감 줄 — 회의실 현황 격자 꼴의 칸: [−50%]…[기준]…[+50%] 또는 나머지 [10%]…[100%], 맨 오른쪽 [예산에 맞추기] · 그 아래 읽기 줄 (lib/staff-ui.js quickRow) */
+/* 폼 아래 증감 줄 — 회의실 현황 격자 꼴의 칸: [제외 −100%] [−50%]…[기준]…[+50%] 또는 나머지 [10%]…[100%], 맨 오른쪽 [예산에 맞추기] · 그 아래 읽기 줄 (lib/staff-ui.js quickRow) */
 .krext-st-quick { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-left: 18px; font-size: 11px; color: #5d718c; }
 .krext-st-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(36px, 1fr); gap: 3px; max-width: 760px; user-select: none; -webkit-user-select: none; touch-action: none; }
 .krext-st-step { appearance: none; -webkit-appearance: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 1px solid transparent; border-radius: 5px; background: #eceef2; color: #5d718c; font: inherit; font-size: 11px; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background .1s ease, color .1s ease, border-color .1s ease; }
 .krext-st-step-dn { background: #f7e8eb; color: #a3404f; }
+.krext-st-step-exclude { border-color: #e3c3ca; font-weight: 600; gap: 2px; }
+.krext-st-step-exclude small { font-size: 9px; font-weight: 400; }
 .krext-st-step-up { background: #e3f2e8; color: #23704a; }
 .krext-st-step-share { background: #e8eef8; color: #1f4f8f; }
 .krext-st-step-base { background: #dfe5ee; color: #34495e; font-weight: 600; cursor: default; }
@@ -684,8 +686,6 @@ button.krext-st-step:hover:not(:disabled) { border-color: #9cbbe6; }
 .krext-ws-bar.plan { background: var(--ws-plan); }
 .krext-ws-bar.unbilled { background: var(--ws-unbilled); }
 .krext-ws-bar.over { background: var(--ws-danger); opacity: .9; }
-.krext-ws-bnote { margin: -3px 0 5px; padding-left: 8px; font-size: 11px; color: var(--ws-muted); }
-.krext-ws-bnote.krext-red { color: var(--ws-danger); }
 .krext-ws-extra { color: var(--ws-muted); font-size: 12px; }
 .krext-ws-extra .krext-ws-cell { border-color: transparent; background: transparent; }
 .krext-ws-bsum { margin-top: 4px; padding: 6px 0 5px; border-top: 1px solid var(--ws-line); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -746,6 +746,15 @@ button.krext-st-step:hover:not(:disabled) { border-color: #9cbbe6; }
 .krext-st-editable .krext-st-months button.krext-st-mo > b:empty::before { content: "·"; color: #c3c9d3; font-weight: 400; }
 .krext-st-editable .krext-st-months .krext-st-mo-none { border-style: dashed; border-color: #e7ecf2; background: transparent; }
 .krext-st-pickhint { flex: none; white-space: nowrap; }
+/* 격자 왼쪽 [전체] — 그 사람의 전체 참여개월을 한 번에 고름(2026-10-20 "드래그 말고 전체 참여개월 선택하는 기능도"). 격자 밖에 두어 사람마다 1~12월 칸 자리가 같게 */
+.krext-st-mowrap { display: flex; align-items: stretch; gap: 4px; }
+.krext-st-mowrap > .krext-st-mogrids { flex: 1 1 auto; min-width: 0; }
+.krext-st-allpick { appearance: none; -webkit-appearance: none; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; min-width: 48px; margin: 0; padding: 4px 6px; border: 1px solid #cfdcec; border-radius: 7px; background: #fff; color: #2f5f9e; font: inherit; font-size: 11px; font-weight: 600; line-height: 1.25; cursor: pointer; transition: background .12s ease, border-color .12s ease, box-shadow .12s ease; }
+.krext-st-allpick small { font-size: 10px; font-weight: 400; color: #8a93a2; }
+.krext-st-allpick:hover { border-color: #9fb9dc; background: #f2f7ff; }
+.krext-st-allpick.krext-st-picked { border-color: #2563c4; background: #dbe8fb; box-shadow: inset 0 0 0 1px #2563c4; color: #2563c4; }
+.krext-st-allpick.krext-st-picked small { color: #2563c4; }
+.krext-st-allpick:disabled { border-style: dashed; border-color: #e3e8ef; background: transparent; color: #a0a7b2; cursor: default; }
 /* 참여인력: 기간 구간이 둘 이상이면 구간마다 한 줄(성명·역할·월급여·✎× 는 rowspan) — 성명 밑에 연간 합·참여율, 머리의 부족금은 주황(초과금은 krext-red) */
 .krext-st-sum { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; line-height: 1.3; color: #8a919c; white-space: normal; max-width: 150px; }
 .krext-st-sum span { display: inline-block; white-space: nowrap; }
@@ -899,11 +908,16 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-editable .krext-st-months .krext-st-mo { min-height: 34px; padding: 2px 8px; }
 .krext-st-focus .krext-st-editable .krext-st-months button.krext-st-mo:focus-visible { outline: 2px solid #4b84d4; outline-offset: 2px; }
 .krext-st-focus .krext-st-pickhint { color: #65758b; font-size: 13px; }
+.krext-st-focus .krext-st-mowrap { gap: 5px; }
+.krext-st-focus .krext-st-allpick { min-width: 58px; padding: 2px 8px; font-size: 13px; }
+.krext-st-focus .krext-st-allpick small { font-size: 11px; }
+.krext-st-focus .krext-st-allpick:focus-visible { outline: 2px solid #4b84d4; outline-offset: 2px; }
 .krext-st-focus .krext-st-form-hint { font-size: 13px; }
 .krext-st-focus .krext-st-quick { gap: 8px; margin-top: 12px; padding-left: 26px; font-size: 14px; }
 .krext-st-focus .krext-st-steps { grid-auto-columns: minmax(44px, 1fr); gap: 4px; max-width: 980px; }
 .krext-st-focus .krext-st-step { height: 38px; border-radius: 6px; font-size: 13px; }
 .krext-st-focus .krext-st-step-fit small { font-size: 11px; }
+.krext-st-focus .krext-st-step-exclude small { font-size: 10px; }
 .krext-st-focus .krext-st-form td { padding: 14px; background: #f7faff; }
 .krext-st-focus .krext-plan-form { gap: 10px; }
 .krext-st-focus .krext-plan-form input, .krext-st-focus .krext-plan-form select { height: 40px; padding: 6px 10px; border: 1px solid #dbe5f0; border-radius: 7px; background: #fff; font-size: 16px; }
@@ -922,6 +936,30 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-support-note { display: block; margin-top: 5px; color: #65758b; font-size: 13px; line-height: 1.5; white-space: normal; }
 .krext-st-focus .krext-st-support-ref { color: #65758b; font-size: 13px; }
 .krext-st-focus .krext-st-support-ref input[type="checkbox"], .krext-st-focus .krext-st-form .krext-plan-form input[type="checkbox"] { width: 17px; height: 17px; padding: 0; accent-color: #2563c4; }
+/* 자료 요청 구역(참여연구원 변경 탭의 행정지원 아래 — SharePoint 응답 목록 · 팀즈 딥 링크 · 응답 취합, lib/staff-ui.js collectSection · lib/collect.js, 0.8.9): 머리(자료 요청 · 단추 줄) · 양식 줄 · 사람 표(이메일 칸 · 공유 상태 · 응답 · 팀즈로 보내기) · 팀즈 글 · 응답 표(반영) */
+.krext-st-collect { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e3eaf3; font-size: 13px; }
+.krext-st-collect .krext-st-sup-head { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 4px; }
+.krext-st-collect .krext-st-sup-head strong { font-size: 16px; }
+.krext-st-co-acts { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.krext-st-collect a.krext-plan-btn { text-decoration: none; }
+.krext-st-focus a.krext-st-teams { color: #4b53bc; border-color: #d4d6f2; background: #f4f4fd; }
+.krext-st-focus a.krext-st-teams:hover { background: #e9eafb; border-color: #b9bdf0; text-decoration: none; }
+.krext-st-co-line { margin: 6px 0 8px; line-height: 1.7; overflow-wrap: anywhere; }
+.krext-st-focus .krext-st-table.krext-st-co-table { min-width: 0; margin: 4px 0 0; font-size: 14px; }
+.krext-st-focus .krext-st-co-table th { padding: 8px 10px; font-size: 13px; }
+.krext-st-focus .krext-st-co-table td { padding: 5px 10px; vertical-align: middle; }
+.krext-st-co-table .krext-st-nm small, .krext-st-co-table td small { display: block; font-size: 11.5px; font-weight: 400; line-height: 1.4; }
+.krext-st-focus .krext-st-co-row input[type="text"] { box-sizing: border-box; width: 100%; min-width: 180px; height: 32px; padding: 4px 8px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font: inherit; font-size: 14px; }
+.krext-st-focus .krext-st-co-row input[type="text"]:focus { background: #fff; border-color: #5d8fd8; outline: none; }
+.krext-st-co-ok { color: #1b6e3c; font-weight: 600; }
+.krext-st-co-warn { color: #9d6819; }
+.krext-st-co-msg { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 0; }
+.krext-st-co-msg textarea { box-sizing: border-box; width: 100%; max-width: 760px; padding: 6px 8px; border: 1px solid #dbe5f0; border-radius: 7px; background: #fff; color: #29415e; font: inherit; font-size: 13px; line-height: 1.45; resize: vertical; }
+.krext-st-co-resphead { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; }
+.krext-st-co-resphead strong { font-size: 14px; }
+.krext-st-co-responses .krext-st-co-note { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-st-co-done td { color: #8a97a8; }
+.krext-st-collect .krext-st-msg { margin-top: 8px; }
 .krext-st-focus .krext-st-guide { padding: 16px 19px; border: 1px solid #e0e7f0; border-radius: 10px; background: #eaf0f7; color: #5c6e85; font-size: 13px; line-height: 1.8; }
 .krext-st-focus .krext-st-guide strong { color: #4a6484; font-size: 14px; font-weight: 600; }
 .krext-st-focus .krext-st-guide p { margin: 4px 0 0; }

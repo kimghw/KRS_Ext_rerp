@@ -5,7 +5,7 @@ globalThis.self = globalThis;
 const path = require('path');
 const assert = require('assert');
 const root = path.join(__dirname, '..');
-for (const f of ['lib/format.js', 'lib/staff.js', 'lib/staff-ui.js']) require(path.join(root, f));
+for (const f of ['lib/format.js', 'lib/staff.js', 'lib/collect.js', 'lib/staff-ui.js']) require(path.join(root, f));   // collect: 참여연구원 자료 요청 구역(탭)
 const S = KRX_STAFF, U = KRX_STAFF_UI;
 let n = 0, failed = 0;
 const test = (name, fn) => { try { fn(); n++; console.log('ok  ', name); } catch (e) { failed++; console.log('FAIL', name, '\n   ', e.stack || e.message); process.exitCode = 1; } };
@@ -130,7 +130,7 @@ test('✎·＋ 폼의 기본 날짜·직전 날짜·부족금의 % — defaultRa
   });
 });
 
-test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [−50%]…[기준]…[+50%](그 기간의 지금 지급에서 10% 간격, 칸마다 미리보기) · [−1%] [+1%] · 맨 오른쪽 [예산에 맞추기](초과금 줄이기 | 부족금 채우기 → 합 = 예산); 칸은 고르기만(draft.step · 반영 단추에 값 · 읽기 줄 "반영을 누르면") 하고 반영을 눌러야 적용, 값을 적거나 구분을 바꾸면 거둠; 그 기간에 지급이 없으면 나머지 [10%]…[100%]; 예산 없음 안내 · 예산과 같으면 맞추기 꺼짐; 월평균 10% 이하 빨강 + 알림', () => {
+test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][−50%]…[기준]…[+50%](그 기간의 지금 지급에서 10% 간격, 칸마다 미리보기) · [−1%] [+1%] · 맨 오른쪽 [예산에 맞추기](초과금 줄이기 | 부족금 채우기 → 합 = 예산); 칸은 고르기만(draft.step · 반영 단추에 값 · 읽기 줄 "반영을 누르면") 하고 반영을 눌러야 적용, 값을 적거나 구분을 바꾸면 거둠; 그 기간에 지급이 없으면 나머지 [10%]…[100%]; 예산 없음 안내 · 예산과 같으면 맞추기 꺼짐; 월평균 10% 이하 빨강 + 알림', () => {
   const rows = S.rowsOfErp(REC);
   const staff = S.peopleOfErp(rows, { prjNo: P.prjNo, now: 1 });
   const plan = Object.assign({ prjNo: P.prjNo, year: 1, prjNm: P.prjNm, from: '2026-04', to: '2026-12', budgetPay: 30000000, budget: null, at: 1, by: '', note: '' }, staff);
@@ -142,7 +142,8 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [−50%]…[기�
   withStaffActions(st, ({ click, change, input }) => {
     click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
     let html = U.section(d, {}, st, '', TAB), quick = quickOf(html);
-    assert.ok(quick.includes(`<div class="krext-st-steps krext-st-steps-scale" role="group" aria-label="기준에서 10% 간격으로 늘리고 줄이기" data-kind="scale" data-id="${kim}">`) && (quick.match(/data-act="st-step"/g) || []).length === 10 && quick.includes('<span class="krext-st-step krext-st-step-base" data-step="0" data-preview=""'), quick);
+    assert.ok(quick.includes(`<div class="krext-st-steps krext-st-steps-scale" role="group" aria-label="기준에서 10% 간격으로 늘리고 줄이기" data-kind="scale" data-id="${kim}">`) && (quick.match(/data-act="st-step"/g) || []).length === 11 && quick.includes('<span class="krext-st-step krext-st-step-base" data-step="0" data-preview=""'), quick);
+    assert.ok(quick.includes('>제외<small>−100%</small></button>') && quick.indexOf('data-step="-100"') < quick.indexOf('data-step="-50"') && quick.includes('data-preview="제외 (−100%) — 11~12월 4,650 → 0천원'), '−50% 왼쪽에 제외(−100%)와 선택 기간을 0원으로 바꾸는 미리보기');
     assert.ok(quick.includes(`class="krext-st-step krext-st-step-dn" data-act="st-step" data-step="-50" data-kind="scale" data-id="${kim}"`) && quick.includes('data-preview="+30% — 11~12월 4,650 → 6,045천원 · 월평균 27.44% → 29.27% · 초과금 2,820천원"') && quick.includes('aria-pressed="false">−10%</button><span class="krext-st-step krext-st-step-base"'), '칸마다 미리보기(그 기간 합 · 월평균 · 예산 대비)');
     assert.ok(quick.includes(`data-act="st-nudge" data-dir="-1" data-kind="scale" data-id="${kim}"`) && quick.includes('data-dir="1"') && quick.indexOf('st-nudge') > quick.lastIndexOf('data-step="50"') && quick.indexOf('st-step-fit') > quick.lastIndexOf('st-nudge'), '+50% 오른쪽에 −1% · +1%, 그 오른쪽에 예산에 맞추기');
     assert.ok(quick.includes('기준 <b>4,650</b>천원 · 11~12월 (2개월) · 나머지 3,225천원') && quick.includes('<span class="krext-st-step-pv" data-default="칸을 누르거나 기준에서 끌어') && quick.includes('class="krext-st-step krext-st-step-fit krext-st-fit-over" data-act="st-fit"') && quick.includes('>예산에 맞추기<small>초과금 1,425</small></button>'), '맨 오른쪽 예산에 맞추기 · 읽기 줄');
@@ -387,7 +388,7 @@ test('참여인력 계획이 있으면 — 카드 머리(연구자 n명 · 초�
   const st = mk({ staffPlans: { [K1]: plan }, staffRows: { [P.prjNo]: { at: 1, rows, others: {} } } });
   const html = U.section(d, {}, st, '', EDIT), tab = U.section(d, {}, st, '', TAB);
   assert.ok(html.includes('krext-ws-state" title="연구자 수 · 행정지원 수 · 인건비 계획 합 31,425 / 예산 31,425천원') && html.includes('>연구자 2명</span>') && html.includes('<span class="krext-badge">2</span>'), '참여인력 카드 머리(WORKSPACE 꼴 — 연구자 n명, 합·예산은 툴팁) · 연차 칩 배지');
-  assert.ok(html.includes('참여연구원 계획 합 31,425천원 (계획의 100%)'), '예산 칸 인건비 줄 메모');
+  assert.ok(!html.includes('참여연구원 계획 합') && !html.includes('krext-ws-bnote'), '예산 칸 인건비 줄 아래 메모 없음(2026-10-20 뺌)');
   assert.ok(/krext-st-status" title="R&amp;D ERP 과제정보 › 참여인력 2명 · 이 기간 지급 2명 · [^"]+ 조회">rERP 2026-0063-01 · \d\d\.\d\d \d\d:\d\d 조회</.test(html), 'rERP 상태 줄은 과제번호 · 시각 조회(WORKSPACE 와 같은 꼴), 인원은 툴팁');
   const table = html.match(/<table class="krext-cards krext-st-table krext-st-view">[\s\S]*?<\/table>/)[0];
   assert.ok(table.includes('<thead><tr><th class="krext-st-nm">성명</th><th class="krext-st-role-cell">역할</th><th class="krext-num" title="천원">월급여</th><th title="기간 구간 (참여개월 — 일부 달은 날 수 비율)">참여</th><th class="krext-num" title="천원 — 월별 지급의 합(계상인건비)">지급 합</th><th class="krext-num">참여율</th></tr></thead>'), '패널 표 머리글 — 성명 · 역할 · 월급여 · 참여 · 지급 합 · 참여율(✎ × 칸 없음)');
@@ -415,7 +416,7 @@ test('참여인력 계획이 있으면 — 카드 머리(연구자 n명 · 초�
   assert.ok(html2.includes('krext-st-run') && html2.includes('12월 (1개월)') && html2.includes('<span class="krext-st-tag">제외</span>') && html2.includes('rowspan="2"') && html2.includes('<small class="krext-st-sum"'), '제외한 12월은 따로 한 줄(구간 둘 — 성명 칸은 rowspan, 연간 합은 성명 밑) — 패널 보기 표에도');
   plan.budget = [{ name: '인건비', plan: 30000000 }]; plan.budgetPay = 30000000;
   const html3 = U.section(d, {}, st, '', EDIT);
-  assert.ok(/krext-st-error">인건비 합 30,266천원이 예산 30,000천원을 넘습니다 — 초과금 266천원/.test(html3) && html3.includes('krext-ws-bnote krext-red">참여연구원 계획 합 30,266천원 (계획의 101% · 초과금 266천원)') && html3.includes('>연구자 2명 · 초과 266</span>') && html3.includes('krext-ws-state krext-red'));
+  assert.ok(/krext-st-error">인건비 합 30,266천원이 예산 30,000천원을 넘습니다 — 초과금 266천원/.test(html3) && html3.includes('>연구자 2명 · 초과 266</span>') && html3.includes('krext-ws-state krext-red'));
 });
 test('계획이 없는 패널 카드 — rERP 등록 지급계획(이 기간)을 보기 표로 보이고(WORKSPACE 와 같음) 머리는 연구자 n명, 100% 초과 알림만, 복사는 그 표; 탭은 안내와 편집 단추', () => {
   const rows = S.rowsOfErp(REC);
@@ -541,6 +542,67 @@ test('공유 줄 — 공유 (Plus) 가 켜져 있을 때만: 폴더 이름 · �
 });
 
 // 통합 인력 표의 이벤트와 저장 결과를 함께 확인한다. 저장소는 매번 실제로 갱신해 다른 과제 보존도 검사한다.
+test('자료 요청 구역(참여연구원 변경 탭만, 0.8.9) — 요청이 없으면 설명 + [자료 요청 만들기](대상 = 계획의 연구원, 행정지원 제외); 요청이 있으면 양식 줄 · 사람 표(이메일 칸 · 공유 상태 · 응답 · 팀즈 딥 링크) · 팀즈 글 · 응답 표([반영] · 다른 과제는 100% 검사); 다른 과제 응답이 100% 초과 알림에; 패널 카드에는 없음', () => {
+  const months = S.ymRange('2026-04', '2026-12');
+  const mkPlan = () => ({ prjNo: P.prjNo, year: 1, from: '2026-04', to: '2026-12', basis: 'rerp', src: 'manual', at: 1, people: [S.normalizePerson({ id: 'a', name: '문창재', role: '참여연구원', manual: 5823000, plan: months.map((ym) => ({ ym, amt: 1165000 })) }), S.normalizePerson({ id: 'b', name: '홍길동', role: '행정지원', plan: [] })] });
+  const plan = mkPlan();
+  const st = mk({ data: d, staffPlans: { [K1]: plan }, staffAliases: { [P.prjNo]: 'SSCB' } });
+  let html = U.section(d, {}, st, '', TAB);
+  assert.ok(html.includes('<div class="krext-st-collect" data-cokey="2026-0063-01@1">') && html.includes('data-act="st-co-create"') && html.includes('대상 1명: 문창재') && !html.includes('data-act="st-co-fetch"'), '요청 없음 — 만들기 단추(행정지원은 대상 아님)');
+  assert.ok(!U.section(d, {}, st, '').includes('krext-st-collect'), '패널 카드에는 없음');
+  assert.deepStrictEqual(U.collectNames(st, P.prjNo, 1, plan, null), ['문창재']);
+  assert.deepStrictEqual(U.collectNames(Object.assign({}, st, { staffWho: '문 창재' }), P.prjNo, 1, plan, null), [], '내 이름(rERP 로그인)은 대상에서 뺌');
+  const req = { prjNo: P.prjNo, year: 1, title: 'KR 참여현황 SSCB 1차년도', listId: '11111111-2222-3333-4444-000000000001', site: 'https://krclass-my.sharepoint.com/personal/kimghw_krs_co_kr', path: '/personal/kimghw_krs_co_kr/Lists/KR 참여현황 SSCB 1차년도',
+    listUrl: 'https://krclass-my.sharepoint.com/personal/kimghw_krs_co_kr/Lists/KR%20x/AllItems.aspx', formUrl: 'https://krclass-my.sharepoint.com/personal/kimghw_krs_co_kr/Lists/KR%20x/NewForm.aspx', createdAt: 1000, by: '김거화',
+    people: [{ name: '문창재', email: 'cjmoon@krs.co.kr', title: 'MOON Changjae', status: 'shared', sharedAt: 2000 }, { name: '김철수', email: '', status: 'notFound' }, { name: '이영희', email: 'lee@krs.co.kr', status: 'ambiguous', candidates: ['이영희 (연구)', '이영희 (기획)'] }],
+    responses: [{ id: '3', by: 'MOON Changjae', email: 'cjmoon@krs.co.kr', name: '문창재', title: '이 과제', from: '2026-10', to: '2026-12', rate: 25, monthly: 6000000, note: '10월부터', at: 5000 }, { id: '4', by: 'MOON Changjae', email: 'cjmoon@krs.co.kr', name: '문창재', title: '선박 과제', from: '2026-10', to: '2026-12', rate: 80, monthly: null, note: '', at: 4000 }, { id: '5', by: 'NEW Person', email: 'new@krs.co.kr', name: '박보람', title: '', from: '2026-11', to: '2026-12', rate: 10, monthly: 4000000, note: '', at: 3000 }], applied: {} };
+  st.staffCollect = { [K1]: req };
+  html = U.section(d, {}, st, '', TAB);
+  const sec = html.match(/<div class="krext-st-collect"[\s\S]*$/)[0];
+  assert.ok(sec.includes('양식 <b title="KR 참여현황 SSCB 1차년도">') && sec.includes('href="https://krclass-my.sharepoint.com/personal/kimghw_krs_co_kr/Lists/KR%20x/NewForm.aspx" target="_blank"') && sec.includes('공유 1/3명 · 응답 2명 (3건) · 미반영 2건'), '양식 줄');
+  assert.ok(sec.includes('data-act="st-co-fetch"') && sec.includes('data-act="st-co-share"') && sec.includes('data-act="st-co-copy"') && sec.includes('data-act="st-co-remove"') && !sec.includes('data-act="st-co-create"'), '단추 줄');
+  assert.ok(sec.includes('data-stco="email" data-name="김철수" value=""') && sec.includes('못 찾음 — 이메일을 적으세요') && sec.includes('이름 겹침 — 이메일을 적으세요') && sec.includes('title="이영희 (연구) / 이영희 (기획)"') && sec.includes('>공유됨</span>'), '사람 표 — 이메일 칸 · 상태');
+  assert.ok(/href="https:\/\/teams\.microsoft\.com\/l\/chat\/0\/0\?users=cjmoon%40krs\.co\.kr&amp;message=[^"]*NewForm\.aspx[^"]*" target="_blank" rel="noopener" data-cosent="문창재"/.test(sec), '사람마다 팀즈 딥 링크(이메일 · 양식 주소가 든 글)');
+  assert.ok(/users=cjmoon%40krs\.co\.kr%2Clee%40krs\.co\.kr&amp;topicName=SSCB%20[^"]*" target="_blank" rel="noopener" data-cosent="\*"/.test(sec), '모두에게 팀즈 = 이메일 있는 둘의 그룹 채팅');
+  assert.ok(sec.includes('<textarea data-stco="message"') && sec.includes('[SSCB — MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발] 1차년도 참여연구원 자료 요청'), '팀즈 글(기본 글)');
+  assert.ok(sec.includes('data-act="st-co-apply" data-id="3"') && sec.includes('data-act="st-co-apply" data-id="5"') && sec.includes('>100% 검사</span>') && sec.includes('미반영 2건 모두 반영') && sec.includes('<td class="krext-mono">2026-10 ~ 2026-12</td>') && sec.includes('<td class="krext-num">6,000</td>'), '응답 표');
+  assert.ok(html.includes('문창재 — 10월 참여율 합 100.01% (이 과제 20.01% · 선박 과제(응답) 80.00%)'), '응답의 다른 과제 참여율이 100% 초과 알림에');
+  withStaffActions(st, ({ click, change, keydown, sent, writes, draws }) => {
+    const cur = () => st.staffCollect[K1];   // 처리는 정리한 사본(reqOf)을 상태에 둔다
+    click('st-co-apply', { id: '3' });
+    const q = st.staffPlans[K1].people.find((x) => x.name === '문창재');
+    assert.strictEqual(q.manual, 6000000, '응답의 월급여(천원 → 원)를 직접 값으로');
+    assert.deepStrictEqual(q.plan.filter((x) => x.ym >= '2026-10').map((x) => x.amt), [1500000, 1500000, 1500000], '10~12월 25% × 6,000천원 — ✎ 폼과 같은 길(applyChange)');
+    assert.deepStrictEqual(q.plan.filter((x) => x.ym < '2026-10').map((x) => x.amt), [1165000, 1165000, 1165000, 1165000, 1165000, 1165000], '그 앞 달은 그대로');
+    assert.ok(cur().applied['3'] > 0 && writes.some((w) => w.staffCollect && w.staffCollect[K1] && w.staffCollect[K1].applied['3']), '반영 시각을 요청에 남기고 저장(읽어서 그 키만)');
+    assert.ok(st.staffCollectMsg && st.staffCollectMsg.key === K1 && /문창재: .*25\.00%/.test(st.staffCollectMsg.text) && !st.staffCollectMsg.error, st.staffCollectMsg && st.staffCollectMsg.text);
+    assert.ok(st.staffChanges[K1].some((c) => c.item === '문창재' && /월급여\(응답\)/.test(c.after)) && st.staffChanges[K1].some((c) => c.item === '문창재' && /참여율 변경/.test(c.after)), '변경이력 두 줄');
+    click('st-co-apply-all');
+    const q2 = st.staffPlans[K1].people.find((x) => x.name === '박보람');
+    assert.ok(q2 && q2.manual === 4000000 && q2.plan.map((x) => [x.ym, x.amt]).join() === '2026-11,400000,2026-12,400000', '계획에 없던 사람은 응답으로 더함(11~12월 10% × 4,000천원)');
+    assert.ok(cur().applied['5'] > 0 && !cur().applied['4'], '다른 과제 줄은 반영 대상이 아님');
+    change({ stco: 'email', name: '김철수' }, ' Kim1@KRS.co.kr ');
+    assert.deepStrictEqual([cur().people[1].email, cur().people[1].status], ['kim1@krs.co.kr', ''], '이메일을 적으면 공유 전으로');
+    assert.ok(writes.some((w) => w.peopleEmails && w.peopleEmails['김철수'] === 'kim1@krs.co.kr'), '이름 → 이메일 캐시');
+    change({ stco: 'email', name: '김철수' }, 'nope');
+    assert.ok(st.staffCollectMsg.error && /이메일 모양/.test(st.staffCollectMsg.text) && cur().people[1].email === 'kim1@krs.co.kr');
+    change({ stco: 'message' }, '  내 글  ');
+    assert.strictEqual(cur().message, '내 글');
+    click('st-co-fetch');
+    assert.ok(sent.some((m) => m.type === 'collectFetch' && m.prjNo === P.prjNo && m.year === 1) && st.staffCollectBusy === K1, '백그라운드에 맡기고 진행 중 표시');
+    click('st-co-share');
+    assert.ok(!sent.some((m) => m.type === 'collectShare'), '진행 중이면 다른 요청은 무시');
+    keydown({ stco: 'email' }, 'Enter');
+  });
+  // 만들기 — 대상 이름·별칭·기간을 백그라운드에
+  const st2 = mk({ data: d, staffPlans: { [K1]: mkPlan() }, staffAliases: { [P.prjNo]: 'SSCB' } });   // 위 반영으로 바뀐 계획이 아니라 새 계획
+  withStaffActions(st2, ({ click, sent }) => {
+    click('st-co-create');
+    const m = sent.find((x) => x.type === 'collectCreate');
+    assert.deepStrictEqual([m.prjNo, m.year, m.names, m.alias, m.from, m.to], [P.prjNo, 1, ['문창재'], 'SSCB', '2026-04', '2026-12']);
+  });
+});
+
 function withStaffActions(st, run, localExtra = {}) {
   const listeners = {}, writes = [], sent = [];
   const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -901,6 +963,29 @@ test('지급 완료(2026-10-19 "지급된 월은 수정 못하게 … 월 우측
   const form = U.section(d, {}, st, '', TAB);
   assert.ok(form.includes('data-stf="from" value="2026-09-01" min="2026-09-01"') && form.includes('>8월까지 지급 완료 — 그 뒤 달부터</span>'), '적용일 하한 · 안내');
   st.staffEdit = null; st.staffDraft = null;
+  // 제외(−100%)도 먼저 고른 뒤 반영 — 선택한 9~10월만 0원, 지급 완료·선택 밖은 유지
+  withStaffActions(st, ({ click, input }) => {
+    const before = JSON.parse(JSON.stringify(st.staffPlans[K1].people));
+    click('st-edit', { id }); input('from', '2026-09-01'); input('to', '2026-10-31');
+    click('st-step', { id, kind: 'scale', step: '-100' });
+    assert.deepStrictEqual(st.staffDraft.step, { kind: 'scale', v: -100 });
+    assert.deepStrictEqual(st.staffPlans[K1].people, before, '제외를 골라도 반영 전에는 지급계획 그대로');
+    const pending = U.section(d, {}, st, '', TAB);
+    assert.ok(pending.includes('>반영 제외</button>') && pending.includes('aria-pressed="true">제외<small>−100%</small></button>') && pending.includes('<b>반영</b>을 누르면 — 제외 (−100%) — 9~10월 2,330 → 0천원'), '제외를 고른 상태와 반영 결과를 표시');
+    click('st-nudge', { id, kind: 'scale', dir: '-1' });
+    assert.strictEqual(st.staffDraft.step.v, -100, '제외에서 −1%를 눌러도 −100% 아래로 내려가지 않음');
+    click('st-nudge', { id, kind: 'scale', dir: '1' });
+    assert.strictEqual(st.staffDraft.step.v, -99, '제외에서 +1%를 누르면 −99%');
+    click('st-nudge', { id, kind: 'scale', dir: '-1' });
+    input('from', '2026-08-01'); click('st-apply', { id });
+    assert.ok(st.staffError.includes('지급이 끝난 달'), '제외도 지급 완료 달에는 반영할 수 없음');
+    assert.deepStrictEqual(st.staffPlans[K1].people, before, '잠긴 달에 반영을 시도해도 지급계획 그대로');
+    input('from', '2026-09-01'); click('st-apply', { id });
+    const after = st.staffPlans[K1].people.find((x) => x.id === id);
+    assert.deepStrictEqual(after.plan, before[0].plan.map((x) => x.ym === '2026-09' || x.ym === '2026-10' ? Object.assign({}, x, { amt: 0 }) : x), '9~10월만 제외하고 지급 완료 4~8월과 선택 밖 11~12월은 유지');
+    assert.deepStrictEqual(st.staffPlans[K1].people[1], before[1], '다른 연구원의 지급계획 유지');
+    assert.ok(!st.staffEdit && !st.staffDraft, '반영하면 제외 선택과 폼을 닫음');
+  });
   // 잠긴 구간(4~9월 전체가 지급 완료)의 칸은 읽기만 — 김거화를 9월까지 지급된 것으로
   const paid9 = Object.assign({}, paid, { through: '2026-09' });
   st.staffPlans[K1].paid = paid9; st.staffRows[P.prjNo].paid = paid9;
@@ -910,6 +995,56 @@ test('지급 완료(2026-10-19 "지급된 월은 수정 못하게 … 월 우측
   // 기본 날짜 — 잠긴 달 뒤부터(직전 날짜가 잠긴 달이어도)
   assert.deepStrictEqual([U.defaultRange(M, '2026-05', null, '2026-08'), U.defaultRange(M, '2026-10', null, '2026-08'), U.defaultRange(M, '2026-05', { from: '2026-06-15', to: '2026-07-31' }, '2026-08'), U.defaultRange(M, '2026-05', { from: '2026-10-15', to: '' }, '2026-08')],
     [{ from: '2026-09-01', to: '2026-12-31' }, { from: '2026-11-01', to: '2026-12-31' }, { from: '2026-09-01', to: '2026-12-31' }, { from: '2026-10-15', to: '' }]);
+});
+
+test('이전 차년도에서 가져오기 · 전체 참여개월(2026-10-20 "2차년도에는 일단 이전 차년도 정보 가져오기 … 연구원, 월급, 참여율 … 기간은 전체, 그리고 드래그 말고 전체 참여개월 선택하는 기능도") — 2차년도부터 단추 줄 맨 앞 [1차년도에서 가져오기](계획이 있으면 두 번), 빈 계획 안내, 1차년도 계획(없으면 그 기간의 rERP 등록)에서 기간 전체에; 격자 왼쪽 [전체]는 그 사람의 참여개월(지급 완료 뒤 · 달 중간 날까지)로 ✎ 폼', () => {
+  const rows = S.rowsOfErp(REC);
+  const staff = S.peopleOfErp(rows, { prjNo: P.prjNo, now: 1 });   // 1차년도: 문창재 1,165×8 + 1,159 (20.00%) · 김거화 2,328×8 + 2,322 (27.45%)
+  const plan1 = Object.assign({ prjNo: P.prjNo, year: 1, prjNm: P.prjNm, from: '2026-04', to: '2026-12', budgetPay: null, budget: null, at: 1, by: '', note: '' }, staff);
+  const st = mk({ data: d, research: { r2: rec2 }, staffPlans: { [K1]: plan1 } });
+  st.staffView.years[P.prjNo] = 2;
+  let html = U.section(d, {}, st, '', TAB);
+  assert.ok(/<div class="krext-st-acts">\s*<button type="button" class="krext-plan-btn" data-act="st-init-carry" title="1차년도 계획\(2명\)의 연구원\(성명·역할\)·월급여·참여율\(마지막 구간\)을 가져와 이 연차 기간 전체\(1~12월, 12개월\)의[^"]*">1차년도에서 가져오기<\/button>\s*<button type="button" class="krext-plan-btn" data-act="st-init-erp"/.test(html), '2차년도: 단추 줄 맨 앞');
+  assert.ok(html.includes('<b>1차년도에서 가져오기</b>(1차년도 연구원·월급여·참여율을 이 기간 전체에) 를 누르거나, 조회가 끝나면'), '빈 계획 안내');
+  st.staffView.years[P.prjNo] = 1;
+  assert.ok(!U.section(d, {}, st, '', TAB).includes('st-init-carry'), '1차년도에는 없음');
+  st.staffView.years[P.prjNo] = 2;
+  // 재료 — 계획 > 그 기간의 rERP 등록 지급계획 > 없음(조회했는데도 없으면 꺼짐)
+  assert.deepStrictEqual([U.carrySource(P, 2, st).from, U.carrySource(P, 1, st)], ['plan', null]);
+  const noPlan = mk({ data: d, staffRows: { [P.prjNo]: { at: 1, rows, others: {} } } });
+  assert.deepStrictEqual([U.carrySource(P, 2, noPlan).from, U.carrySource(P, 2, noPlan).staff.people.length, U.carrySource(P, 3, noPlan)], ['erp', 2, null], '1차년도 계획이 없으면 그 기간의 rERP 등록, 2차년도(2027)는 rERP 에 없음');
+  noPlan.staffView.years[P.prjNo] = 3;
+  assert.ok(U.section(d, {}, noPlan, '', TAB).includes('<button type="button" class="krext-plan-btn" data-act="st-init-carry" disabled title="2차년도 계획도, rERP 에 2차년도 기간의 지급계획도 없어 가져올 것이 없습니다">2차년도에서 가져오기</button>'), '가져올 것이 없으면 꺼짐');
+  withStaffActions(st, ({ box, click }) => {
+    box.dataset.styr = '2';
+    click('st-init-carry');
+    const p2 = st.staffPlans[K2];
+    assert.deepStrictEqual([p2.from, p2.to, p2.src, p2.people.map((q) => [q.name, q.role, q.plan.length, [...new Set(q.plan.map((x) => x.amt))]])],
+      ['2027-01', '2027-12', 'init', [['문창재', '참여연구원', 12, [1165000]], ['김거화', '과제책임자', 12, [2328000]]]], '1~12월 전체에 월급여 × 1차년도 참여율');
+    assert.ok(/^2차년도 참여연구원 2명 — 1차년도 계획에서 연구원·월급여·참여율을 가져와 1~12월 전체\(12개월\)에 · 초과금 6,016천원\.$/.test(st.staffMsg.text) && st.staffMsg.error, st.staffMsg.text);
+    assert.strictEqual(st.staffChanges[K2].slice(-1)[0].item, '참여인력 초기화', '변경이력');
+    // 계획이 있으면 두 번 — 처음은 묻기만
+    p2.people[0] = Object.assign({}, p2.people[0], { plan: p2.people[0].plan.map((x) => Object.assign({}, x, { amt: 0 })) });
+    click('st-init-carry');
+    assert.ok(st.staffArm && st.staffArm.key === `carry:${K2}` && p2.people[0].plan[0].amt === 0, '처음 누르면 묻기만');
+    assert.ok(U.section(d, {}, st, '', TAB).includes('>정말 가져오기</button>'));
+    click('st-init-carry');
+    assert.strictEqual(st.staffPlans[K2].people[0].plan[0].amt, 1165000, '두 번째에 바꿈');
+    // [전체] — 격자 왼쪽, 누르면 그 사람의 전체 참여개월로 폼, 다시 그리면 눌린 꼴
+    const id = st.staffPlans[K2].people[0].id;
+    html = U.section(d, {}, st, '', TAB);
+    assert.ok(html.includes(`<div class="krext-st-mowrap"><button type="button" class="krext-st-allpick" data-act="st-pick-all" data-id="${id}" data-from="2027-01-01" data-to="2027-12-31" aria-pressed="false" title="전체 참여개월 고르기 — 1~12월(12개월)의 달들을 한 번에 골라 폼을 엽니다"><span>전체</span><small>12개월</small></button><div class="krext-st-mogrids"><div class="krext-st-mogrid"`), '격자 왼쪽 [전체]');
+    click('st-pick-all', { id });
+    assert.deepStrictEqual([st.staffEdit, st.staffDraft.from, st.staffDraft.to], [{ prjNo: P.prjNo, year: 2, id, anchor: '2027-01' }, '2027-01-01', '2027-12-31']);
+    html = U.section(d, {}, st, '', TAB);
+    assert.ok(html.includes(`class="krext-st-allpick krext-st-picked" data-act="st-pick-all" data-id="${id}"`) && html.includes('aria-pressed="true" title="전체 참여개월') && (html.match(new RegExp(`krext-st-picked" data-act="st-pick" data-id="${id}"`, 'g')) || []).length === 12, '눌린 꼴 · 12달 모두 고름');
+    assert.ok(!U.section(d, {}, st, '', EDIT).includes('st-pick-all'), '패널 카드에는 없음');
+  });   // 변경 도우미의 init carry 는 tests/staff-chat.test.js
+  // wholePick — 지급이 있는 첫날 ~ 마지막 날(달 중간 날까지), 없으면 기간 전체, 지급이 끝난 달 뒤부터, 모두 잠기면 null
+  const M = S.ymRange('2026-04', '2026-12');
+  const part = S.normalizePerson({ name: 'x', plan: [{ ym: '2026-05', amt: 0 }, { ym: '2026-06', amt: 500000, from: '2026-06-15' }, { ym: '2026-07', amt: 1000000 }, { ym: '2026-08', amt: 600000, to: '2026-08-20' }] });
+  assert.deepStrictEqual([U.wholePick(part, M), U.wholePick(S.normalizePerson({ name: 'y' }), M), U.wholePick(staff.people[0], M, '2026-08'), U.wholePick(staff.people[0], M, '2026-12'), U.wholePick(part, [])],
+    [{ from: '2026-06-15', to: '2026-08-20', lo: '2026-06', hi: '2026-08', count: 3 }, { from: '2026-04-01', to: '2026-12-31', lo: '2026-04', hi: '2026-12', count: 9 }, { from: '2026-09-01', to: '2026-12-31', lo: '2026-09', hi: '2026-12', count: 4 }, null, null]);
 });
 
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

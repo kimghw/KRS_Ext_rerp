@@ -193,6 +193,23 @@ test('이전 기간 비율로 초기화 — 합은 정확히 예산, 모든 달 
   const prev = S.buildStaff(PERSONS, SPAN); prev.people[0].manual = 8500000;
   assert.strictEqual(S.initFromShares(S.sharesOfStaff(prev), { budgetPay: 1000000, span: Y2 }).people[0].manual, 8500000);
 });
+test('이전 차년도에서 가져오기(carryOver, 2026-10-20 "연구원, 월급, 참여율 정도 … 기간은 전체") — 성명·역할·월급여와 마지막 구간의 참여율을 기간 전체에 round천원(월급여 × %), 마지막이 제외면 뺌, 직접 적은 월급여 유지, 월급여를 모르면 마지막 구간 월 평균', () => {
+  const prev = S.peopleOfErp(S.rowsOfErp(REC), { prjNo: 'P', now: 1 });   // 문창재 4~11월 1,165 · 12월 1,159 (20.00%) · 김거화 2,328 · 2,322 (27.45%)
+  const Y2M = S.spanMonths(Y2), M1 = S.spanMonths(SPAN);
+  const c = S.carryOver(prev, Y2M);
+  assert.deepStrictEqual([c.basis, c.src, c.skipped, c.people.map((p) => [p.name, p.role, p.erp.monthly, p.plan.length, p.plan[0].ym, p.plan[11].ym])],
+    ['rerp', 'init', [], [['문창재', '참여연구원', 5823000, 12, '2027-01', '2027-12'], ['김거화', '과제책임자', 8480000, 12, '2027-01', '2027-12']]]);
+  assert.deepStrictEqual(c.people.map((p) => [...new Set(p.plan.map((x) => x.amt))]), [[1165000], [2328000]], '달마다 round천원(월급여 × 20.00% · 27.45%) — 1차년도 마지막 달 잔액(1,159 · 2,322)은 잇지 않음');
+  assert.deepStrictEqual(c.people.map((p) => S.personStats(p, 'rerp').total), [13980000, 27936000]);
+  assert.ok(c.people.every((p, i) => p.id !== prev.people[i].id && !p.cuts.length), '새 사람(id) · 구간 경계 없음');
+  const kim = S.applyChange(prev.people[1], 'rerp', { from: '2026-12-01', mode: 'rate', value: 20 }, M1);   // 4~11월 27.46% · 12월 20.00% — 마지막 구간
+  const moon = S.applyChange(prev.people[0], 'rerp', { from: '2026-12-01', mode: 'exclude' }, M1);   // 12월부터 제외 — 빠진 사람
+  const lee = S.normalizePerson({ name: '이수연', role: '참여연구원', manual: 4000000, plan: M1.map((ym) => ({ ym, amt: 1200000 })) });   // 직접 적은 월급여 4,000 · 30%
+  const noPay = S.normalizePerson({ name: '박무급', plan: [{ ym: '2026-10', amt: 1000000 }, { ym: '2026-11', amt: 1500000 }, { ym: '2026-12', amt: 1499000 }] });   // 월급여를 모름 — 마지막 구간(11~12월, 12월은 잔액) 월 평균 1,499.5 → 1,500
+  const c2 = S.carryOver({ basis: 'rerp', people: [moon, kim, lee, noPay] }, Y2M);
+  assert.deepStrictEqual([c2.skipped, c2.people.map((p) => [p.name, p.plan[0].amt, p.plan[11].amt, p.manual])], [['문창재'], [['김거화', 1696000, 1696000, null], ['이수연', 1200000, 1200000, 4000000], ['박무급', 1500000, 1500000, null]]]);
+  assert.deepStrictEqual([S.carryOver(null, Y2M), S.carryOver(prev, []), S.carryOver({ basis: 'rerp', people: [moon] }, Y2M)], [null, null, null], '재료·기간이 없거나 모두 빠지면 null');
+});
 test('100% 알림 — 같은 달에 rERP 값이 있으면 그것만, 정확히 100 은 아니고, 예산 초과·남음·월급여 없음', () => {
   const s = S.buildStaff(PERSONS, SPAN);
   s.people[1].erp = { monthly: 5823000, prjNo: 'P', at: 1, req: '9', seq: '2', others: [{ ym: '2026-04', rate: 64, amt: 0 }, { ym: '2026-05', rate: 85, amt: 0 }, { ym: '2026-06', rate: 0, amt: 0 }] };

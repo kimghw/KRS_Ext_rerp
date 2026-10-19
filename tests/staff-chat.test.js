@@ -87,7 +87,7 @@ test('core.parse — 통과한 작업만 필요한 칸으로, 모르는 작업·
     { op: 'add', newName: '이몽룡', role: '참여연구원', monthly: 0, from: '', to: '', mode: 'rate', value: 3, supportRole: '', ref: true },
   ]);
   const r2 = C.parse(i, { reply: 'x', ops: [
-    o({ op: 'init', how: 'prev' }), o({ op: 'init', how: 'x' }), o({ op: 'clear' }),
+    o({ op: 'init', how: 'prev' }), o({ op: 'init', how: 'x' }), o({ op: 'init', how: 'carry' }), o({ op: 'clear' }),
     o({ op: 'year', year: 2 }), o({ op: 'year', year: 0 }),
     o({ op: 'period', from: '2027-01', to: '2027-12' }), o({ op: 'period' }),
     o({ op: 'budget', value: 35000 }),
@@ -96,7 +96,7 @@ test('core.parse — 통과한 작업만 필요한 칸으로, 모르는 작업·
   ] });
   assert.strictEqual(r2.dropped, 5);
   assert.deepStrictEqual(r2.ops, [
-    { op: 'init', how: 'prev' }, { op: 'init', how: 'erp' }, { op: 'clear' },
+    { op: 'init', how: 'prev' }, { op: 'init', how: 'erp' }, { op: 'init', how: 'carry' }, { op: 'clear' },
     { op: 'year', year: 2 },
     { op: 'period', from: '2027-01', to: '2027-12' },
     { op: 'budget', value: 35000 },
@@ -111,9 +111,9 @@ test('core.opText — 작업마다 한 줄', () => {
     C.opText({ op: 'change', name: '문창재', from: '2026-11-01', to: '', mode: 'rate', value: 25 }), C.opText({ op: 'change', name: '김거화', from: '2026-12-01', to: '2026-12-31', mode: 'exclude' }), C.opText({ op: 'change', name: '문창재', from: '', mode: 'short', value: 100 }), C.opText({ op: 'change', name: '문창재', from: '2026-11-01', mode: 'fit' }),
     C.opText({ op: 'total', name: '문창재', value: 3000 }), C.opText({ op: 'monthly', name: '김거화', value: 0 }), C.opText({ op: 'role', name: '김거화', role: '참여연구원' }), C.opText({ op: 'remove', name: '김거화' }),
     C.opText({ op: 'add', newName: '홍길동', role: '참여연구원', monthly: 6000, from: '2026-07-01', mode: 'rate', value: 20 }), C.opText({ op: 'add', newName: '이몽룡', role: '행정지원', supportRole: '행정' }),
-    C.opText({ op: 'init', how: 'erp' }), C.opText({ op: 'clear' }), C.opText({ op: 'year', year: 2 }), C.opText({ op: 'period', from: '2027-01', to: '2027-12' }), C.opText({ op: 'budget', value: 35000 }), C.opText({ op: 'support_remove', name: '조주희' }),
+    C.opText({ op: 'init', how: 'erp' }), C.opText({ op: 'init', how: 'carry' }), C.opText({ op: 'clear' }), C.opText({ op: 'year', year: 2 }), C.opText({ op: 'period', from: '2027-01', to: '2027-12' }), C.opText({ op: 'budget', value: 35000 }), C.opText({ op: 'support_remove', name: '조주희' }),
   ], ['문창재 — 2026-11-01~ 참여율 25%', '김거화 — 2026-12-01~2026-12-31 제외', '문창재 — 전체 나머지의 100%', '문창재 — 2026-11-01~ 예산에 맞추기', '문창재 — 전체 지급 합 3,000천원', '김거화 — 월급여 rERP 값으로', '김거화 — 역할 참여연구원', '김거화 빼기',
-    '홍길동 더하기 (참여연구원 · 월급여 6,000천원 · 2026-07-01~ 참여율 20%)', '행정지원 이몽룡 더하기 (행정)', '초기화 — rERP 현재로', '이 연차 계획 지우기', '2차년도로', '기간 2027-01 ~ 2027-12', '인건비 예산 35,000천원', '행정지원 조주희 빼기']);
+    '홍길동 더하기 (참여연구원 · 월급여 6,000천원 · 2026-07-01~ 참여율 20%)', '행정지원 이몽룡 더하기 (행정)', '초기화 — rERP 현재로', '초기화 — 이전 차년도에서 가져오기', '이 연차 계획 지우기', '2차년도로', '기간 2027-01 ~ 2027-12', '인건비 예산 35,000천원', '행정지원 조주희 빼기']);
 });
 
 /* staff-ui 의 agent — 가짜 chrome(저장소는 바로 실행되는 thenable)·host 로 bind 한 뒤 snapshot·apply 를 부른다 */
@@ -220,6 +220,19 @@ test('agent.apply init — rERP 조회가 없으면 먼저 받는다(백그라�
     const call = sent.find((m) => m.type === 'callService');
     assert.ok(call && call.service === 'rtask_0008_t03_01_r001', 'rERP 참여인력 조회를 먼저');
     assert.strictEqual(typeof p.then, 'function');   // 가짜 sendMessage 는 답하지 않으므로 여기서는 기다리기만
+  });
+});
+test('agent.apply init carry — 이전 차년도에서 가져오기(2026-10-20): 1차년도에는 거부, 1차년도 계획의 연구원·월급여·참여율을 2차년도 기간 전체에(초과금 빨강이어도 성공), 계획이 있어도 한 번에(두 번 누르기 없음)', async () => {
+  await withAgent(async ({ api, st }) => {
+    let r = await api.agent.apply([{ op: 'init', how: 'carry' }]);
+    assert.deepStrictEqual([r[0].ok, r[0].text, r[0].msg], [false, '초기화 — 이전 차년도에서 가져오기', '1차년도에는 가져올 앞 연차가 없습니다.']);
+    r = await api.agent.apply([{ op: 'init', how: 'erp' }, { op: 'year', year: 2 }, { op: 'budget', value: 35900 }, { op: 'init', how: 'carry' }]);
+    assert.ok(r.every((x) => x.ok), JSON.stringify(r));
+    assert.ok(r[3].msg.startsWith('2차년도 참여연구원 2명 — 1차년도 계획에서 연구원·월급여·참여율을 가져와 1~12월 전체(12개월)에 · 초과금 6,016천원'), r[3].msg);
+    assert.deepStrictEqual(planOf(st, 2).people.map((q) => [q.name, q.plan.length, q.plan[0].amt, q.plan[11].ym]), [['문창재', 12, 1165000, '2027-12'], ['김거화', 12, 2328000, '2027-12']]);
+    personOf(st, '문창재', 2).plan[0].amt = 0;
+    r = await api.agent.apply([{ op: 'init', how: 'carry' }]);
+    assert.ok(r[0].ok && personOf(st, '문창재', 2).plan[0].amt === 1165000, JSON.stringify(r));
   });
 });
 

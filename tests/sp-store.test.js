@@ -5,6 +5,7 @@
  * v2 폴더 트리(2026-10-18 저녁 "업무/shared 안에 과제별로 … 참여연구원들에게 공유"): listFolders(모양 · Forms 제외 · Exists 규칙) · childCfg · writer.ensurePath(여러 단 — 문서함 뿌리 위로는 안 올라감) · sharedWithMe(nextLink 2쪽 · 폴더/파일 · cfg 는 폴더 주소가 풀릴 때만) ·
  * writer.sharePeople(피커 — 표시 이름이 꼭 같은 1명만, 1명이어도 이름이 다르면 ambiguous, 여럿/0명 · ShareObject 호출 모양 — odata=verbose · roleValue · peoplePickerInput JSON 문자열 · StatusCode≠0 → 한 명씩) · writer.orgLink(ShareLink → 실패 시 CreateOrganizationSharingLink) · writer.rename(MoveTo → MoveToUsingPath) ·
  * writer.at(같은 사이트의 다른 폴더 — 같은 작업 창·다이제스트, close 는 no-op, 사이트 밖은 badurl),
+ * 참여연구원 자료 요청(0.8.9): writer.createList(목록 · 칸(영문 내부 이름 · 한글 표시 이름 · 기본값) · 기본 보기 · 자기 항목만 · 있으면 빠진 칸만 · 다이제스트 거부 뒤 다시) · listItems(Author 펼침 · 404 notfound) · recycleList · 목록 경로 sharePeople(메일 알림 옵션),
  * 쿠키·다이제스트·피커 Key 값이 결과에 없는지, 페이지 함수가 바깥 변수를 쓰지 않는지. 가짜 fetch(메모리 폴더·파일(체크인 글 text · 체크아웃 초안 draft) · 요청 기록 · 다이제스트 검사 · 피커/공유/링크 끝점)·가짜 chrome(executeScript 는 func 를 실제로 호출해 가짜 fetch 위에서 돌림)만 쓴다 — 실 SharePoint 에 쓰지 않는다.
  * 실행: node tests/sp-store.test.js */
 globalThis.self = globalThis;
@@ -36,7 +37,7 @@ const DIGEST = '0xDIGEST-SECRET-ABC,18 Oct 2026 00:00:00 -0000';
  * st.pickerBodies · st.shareBodies · st.linkBodies = [{ headers, body }](받은 요청 그대로 — 호출 모양 검사용), st.shares = [{ url, roleValue, emails }](성공한 공유), st.unshares = [[폴더, principalId, roleId]](거둔 역할), st.searchUrls(사람 찾기 요청 주소) */
 function fakeSp(o) {
   o = o || {};
-  const st = { folders: {}, calls: [], digestIssued: 0, validDigests: new Set(), cookie: COOKIE, loggedIn: o.loggedIn !== false, pickerBodies: [], shareBodies: [], linkBodies: [], shares: [], unshares: [], searchUrls: [], perms: JSON.parse(JSON.stringify(o.perms || {})), nextPrincipal: 5000 };
+  const st = { folders: {}, calls: [], digestIssued: 0, validDigests: new Set(), cookie: COOKIE, loggedIn: o.loggedIn !== false, pickerBodies: [], shareBodies: [], linkBodies: [], shares: [], unshares: [], searchUrls: [], perms: JSON.parse(JSON.stringify(o.perms || {})), nextPrincipal: 5000, lists: {}, nextList: 0, listBodies: [], itemUrls: [] };
   const LIST_ID = 'aaaabbbb-0000-0000-0000-000000000001', ITEM_ID = 42;
   let seq = 0;
   const mkFile = (text) => ({ text, draft: null, version: 1, checkedOutBy: null, uniqueId: `${String(++seq).padStart(8, '0')}-0000-0000-0000-00000000ABCD`, modified: '2026-10-18T01:02:03Z' });
@@ -45,6 +46,7 @@ function fakeSp(o) {
   for (const [p, files] of Object.entries(o.files || {})) for (const [name, text] of Object.entries(files)) addFolder(p).files[name] = mkFile(text);
   for (const [name, who] of Object.entries(o.checkedOutBy || {})) for (const f of Object.values(st.folders)) if (f.files[name]) f.files[name].checkedOutBy = who;
   for (const [name, draft] of Object.entries(o.drafts || {})) for (const f of Object.values(st.folders)) if (f.files[name]) f.files[name].draft = draft;
+  for (const l of o.lists || []) st.lists[l.id] = Object.assign({ title: '', description: '', path: `/personal/kimghw_krs_co_kr/Lists/${l.title}`, fields: [{ InternalName: 'Title', Title: 'Title', Description: '', DefaultValue: null, kind: 2 }], viewFields: ['LinkTitle'], readSecurity: 1, writeSecurity: 1, items: [] }, l);   // 미리 있는 목록(참여연구원 자료 요청)
   const json = (obj, status, url) => ({ ok: (status || 200) >= 200 && (status || 200) < 300, status: status || 200, url: url || '', json: async () => obj, text: async () => JSON.stringify(obj) });
   const text = (s, status) => ({ ok: (status || 200) >= 200 && (status || 200) < 300, status: status || 200, url: '', json: async () => { throw new Error('not json'); }, text: async () => s });
   const login = () => ({ ok: true, status: 200, url: 'https://login.microsoftonline.com/common/oauth2/authorize?x=1', json: async () => ({}), text: async () => '<html>login</html>' });
@@ -136,6 +138,39 @@ function fakeSp(o) {
       const b = body(); st.linkBodies.push({ headers: H, body: b, at: 'CreateOrganizationSharingLink' });
       if (o.noOrgLink) return json({ 'odata.error': { message: { value: 'Sharing links are disabled by policy' } } }, 400);
       return json({ value: `${ORIGIN}/:f:/g/personal/kimghw_krs_co_kr/EFallback?e=${b && b.isEditLink ? 'edit' : 'view'}` });
+    }
+    // 목록(참여연구원 자료 요청 — createList · listItems · recycleList): st.lists[id] = { id, title, description, path, fields:[{ InternalName, Title, Description, DefaultValue, kind }], viewFields, readSecurity, writeSecurity, items }
+    const listInfo = (l) => ({ Id: l.id, Title: l.title, DefaultNewFormUrl: `${l.path}/NewForm.aspx`, DefaultViewUrl: `${l.path}/AllItems.aspx`, RootFolder: { ServerRelativeUrl: l.path } });
+    const listByTitle = (t) => Object.values(st.lists).find((l) => l.title === t);
+    let xm = new RegExp(`^web/lists/getbytitle\\('${LIT}'\\)(.*)$`).exec(rest);
+    if (xm) { const t = dec(xm[1]); st.calls.push([m, `list(${t})`]); if (o.deny403) return json({}, 403); const l = listByTitle(t); return l ? json(listInfo(l)) : json({ 'odata.error': { message: { value: 'List does not exist' } } }, 404); }
+    if (rest === 'web/lists') {
+      st.calls.push([m, 'lists']);
+      if (m !== 'POST' || !digestOk) return deny();
+      const b = body(); st.listBodies.push({ headers: H, body: b });
+      if (!b || !b.__metadata || b.__metadata.type !== 'SP.List') return json({ 'odata.error': { message: { value: '__metadata.type 없음' } } }, 400);
+      if (listByTitle(b.Title)) return json({ 'odata.error': { message: { value: 'A list with the specified title already exists' } } }, 400);
+      const id = `11111111-2222-3333-4444-${String(++st.nextList).padStart(12, '0')}`;
+      st.lists[id] = { id, title: b.Title, description: b.Description || '', path: `/personal/kimghw_krs_co_kr/Lists/${b.Title}`, fields: [{ InternalName: 'Title', Title: 'Title', Description: '', DefaultValue: null, kind: 2 }], viewFields: ['LinkTitle'], readSecurity: 1, writeSecurity: 1, items: [] };
+      return json({ Id: id, Title: b.Title });
+    }
+    xm = new RegExp(`^web/lists\\(guid'${LIT}'\\)(.*)$`).exec(rest);
+    if (xm) {
+      const id = dec(xm[1]), tail = xm[2], l = st.lists[id];
+      st.calls.push([m, `list#${id.slice(-3)}${tail.replace(/\?.*$/, '?')}`]);
+      if (o.deny403) return json({}, 403);
+      if (!l) return json({ 'odata.error': { message: { value: 'List does not exist' } } }, 404);
+      const isMerge = m === 'POST' && H['X-HTTP-Method'] === 'MERGE';
+      if (tail.startsWith('?$select=Id,Title,DefaultNewFormUrl')) return json(listInfo(l));
+      if (tail === '' && isMerge) { if (!digestOk) return deny(); const b = body(); if (b.ReadSecurity != null) l.readSecurity = b.ReadSecurity; if (b.WriteSecurity != null) l.writeSecurity = b.WriteSecurity; return json({}, 204); }
+      if (tail.startsWith('/fields?')) return json({ value: l.fields.map((f) => ({ InternalName: f.InternalName })) });
+      if (tail === '/fields/addfield') { if (m !== 'POST' || !digestOk) return deny(); const b = body(); const pr = b && b.parameters; if (!pr || !pr.__metadata || pr.__metadata.type !== 'SP.FieldCreationInformation') return json({}, 400); if (l.fields.some((f) => f.InternalName === pr.Title)) return json({ 'odata.error': { message: { value: 'duplicate' } } }, 400); l.fields.push({ InternalName: pr.Title, Title: pr.Title, Description: '', DefaultValue: null, kind: pr.FieldTypeKind, required: !!pr.Required }); return json({ InternalName: pr.Title, Title: pr.Title }); }
+      let fx;
+      if ((fx = new RegExp(`^/fields/getbyinternalnameortitle\\('${LIT}'\\)$`).exec(tail))) { if (!isMerge || !digestOk) return deny(); const f = l.fields.find((y) => y.InternalName === dec(fx[1])); if (!f) return json({}, 404); const b = body(); if (b.Title != null) f.Title = b.Title; if (b.Description != null) f.Description = b.Description; if (b.DefaultValue != null) f.DefaultValue = b.DefaultValue; return json({}, 204); }
+      if ((fx = new RegExp(`^/DefaultView/ViewFields/addViewField\\('${LIT}'\\)$`).exec(tail))) { if (m !== 'POST' || !digestOk) return deny(); l.viewFields.push(dec(fx[1])); return json({}, 200); }
+      if (tail.startsWith('/items?')) { st.itemUrls.push(u); return json({ value: l.items }); }
+      if (tail === '/recycle()') { if (m !== 'POST' || !digestOk) return deny(); delete st.lists[id]; return json('recycle-guid'); }
+      return text('nope', 404);
     }
     let lm = /^web\/Lists\(guid'([^']+)'\)\/GetItemById\((\d+)\)\/ShareLink$/.exec(rest);
     if (lm) {
@@ -1281,9 +1316,91 @@ await test('describe: kind 있는 오류 · kind 없는 Error(error) · 문자�
   assert.strictEqual(SP.describe(null).kind, 'error');
 });
 
+/* ----- 참여연구원 자료 요청(0.8.9) — 목록 ----- */
+const LIST_T = 'KR 참여현황 SSCB 1차년도';
+const LIST_FIELDS = [{ name: 'PeriodFrom', title: '시작(YYYY-MM)', kind: 2, desc: '시작' }, { name: 'Rate', title: '참여율(%)', kind: 9, desc: '%' }, { name: 'Note', title: '비고', kind: 3, desc: '' }];
+const TITLE_F = { title: '항목', desc: '이 과제면 그대로', defaultValue: '이 과제' };
+await test('writer.createList: 같은 제목이 없으면 POST lists(SP.List · 100 · verbose 본문) → 칸마다 addfield(영문 내부 이름) · MERGE 표시 이름·설명 · 기본 보기에 더함 → 제목 칸 MERGE(항목 · 기본값 "이 과제") → 목록 보안(자기 항목만) → 정보(절대 주소 · 디코딩한 경로); 다시 부르면 existed 로 빠진 칸만; 빈 제목은 badurl', async () => {
+  const F = fakeSp(); const C = fakeChrome(F.fetch);
+  const w = await SP.openWriter(CFG, { chrome: C });
+  const r = await w.createList({ title: LIST_T, description: '설명', fields: LIST_FIELDS, titleField: TITLE_F });
+  assert.strictEqual(r.existed, false); assert.ok(/^11111111-2222-3333-4444-/.test(r.id)); assert.strictEqual(r.title, LIST_T); assert.deepStrictEqual(r.warnings, []);
+  assert.strictEqual(r.path, `/personal/kimghw_krs_co_kr/Lists/${LIST_T}`);
+  assert.strictEqual(r.url, `${ORIGIN}/personal/kimghw_krs_co_kr/Lists/${encodeURIComponent(LIST_T)}`);
+  assert.strictEqual(r.newFormUrl, `${r.url}/NewForm.aspx`); assert.strictEqual(r.viewUrl, `${r.url}/AllItems.aspx`);
+  const l = F.st.lists[r.id];
+  assert.deepStrictEqual(l.fields.map((f) => [f.InternalName, f.Title, f.kind]), [['Title', '항목', 2], ['PeriodFrom', '시작(YYYY-MM)', 2], ['Rate', '참여율(%)', 9], ['Note', '비고', 3]], '내부 이름은 영문, 표시 이름은 한글');
+  assert.deepStrictEqual([l.fields[0].DefaultValue, l.fields[0].Description, l.fields[2].Description, l.description], ['이 과제', '이 과제면 그대로', '%', '설명']);
+  assert.deepStrictEqual(l.viewFields, ['LinkTitle', 'PeriodFrom', 'Rate', 'Note']);
+  assert.deepStrictEqual([l.readSecurity, l.writeSecurity], [2, 2], '응답자는 자기 항목만');
+  const cb = F.st.listBodies[0]; assert.strictEqual(cb.headers['Content-Type'], 'application/json;odata=verbose'); assert.strictEqual(cb.body.BaseTemplate, 100); assert.ok(cb.headers['X-RequestDigest']);
+  const seq = calls(F).filter((c) => /\blists?\b|list[(#]/.test(c));
+  assert.ok(seq[0] === `GET list(${LIST_T})` && seq[1] === 'POST lists' && seq.includes('POST list#001/fields/addfield') && seq[seq.length - 1] === 'GET list#001?', seq.join(' | '));
+  // 다시(지난번에 만들다 끊김 · 다이제스트 거부 뒤) — 있는 목록에 빠진 칸만
+  l.fields.splice(2, 1);   // Rate 가 빠진 상태로
+  const n0 = F.st.calls.length;
+  const r2 = await w.createList({ title: LIST_T, fields: LIST_FIELDS, titleField: TITLE_F });
+  assert.strictEqual(r2.existed, true); assert.strictEqual(r2.id, r.id); assert.strictEqual(r2.newFormUrl, r.newFormUrl);
+  const seq2 = calls(F, n0);
+  assert.ok(!seq2.includes('POST lists') && seq2.filter((c) => c.endsWith('/fields/addfield')).length === 1 && seq2.includes('GET list#001/fields?'), seq2.join(' | '));
+  assert.deepStrictEqual(l.fields.map((f) => f.InternalName), ['Title', 'PeriodFrom', 'Note', 'Rate']);
+  await rejects(w.createList({ title: '' }), 'badurl');
+  await w.close();
+});
+
+await test('writer.createList: 다이제스트가 만료됐으면 403(security validation) → 다시 받아 한 번 더(목록은 한 번만) · 로그인 풀림(403) → auth', async () => {
+  const F = fakeSp(); const C = fakeChrome(F.fetch);
+  const w = await SP.openWriter(CFG, { chrome: C });
+  F.expire();
+  const r = await w.createList({ title: LIST_T, fields: LIST_FIELDS, titleField: TITLE_F });
+  assert.strictEqual(r.existed, false); assert.strictEqual(Object.keys(F.st.lists).length, 1);
+  assert.strictEqual(calls(F).filter((c) => c === 'POST contextinfo').length, 2, '다이제스트를 다시 받음');
+  assert.strictEqual(calls(F).filter((c) => c === 'POST lists').length, 2, '첫 POST 는 403, 둘째가 만듦');
+  await w.close();
+  const w3 = await SP.openWriter(CFG, { chrome: fakeChrome(fakeSp({ deny403: true }).fetch) }).catch((e) => e);
+  assert.strictEqual(w3.kind, 'auth', '로그인이 풀린 사이트에서는 작업 창부터 auth');
+});
+
+await test('listItems: 목록 항목(Author 펼침 · $select 에 영문 칸만 · Modified desc · top 500) · 없는 목록 404 → notfound · 403 → auth · Id·사이트 주소 모양 아니면 badurl', async () => {
+  const items = [{ Id: 1, Title: '이 과제', PeriodFrom: '2026-11', PeriodTo: '2027-03', Rate: 25, Monthly: 5823, Note: '', Created: '2026-10-20T01:00:00Z', Modified: '2026-10-20T02:00:00Z', Author: { Title: 'MOON Changjae', EMail: 'cjmoon@krs.co.kr' } }];
+  const ID = '11111111-2222-3333-4444-000000000009';
+  const F = fakeSp({ lists: [{ id: ID, title: 'T', items }] });
+  const got = await SP.listItems(`${ORIGIN}/personal/kimghw_krs_co_kr/`, ID, { fetch: F.fetch }, { fields: ['PeriodFrom', 'Rate', 'Bad name!'] });
+  assert.deepStrictEqual(got, items);
+  const u = new URL(F.st.itemUrls[0]);
+  assert.strictEqual(u.pathname, `/personal/kimghw_krs_co_kr/_api/web/lists(guid'${ID}')/items`);
+  assert.strictEqual(u.searchParams.get('$select'), 'Id,Title,PeriodFrom,Rate,Badname,Created,Modified,Author/Title,Author/EMail');
+  assert.deepStrictEqual([u.searchParams.get('$expand'), u.searchParams.get('$orderby'), u.searchParams.get('$top')], ['Author', 'Modified desc', '500']);
+  await rejects(SP.listItems(`${ORIGIN}/personal/kimghw_krs_co_kr`, '11111111-2222-3333-4444-000000000008', { fetch: F.fetch }), 'notfound', /목록이 없습니다/);
+  await rejects(SP.listItems(`${ORIGIN}/personal/kimghw_krs_co_kr`, ID, { fetch: fakeSp({ deny403: true }).fetch }), 'auth');
+  await rejects(SP.listItems(`${ORIGIN}/personal/kimghw_krs_co_kr`, ID, { fetch: fakeSp({ loggedIn: false }).fetch }), 'auth');
+  await rejects(SP.listItems(`${ORIGIN}/personal/kimghw_krs_co_kr`, 'nope', { fetch: F.fetch }), 'badurl');
+  await rejects(SP.listItems('nope', ID, { fetch: F.fetch }), 'badurl');
+});
+
+await test('목록 경로 sharePeople(이메일로 · 메일 알림 옵션은 ShareObject sendEmail/제목/본문, 기본은 없음) · writer.recycleList(있으면 removed · 없으면 false · Id 모양 badurl)', async () => {
+  const ID = '11111111-2222-3333-4444-000000000009';
+  const F = fakeSp({ lists: [{ id: ID, title: 'T' }], people: PEOPLE }); const C = fakeChrome(F.fetch);
+  const w = await SP.openWriter(CFG, { chrome: C });
+  const listPath = '/personal/kimghw_krs_co_kr/Lists/T';
+  const r = await w.sharePeople(listPath, ['moon@krs.co.kr'], { role: 'edit', email: { subject: '자료 요청', body: '양식: https://x' } });
+  assert.deepStrictEqual(r.shared, [{ name: 'MOON Changjae', email: 'moon@krs.co.kr' }]);
+  const sb = F.st.shareBodies[F.st.shareBodies.length - 1].body;
+  assert.deepStrictEqual([sb.url, sb.sendEmail, sb.emailSubject, sb.emailBody, sb.roleValue], [`${ORIGIN}${listPath}`, true, '자료 요청', '양식: https://x', 'role:1073741827']);
+  await w.sharePeople(listPath, ['moon@krs.co.kr']);
+  const sb2 = F.st.shareBodies[F.st.shareBodies.length - 1].body;
+  assert.deepStrictEqual([sb2.sendEmail, sb2.emailSubject, sb2.emailBody], [false, '', ''], '기본은 메일 없음');
+  assert.ok(!JSON.stringify(r).includes('KEY-SECRET'), '피커 Key 는 결과에 없음');
+  assert.deepStrictEqual(await w.recycleList(ID), { removed: true });
+  assert.strictEqual(F.st.lists[ID], undefined);
+  assert.deepStrictEqual(await w.recycleList(ID), { removed: false });
+  await rejects(w.recycleList('x'), 'badurl');
+  await w.close();
+});
+
 await test('페이지 함수는 바깥 변수를 쓰지 않는다(직렬화 주입) — 모듈 안 이름이 소스에 없고 쿠키로 요청한다', () => {
   const names = Object.keys(SP._page);
-  assert.deepStrictEqual(names.sort(), ['spBegin', 'spCommit', 'spCreate', 'spDigest', 'spEnsureFolder', 'spOrgLink', 'spRecycle', 'spRelease', 'spRename', 'spSharePeople', 'spUnshare']);
+  assert.deepStrictEqual(names.sort(), ['spBegin', 'spCommit', 'spCreate', 'spCreateList', 'spDigest', 'spEnsureFolder', 'spOrgLink', 'spRecycle', 'spRecycleList', 'spRelease', 'spRename', 'spSharePeople', 'spUnshare']);
   for (const fn of Object.values(SP._page)) {
     const src = fn.toString();
     assert.ok(!/mkErr|encLit|encPath|AUTH_MSG|ACCEPT_JSON|errOfResult|errOfStatus|kindOfStatus|DEFAULT_COMMENT|checkName|metaOf|redirectedOut|ROLE_EDIT|ROLE_READ|ROLE_RANK|roleOfKind|PEOPLE_SOURCE|SHARED_MAX_PAGES|\bbadurl\b|\bfolderOf\b|\bfileOf\b|\bsharedItemOf\b|\blistChildren\b|\bspGet\b|\bapi\.|\bg\./.test(src), `${fn.name}: 바깥 이름 참조`);
