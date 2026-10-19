@@ -47,7 +47,7 @@ await test('파일 이름(yearName · isYearName · planName) · 폴더 이름(�
 
 await test('emptyYear · serialize 키 차례 고정 · parse 왕복 · 모르는 칸 보존(최상위·project·changes) · v1·JSON 아님·종류 모름은 null', () => {
   const e = D.emptyYear({ prjNo: 'P1', prjNm: '과제1', rspr: '김거화', who: '나', yearStart: '2026-04', yearEnd: '2026-12' }, 1);
-  assert.deepStrictEqual(e, { v: 2, kind: 'year', project: { prjNo: 'P1', prjNm: '과제1', rspr: '김거화', alias: '', aliasAt: 0, jobId: '', io: '', start: '', end: '', note: '' }, year: { n: 1, start: '2026-04', end: '2026-12' },
+  assert.deepStrictEqual(e, { v: 2, kind: 'year', project: { prjNo: 'P1', prjNm: '과제1', rspr: '김거화', alias: '', aliasAt: 0, jobId: '', io: '', start: '', end: '', note: '', support: [], supportAt: 0 }, year: { n: 1, start: '2026-04', end: '2026-12' },
     budget: [], staff: { plans: [], del: {} }, research: [], changes: [], updatedAt: '', updatedBy: '나' });
   const text = D.serialize(Object.assign({ workspace: { x: 1 }, zeta: 'z' }, e, {
     project: Object.assign({}, e.project, { jobId: 'RND1', extra: '보존' }), research: [rec('', 1, 'r2', 3)], budget: [{ name: '인건비', plan: '31,425,000', at: 5, by: '나' }, { name: '', plan: null }, 3],
@@ -59,7 +59,7 @@ await test('emptyYear · serialize 키 차례 고정 · parse 왕복 · 모르�
   assert.strictEqual(back.kind, 'year');
   const d = back.doc;
   assert.deepStrictEqual([d.workspace, d.zeta, d.project.jobId, d.project.extra], [{ x: 1 }, 'z', 'RND1', '보존']);
-  assert.deepStrictEqual(Object.keys(d.project), ['prjNo', 'prjNm', 'rspr', 'alias', 'aliasAt', 'jobId', 'io', 'start', 'end', 'note', 'extra']);
+  assert.deepStrictEqual(Object.keys(d.project), ['prjNo', 'prjNm', 'rspr', 'alias', 'aliasAt', 'jobId', 'io', 'start', 'end', 'note', 'support', 'supportAt', 'extra']);
   assert.deepStrictEqual(d.budget, [{ name: '인건비', plan: 31425000, at: 5, by: '나' }], '이름도 금액도 없는 줄·객체 아닌 것은 뺀다');
   assert.deepStrictEqual([d.staff.plans.map((p) => p.year), d.staff.del], [[1], { 'P1@1': 5 }], '연차 파일에는 그 연차 계획·묘비만');
   assert.deepStrictEqual(d.research.map((r) => r.id), ['mw급과제#1']);
@@ -88,7 +88,7 @@ await test('fromLocalYear: 과제·연차 몫만 — project(ERP meta·별칭·�
   const local = localOf();
   local.projects.P1.jobId = 'RND1'; local.projects.P1.at = 77;
   const L = D.fromLocalYear('P1', 1, local, META);
-  assert.deepStrictEqual(L.project, { prjNo: 'P1', prjNm: '과제1', rspr: '김거화', alias: 'SSCB', aliasAt: 10, jobId: 'RND1', io: '', start: '2026-04-01', end: '2026-12-31', note: '' });
+  assert.deepStrictEqual(L.project, { prjNo: 'P1', prjNm: '과제1', rspr: '김거화', alias: 'SSCB', aliasAt: 10, jobId: 'RND1', io: '', start: '2026-04-01', end: '2026-12-31', note: '', support: [], supportAt: 0 });
   assert.deepStrictEqual(D.fromLocalYear('P1', 1, local, Object.assign({}, META, { start: '2000-01-01', end: '2000-12-31' })).project.start, '2026-04-01', 'meta.start/end(옛 ERP 연차 기간 자리)는 받지 않는다 — 받아 둔 WORKSPACE 값만');
   assert.ok(!('stDt' in L.project) && !('endDt' in L.project) && !('anl' in L.project), 'ERP 연차 기간·연차는 문서 project 로 가지 않는다');
   assert.deepStrictEqual(L.year, { n: 1, start: '2026-04', end: '2026-12' });
@@ -127,7 +127,7 @@ await test('mergeYear: 파일 없음 → 로컬로 문서를 만든다(remoteCha
   const L = D.fromLocalYear('P1', 1, localOf(), META);
   const m = D.mergeYear(L, null, 100000, '나');
   assert.strictEqual(m.remoteChanged, true);
-  assert.deepStrictEqual(m.localChanged, { budget: false, staff: false, research: false, changes: false, alias: false, project: false });
+  assert.deepStrictEqual(m.localChanged, { budget: false, staff: false, research: false, changes: false, alias: false, support: false, project: false });
   assert.deepStrictEqual([m.year, m.doc.updatedAt, m.doc.updatedBy, m.doc.project.prjNm, m.doc.project.alias, m.doc.year], [1, '1970-01-01T00:01:40.000Z', '나', '과제1', 'SSCB', { n: 1, start: '2026-04', end: '2026-12' }]);
   assert.deepStrictEqual(m.doc.budget.map((r) => r.name), ['인건비', '연구활동비']);
   assert.ok(m.doc.research.every((r) => !('prjNo' in r) && !('linkBy' in r) && !('src' in r)), '문서의 기록에는 연결 칸이 없다');
@@ -147,6 +147,45 @@ await test('mergeYear: 파일 없음 → 로컬로 문서를 만든다(remoteCha
   assert.deepStrictEqual(D.mergeYear(D.fromLocalYear('P1', 1, l3, META), null, 100, '나').doc.staff.del, { 'P1@1': 5 }, '90일 안이면 묘비가 파일에 실린다');
 });
 
+await test('행정지원(project.support · supportAt — 2026-10-19 양쪽이 고침): 모양(열 명·이름 없는 줄 버림·같은 이름 한 번·ref 기본 참) · supportAt 큰 쪽(같은 내용이면 시각만) · 로컬에 시각이 없으면 지금 · want.support 끄면 파일 그대로 · fromLocal/toLocal · localPrjNos', () => {
+  assert.deepStrictEqual(D.normalizeSupport([{ name: ' 홍 길동 ', role: '행정 담당' }, { name: '홍길동', role: '중복' }, { name: '', role: 'x' }, { name: '이몽룡', ref: false }, null]), [{ name: '홍 길동', role: '행정 담당', ref: true }, { name: '이몽룡', role: '', ref: false }]);
+  assert.strictEqual(D.supportText([{ name: '홍길동', role: '행정 담당', ref: true }, { name: '이몽룡', role: '연구지원', ref: false }, { name: '성춘향', ref: false }]), '홍길동(행정 담당·참조), 이몽룡(연구지원), 성춘향');
+  const local = localOf();
+  local.support = { P1: { people: [{ name: '홍길동', role: '행정 담당', ref: true }], at: 300 } };
+  const L = D.fromLocalYear('P1', 1, local, META);
+  assert.deepStrictEqual([L.project.support, L.project.supportAt], [[{ name: '홍길동', role: '행정 담당', ref: true }], 300]);
+  assert.ok(D.localPrjNos({ support: { P9: { people: [{ name: 'a' }] }, P8: { people: [] } } }).includes('P9') && !D.localPrjNos({ support: { P8: { people: [] } } }).includes('P8'), '행정지원이 있는 과제도 로컬 자료가 있는 과제');
+  const R = (people, at, updatedAt) => Object.assign(D.emptyYear({ prjNo: 'P1', prjNm: '과제1', support: people, supportAt: at }, 1), { updatedAt: new Date(updatedAt || 5000).toISOString(), updatedBy: 'WORKSPACE' });
+  // 파일(WORKSPACE 가 고침, 400 > 300)이 이김 → 로컬이 받는다
+  let m = D.mergeYear(L, R([{ name: '이몽룡', role: '연구지원', ref: false }], 400), 100000, '나');
+  assert.deepStrictEqual([m.doc.project.support, m.doc.project.supportAt, m.localChanged.support, m.localChanged.alias], [[{ name: '이몽룡', role: '연구지원', ref: false }], 400, true, false]);
+  let back = D.toLocalYear('P1', 1, local, m);
+  assert.deepStrictEqual(back.support, { people: [{ name: '이몽룡', role: '연구지원', ref: false }], at: 400, all: { P1: { people: [{ name: '이몽룡', role: '연구지원', ref: false }], at: 400 } } });
+  assert.deepStrictEqual(Object.keys(back.project).sort(), ['at', 'end', 'io', 'jobId', 'note', 'start'], 'project 칸에는 행정지원이 안 들어간다(각자의 자리)');
+  // 로컬(300)이 파일(200)보다 새로우면 로컬이 이김 → 파일이 바뀌고 로컬은 그대로
+  m = D.mergeYear(L, R([{ name: '이몽룡' }], 200), 100000, '나');
+  assert.deepStrictEqual([m.doc.project.support[0].name, m.doc.project.supportAt, m.localChanged.support, m.remoteChanged], ['홍길동', 300, false, true]);
+  // 같은 내용이면 시각만 큰 쪽 · 파일에 없으면(옛 WORKSPACE) 로컬 것
+  m = D.mergeYear(L, R([{ name: '홍길동', role: '행정 담당', ref: true }], 900), 100000, '나');
+  assert.deepStrictEqual([m.doc.project.supportAt, m.localChanged.support], [900, true]);
+  const noField = R([], 0); delete noField.project.support; delete noField.project.supportAt;
+  m = D.mergeYear(L, noField, 100000, '나');
+  assert.deepStrictEqual([m.doc.project.support.length, m.doc.project.supportAt, m.localChanged.support], [1, 300, false]);
+  // 로컬 행정지원에 시각이 없으면 지금으로(로컬에 저장) · 빈 로컬은 시각 없어도 파일을 못 이기지 않음 → 파일 것
+  local.support.P1.at = 0;
+  m = D.mergeYear(D.fromLocalYear('P1', 1, local, META), R([{ name: '이몽룡' }], 200), 777, '나');
+  assert.deepStrictEqual([m.doc.project.support[0].name, m.doc.project.supportAt, m.localChanged.support], ['홍길동', 777, true]);
+  local.support = {};
+  m = D.mergeYear(D.fromLocalYear('P1', 1, local, META), R([{ name: '이몽룡' }], 200), 777, '나');
+  assert.deepStrictEqual([m.doc.project.support[0].name, m.doc.project.supportAt], ['이몽룡', 200]);
+  // want.support 를 끄면 파일 그대로(받지도 올리지도 않음)
+  local.support = { P1: { people: [{ name: '홍길동' }], at: 999 } };
+  m = D.mergeYear(D.fromLocalYear('P1', 1, local, META), R([{ name: '이몽룡' }], 200), 1, '나', { want: { support: false } });
+  assert.deepStrictEqual([m.doc.project.support[0].name, m.doc.project.supportAt, m.localChanged.support], ['이몽룡', 200, false]);
+  back = D.toLocalYear('P1', 1, local, D.mergeYear(D.fromLocalYear('P1', 1, local, META), R([], 1500), 1, '나'));
+  assert.deepStrictEqual(back.support, { people: [], at: 1500, all: { P1: { people: [], at: 1500 } } }, '파일에서 비운 것(지우기)도 시각이 새로우면 받는다');
+});
+
 await test('mergeYear project: ERP 칸(prjNm·rspr)은 로컬(ERP) 값, 비면 파일 것 · alias 는 aliasAt 큰 쪽 · jobId·io·start·end·note·모르는 칸은 파일이 로컬이 받은 시각보다 뒤면 파일 것(빈 값이라도) 아니면 로컬 것 · parts.project.at — start/end(과제 전체 연구기간)는 WORKSPACE 몫(rERP 가 아는 날짜는 연차 기간)', () => {
   const local = localOf();
   local.projects.P1.jobId = 'RND-OLD'; local.projects.P1.at = 1000; local.projects.P1.rspr = '';
@@ -154,7 +193,7 @@ await test('mergeYear project: ERP 칸(prjNm·rspr)은 로컬(ERP) 값, 비면 �
   const R = Object.assign(D.emptyYear({ prjNo: 'P1', prjNm: '파일 과제명', rspr: '파일 책임자', alias: 'SSCB2', aliasAt: 20, jobId: 'RND-NEW', io: 'IO1', note: '메모', start: '2020-01-01', end: '2020-12-31' }, 1), { updatedAt: new Date(5000).toISOString(), updatedBy: 'WORKSPACE' });
   R.project.extra = { ws: true };
   const m = D.mergeYear(L, R, 100000, '나');
-  assert.deepStrictEqual(m.doc.project, { prjNo: 'P1', prjNm: 'ERP 과제명', rspr: '파일 책임자', alias: 'SSCB2', aliasAt: 20, jobId: 'RND-NEW', io: 'IO1', start: '2020-01-01', end: '2020-12-31', note: '메모', extra: { ws: true } });
+  assert.deepStrictEqual(m.doc.project, { prjNo: 'P1', prjNm: 'ERP 과제명', rspr: '파일 책임자', alias: 'SSCB2', aliasAt: 20, jobId: 'RND-NEW', io: 'IO1', start: '2020-01-01', end: '2020-12-31', note: '메모', support: [], supportAt: 0, extra: { ws: true } });
   assert.deepStrictEqual([m.localChanged.alias, m.localChanged.project, m.remoteChanged, m.parts.project.at], [true, true, true, 5000], 'ERP 과제명이 파일과 달라 파일도 바뀜 · 로컬은 jobId·io·start·end·note·extra 를 받음(파일 5000 > 로컬이 받은 시각 1000)');
   // 파일이 로컬이 받은 시각보다 앞이면 로컬의 WORKSPACE 칸이 이김(연차 파일 여럿에 퍼뜨리는 길)
   local.projects.P1.at = 9000;
@@ -283,7 +322,7 @@ await test('toLocalYear: 그 과제·연차 몫만 갈아 넣고 다른 연차·
     research: [D.cleanRec(rec('P1', 1, 'r3', 2)), D.cleanRec(rec('P1', 1, 'r0', 1, { id: '새것#1', name: '새것' }))],
     changes: [change('c15', '2026-10-03', '예산', 'ws', '1', '2')], updatedAt: new Date(7000).toISOString(), updatedBy: 'WS' });
   const m = D.mergeYear(L, R, 100000, '나');
-  assert.deepStrictEqual(m.localChanged, { budget: true, staff: true, research: true, changes: true, alias: true, project: true });
+  assert.deepStrictEqual(m.localChanged, { budget: true, staff: true, research: true, changes: true, alias: true, support: false, project: true });
   const back = D.toLocalYear('P1', 1, local, m, { src: 'SSCB/1차년도.json' });
   // 사업비: P1@1 만 바뀜, P1@2 · P2@1 · 옛 키 P1 그대로(옛 키는 연차가 없어 이 연차 몫이 아님)
   assert.deepStrictEqual(Object.keys(back.staff.plans).sort(), ['P1', 'P1@1', 'P1@2', 'P2@1']);
@@ -299,6 +338,7 @@ await test('toLocalYear: 그 과제·연차 몫만 갈아 넣고 다른 연차·
   assert.deepStrictEqual([back.changes.key, back.changes.year, back.changes.list.map((c) => c.id), back.changes.all['P1@1'].length, back.changes.all['P1@2'].map((c) => c.id), back.changes.all['P2@1'].length], ['P1@1', 1, ['c10', 'c15', 'c20'], 3, ['c30'], 1]);
   // 별칭
   assert.deepStrictEqual(back.alias, { alias: 'SSCB2', aliasAt: 20, aliases: { P1: 'SSCB2', P2: 'X' }, aliasesAt: { P1: 20 } });
+  assert.deepStrictEqual(back.support, { people: [], at: 0, all: {} }, '행정지원이 양쪽에 없으면 빈 것');
   // project: WORKSPACE 몫(jobId·io·start·end·note)과 받은 시각만(ERP 칸·별칭은 넣지 않음 — 배선이 그대로 shareProjects[prj] 에 겹친다). 파일(7000)이 로컬이 받은 시각(0)보다 뒤라 빈 start/end 도 받는다
   assert.deepStrictEqual(back.project, { jobId: 'RND1', io: 'IO1', start: '', end: '', note: '', at: 7000 });
   assert.deepStrictEqual(back.research.others, {}, '이 과제 기록만 받았으면 others 는 비어 있다');

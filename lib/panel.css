@@ -34,6 +34,7 @@
 .krext-updated { flex: 1; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .krext-btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.12); color: #fff; border-radius: 7px; width: 26px; height: 24px; line-height: 20px; font-size: 14px; cursor: pointer; padding: 0; }
 .krext-btn svg { display: block; width: 14px; height: 14px; }
+.krext-btn-m { font-weight: 700; font-size: 13px; line-height: 1; letter-spacing: .02em; }   /* 사업비 관리 — 글자 M (2026-10-19 사용자 "그냥 M 넣어줘") */
 .krext-btn.krext-spin svg { animation: krext-spin 1s linear infinite; }
 @keyframes krext-spin { to { transform: rotate(360deg); } }
 .krext-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: rgba(255,255,255,.7); vertical-align: 1px; }
@@ -657,6 +658,15 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-ws .krext-st-status { margin: 0 0 4px; }
 .krext-ws-tools .krext-st-status { flex: 1; min-width: 0; margin: 0 auto 0 0; font-size: 11px; }
 .krext-ws-tools > button { flex: none; }
+/* 참여연구원 변경 — 패널 카드의 단추 하나(파란 테두리, 브라우저 탭으로 — 2026-10-19 사용자 "추가 메뉴버튼만 rerp 에 참여연구원 변경 버튼만")와 그 탭의 꼴: 접지 않는 카드 머리, 과제 머리의 과제번호·책임자 줄과 과제 정보 링크 */
+.krext-ws .krext-st-tab { background: var(--ws-surface); box-shadow: inset 0 0 0 1px var(--ws-pick); color: var(--ws-pick); font-weight: 600; }
+.krext-ws .krext-st-tab:hover { background: var(--ws-soft); }
+.krext-ws .krext-st-tab svg { vertical-align: -1px; margin-left: 1px; }
+.krext-ws-cardhead.krext-ws-pinned { cursor: default; }
+.krext-ws-cardhead.krext-ws-pinned:hover { color: var(--ws-muted); }
+.krext-ws-focus-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.krext-ws-focus-link { flex: none; margin-left: auto; font-size: 12px; white-space: nowrap; }
+.krext-st-focus .krext-ws-head { margin-bottom: 10px; }
 .krext-ws .krext-st-table { margin-top: 2px; }
 /* 과제 카드의 공유 줄 (0.8.7 v2, lib/staff-ui.js shareLine — 공유 (Plus) 켜짐): 과제 폴더 이름 · 폴더 열기 · 참여연구원에게 공유 · 링크 복사 · 주소 복사 · 결과 */
 .krext-ws-share { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--ws-line); font-size: 12px; color: var(--ws-muted); }
@@ -672,7 +682,9 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-ws .krext-st-table { min-width: 490px; margin: 6px 0 2px; font-size: 12px; line-height: 1.4; }
 .krext-ws .krext-st-table th { padding: 3px 6px; background: transparent; color: var(--ws-muted); border-color: var(--ws-line); }
 .krext-ws .krext-st-table td { padding: 4px 6px; border-color: color-mix(in srgb, var(--ws-line) 55%, transparent); }
-.krext-ws .krext-st-table .krext-st-nm, .krext-ws .krext-st-row > td:nth-child(2) { white-space: nowrap; }
+.krext-ws .krext-st-table.krext-st-view { min-width: 0; }   /* 패널 카드의 보기 표(WORKSPACE 와 같은 꼴 — 칸 없음)는 카드 너비에 맞춤 */
+.krext-ws .krext-st-table .krext-st-nm, .krext-ws .krext-st-table .krext-st-role-cell { width: 1%; white-space: nowrap; }   /* 성명·역할은 내용 너비만 — 남는 너비는 참여 칸으로 (2026-10-19 사용자 "성명 역할 사이 여백 너무 많고") */
+.krext-ws .krext-st-table .krext-st-role-cell { color: var(--ws-muted); }
 .krext-ws .krext-st-table .krext-st-in { height: 26px; border-radius: 7px; color: var(--ws-fg); }
 .krext-ws .krext-st-table .krext-st-in:hover, .krext-ws .krext-st-table .krext-st-in:focus { border-color: var(--ws-line); background: var(--ws-soft); }
 .krext-ws .krext-st-table .krext-st-in:focus-visible { outline: 2px solid var(--ws-pick); outline-offset: 2px; }
@@ -685,6 +697,39 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-ws .krext-st-months .krext-st-mo.krext-st-off b { color: var(--ws-faint); }
 .krext-ws .krext-st-month-toggle { font-size: 12px; font-weight: 700; }
 .krext-ws .krext-st-month-toggle.krext-on { color: var(--ws-pick); background: var(--ws-pick-soft); }
+/* 참여인력: 기간 구간이 둘 이상이면 구간마다 한 줄(성명·역할·월급여·✎× 는 rowspan) — 성명 밑에 연간 합·참여율, 머리의 부족금은 주황(초과금은 krext-red) */
+.krext-st-sum { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; line-height: 1.3; color: #8a919c; white-space: normal; max-width: 150px; }
+.krext-st-sum span { display: inline-block; white-space: nowrap; }
+.krext-st-sum span + span::before { content: "· "; color: #b8bec8; }
+.krext-ws .krext-st-sum { color: var(--ws-muted); }
+.krext-st-table .krext-st-nm { vertical-align: middle; }
+.krext-st-table .krext-st-run td { border-top: 0; }
+.krext-st-short { color: #c77700; }
+.krext-ws .krext-st-short { color: var(--ws-plan, #c77700); }
+.krext-st-form .krext-plan-form input[type="date"] { width: 128px; padding: 2px 4px; font-variant-numeric: tabular-nums; }
+/* 행정지원 구역(참여인력 카드 아래, 과제 공통 — KRS WORKSPACE 와 양쪽이 고침, WORKSPACE rd-support 와 같은 꼴): 머리(행정지원 · 사람 더하기 아이콘) · 표(성명 · 맡은 일 · 공문 참조 · ×) — 칸은 테두리 없이 표 안에 바로, 올리거나 초점을 주면 바탕이 드러남 */
+.krext-st-sup { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e3eaf3; font-size: 12px; }
+.krext-ws .krext-st-sup { border-color: var(--ws-line); }
+.krext-st-sup-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.krext-st-sup-head strong { flex: none; font-size: 13px; }
+.krext-st-sup-head .krext-ico-btn { flex: none; margin-left: auto; }
+.krext-ws .krext-st-table.krext-st-sup-table { min-width: 0; margin-top: 4px; }
+.krext-st-sup-table th:nth-child(n+3), .krext-st-sup-table td:nth-child(n+3) { width: 1%; text-align: center; white-space: nowrap; }
+.krext-ws .krext-st-table.krext-st-sup-table .krext-st-nm { width: 32%; }
+.krext-st-sup-table td { padding: 2px 4px 2px 0; }
+.krext-st-sup-table .krext-st-act { text-align: center; }
+.krext-st-sup-table .krext-st-support-ref { display: inline-flex; justify-content: center; margin: 0; }
+.krext-st-support-row input[type="text"] { box-sizing: border-box; width: 100%; min-width: 60px; height: 26px; padding: 2px 6px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #222; font-family: inherit; font-size: 12px; line-height: 1.4; }
+.krext-st-support-row .krext-st-nm input[type="text"] { font-weight: 600; }
+.krext-st-support-row input[type="text"]::placeholder { font-weight: 400; color: #a0a7b2; }
+.krext-st-support-row input[type="text"]:hover, .krext-st-support-row input[type="text"]:focus { background: #fff; border-color: #c9d1dc; outline: none; }
+.krext-ws .krext-st-support-row input[type="text"] { color: var(--ws-fg); }
+.krext-ws .krext-st-support-row input[type="text"]:hover, .krext-ws .krext-st-support-row input[type="text"]:focus { background: var(--ws-soft); border-color: transparent; }
+.krext-st-table .krext-st-role { width: auto; min-width: 64px; height: 26px; padding: 2px 6px; border: 1px solid transparent; border-radius: 7px; background: #f5f5f7; color: #222; font-family: inherit; font-size: 12px; }
+.krext-ws .krext-st-role { background: var(--ws-soft); color: var(--ws-fg); }
+.krext-st-table .krext-st-role:hover, .krext-st-table .krext-st-role:focus { border-color: #c9d1dc; background: #fff; }
+.krext-st-support-ref { display: flex; align-items: center; gap: 4px; margin-top: 5px; color: #6b7480; font-size: 11px; white-space: nowrap; }
+.krext-st-support-ref input, .krext-st-form .krext-plan-form input[type="checkbox"] { width: 14px; height: 14px; margin: 0; }
 .krext-ws .krext-plan-acts button { min-width: 24px; min-height: 24px; border-radius: 8px; color: var(--ws-muted); }
 .krext-ws .krext-plan-acts button:hover { color: var(--ws-pick); background: var(--ws-pick-soft); }
 .krext-ws .krext-plan-form input, .krext-ws .krext-plan-form select, .krext-ws-note input[type="month"] { height: 28px; min-width: 0; padding: 3px 6px; border: 1px solid transparent; border-radius: 8px; color: var(--ws-fg); background: var(--ws-soft); box-shadow: none; }
@@ -713,3 +758,167 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-ws-reason-peek { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .krext-ws-reason[open] > summary .krext-ws-reason-peek { display: none; }
 .krext-ws-reason-text { margin: 2px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+
+/* Dedicated staff editor: a spacious workspace, scoped away from the compact ERP panels. */
+html.krext-only { background: #f3f6fa; }
+html.krext-only body { background: #f3f6fa; }
+html.krext-only .krext-panel.krext-popup { display: flex; flex-direction: column; min-height: 0; background: #f3f6fa; color: #22324b; }
+html.krext-only .krext-head { flex: none; min-height: 60px; padding: 14px 32px; gap: 12px; background: #183452; border-bottom: 1px solid #274665; }
+html.krext-only .krext-title { font-size: 15px; letter-spacing: -.2px; }
+html.krext-only .krext-updated { font-size: 13px; color: #c2d0df; opacity: 1; }
+html.krext-only .krext-head .krext-btn { width: 32px; height: 32px; border-color: #4b6580; border-radius: 8px; background: #28445f; }
+html.krext-only .krext-head .krext-btn:hover { background: #385976; }
+html.krext-only .krext-head .krext-btn:focus-visible { outline: 2px solid #b9d7ff; outline-offset: 3px; }
+html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 32px; background: #f3f6fa; }
+html.krext-only .krext-foot { flex: none; padding: 16px 32px; gap: 10px 22px; border-top-color: #e0e7ef; background: #f3f6fa; color: #5f7188; font-size: 13px; }
+html.krext-only .krext-foot a { color: #536980; }
+html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-color: #e0e7ef; }
+
+.krext-st-focus {
+  --ws-bg: #f3f6fa; --ws-surface: #fff; --ws-soft: #f5f7fa;
+  --ws-fg: #22324b; --ws-muted: #65758b; --ws-faint: #65758b; --ws-line: #e1e7ef;
+  --ws-pick: #2563c4; --ws-pick-soft: #edf4ff; --ws-danger: #bd3947;
+  --ws-shadow: 0 3px 12px rgb(25 44 72 / 3%);
+  margin-bottom: 0; font-size: 16px; line-height: 1.6;
+}
+.krext-st-focus > .krext-sec-title { margin-bottom: 24px; gap: 8px 12px; }
+.krext-st-focus .krext-sub { font-size: 13px; }
+.krext-st-focus .krext-page-title { color: #172b45; font-size: 26px; font-weight: 700; letter-spacing: -.8px; line-height: 1.3; }
+.krext-st-focus .krext-page-desc { margin-top: 3px; font-size: 15px; line-height: 1.6; }
+.krext-st-focus .krext-st-scope-note { padding: 3px 9px; border: 1px solid #dce5f0; border-radius: 6px; background: #eaf0f8; color: #5c708c; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.krext-st-focus .krext-ws-card { margin-bottom: 20px; padding: 20px 24px; border-radius: 14px; border-color: #dfe6ee; }
+.krext-st-focus .krext-ws-head { margin-bottom: 20px; padding: 22px 24px 20px; border-color: #dce5f1; }
+.krext-st-focus .krext-ws-project-heading { align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+.krext-st-focus .krext-ws-project-heading > svg { width: 20px; height: 20px; margin-top: 4px; color: #547397; }
+.krext-st-focus .krext-ws-project-copy { flex: 1 1 auto; min-width: 0; }
+.krext-st-focus .krext-ws-name { display: block; color: #223853; font-size: 18px; font-weight: 700; line-height: 1.4; letter-spacing: -.3px; white-space: normal; overflow-wrap: anywhere; }
+.krext-st-focus .krext-ws-project-fullname { margin-top: 4px; color: #526a86; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.krext-st-focus .krext-ws-focus-meta { display: block; margin-top: 5px; color: #65758b; font-size: 13px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+.krext-st-focus .krext-ws-focus-link { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; margin-top: 1px; padding: 4px 10px; border: 1px solid #dbe5f2; border-radius: 7px; background: #f8faff; color: #315e99; font-size: 14px; }
+.krext-st-focus .krext-ws-focus-link:hover { background: #edf4ff; text-decoration: none; }
+.krext-st-focus .krext-ws-focus-link svg { width: 12px; height: 12px; }
+.krext-st-focus .krext-ws-years { gap: 8px; margin-top: 0; padding: 5px; border: 1px solid #e7edf4; border-radius: 11px; background: #f4f7fb; }
+.krext-st-focus .krext-ws-year { min-height: 42px; padding: 7px 14px; border-color: transparent; border-radius: 7px; background: transparent; color: #5d6e84; font-size: 15px; font-weight: 600; }
+.krext-st-focus .krext-ws-year small, .krext-st-focus .krext-ws-year .krext-badge { font-size: 13px; line-height: 18px; }
+.krext-st-focus .krext-ws-year:hover { background: #e8eff9; }
+.krext-st-focus .krext-ws-year.krext-on { background: #2563c4; border-color: #2563c4; color: #fff; box-shadow: 0 2px 4px rgb(37 99 196 / 12%); }
+.krext-st-focus .krext-ws-year.krext-ws-add { border-color: #d8e2ee; background: #fff; color: #466b9e; }
+.krext-st-focus .krext-ws-note { gap: 7px; margin-top: 18px; color: #65758b; font-size: 14px; }
+.krext-st-focus .krext-ws-note b { margin-right: 2px; font-weight: 600; }
+.krext-st-focus .krext-ws-note input[type="month"] { width: 180px; height: 40px; padding: 5px 10px; border-color: #dde5ef; border-radius: 7px; background: #fff; font-size: 16px; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned { min-height: 30px; margin-bottom: 18px; color: #637c9b; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned > svg { width: 18px; height: 18px; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned > span:first-of-type { font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { display: none; }
+.krext-st-focus .krext-ws-body { padding-bottom: 0; }
+.krext-st-focus .krext-st-overview { display: grid; grid-template-columns: minmax(0, .8fr) repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.krext-st-focus .krext-st-metric { min-width: 0; padding: 16px 18px; border: 1px solid #e5ebf2; border-radius: 10px; background: #f8fafc; }
+.krext-st-focus .krext-st-metric-label { display: block; margin-bottom: 7px; color: #5f7188; font-size: 14px; font-weight: 500; }
+.krext-st-focus .krext-st-metric strong { display: block; color: #233a57; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+.krext-st-focus .krext-st-metric strong small { margin-left: 5px; color: #5f7188; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.krext-st-focus .krext-st-metric-note { display: block; margin-top: 6px; color: #5f7188; font-size: 13px; line-height: 1.5; }
+.krext-st-focus .krext-st-metric-total { border-color: #d8e6fa; background: #f0f6ff; }
+.krext-st-focus .krext-st-metric-total strong { color: #225ab0; }
+.krext-st-focus .krext-st-metric-over { border-color: #f0d3d7; background: #fff6f6; }
+.krext-st-focus .krext-st-metric-over strong, .krext-st-focus .krext-st-metric-over .krext-st-metric-note { color: #b43243; }
+.krext-st-focus .krext-st-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.krext-st-focus .krext-st-acts { flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.krext-st-focus .krext-plan-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 6px 12px; border: 1px solid #dce4ed; border-radius: 7px; background: #fff; color: #4b627f; font-size: 14px; font-weight: 500; }
+.krext-st-focus .krext-plan-btn:hover { background: #f2f6fc; border-color: #c7d7eb; }
+.krext-st-focus .krext-plan-btn[data-act="st-add"], .krext-st-focus .krext-plan-save { background: #2563c4; color: #fff; border-color: #2563c4; font-weight: 600; }
+.krext-st-focus .krext-plan-btn[data-act="st-add"]:hover, .krext-st-focus .krext-plan-save:hover { background: #1c53aa; border-color: #1c53aa; }
+.krext-st-focus .krext-plan-btn[data-act="st-clear"] { margin-left: auto; color: #7d7180; border-color: transparent; background: transparent; }
+.krext-st-focus .krext-plan-btn[data-act="st-clear"]:hover, .krext-st-focus .krext-plan-btn[data-act="st-clear"].krext-red { color: #b43243; border-color: #efd1d5; background: #fff0f1; }
+.krext-st-focus .krext-ws-tools { gap: 5px; margin: 0 0 12px; }
+.krext-st-focus .krext-st-status { color: #65758b; font-size: 13px; }
+.krext-st-focus .krext-ico-btn { width: 36px; height: 36px; min-height: 36px; border: 1px solid #e1e8f1; border-radius: 7px; background: #fff; color: #65758b; }
+.krext-st-focus .krext-st-month-toggle { font-size: 14px; }
+.krext-st-focus .krext-ico-btn:hover, .krext-st-focus .krext-ico-btn.krext-on { border-color: #cfdef2; background: #edf4ff; color: #2563c4; }
+.krext-st-focus .krext-st-table-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin: 14px 0 9px; color: #5f7188; font-size: 13px; }
+.krext-st-focus .krext-ws-table-scroll { border: 1px solid #e3e9f1; border-radius: 10px; background: #fff; }
+.krext-st-focus .krext-st-table { min-width: 860px; margin: 0; font-size: 16px; line-height: 1.5; }
+.krext-st-focus .krext-st-table th { padding: 12px 14px; background: #f5f8fc; border-bottom: 1px solid #e1e8f1; color: #62738b; font-size: 14px; font-weight: 600; }
+.krext-st-focus .krext-st-table td { padding: 12px 14px; border-bottom-color: #edf1f6; vertical-align: middle; }
+.krext-st-focus .krext-st-row { height: 84px; }
+.krext-st-focus .krext-st-row:hover > td { background: #fcfdff; }
+.krext-st-focus .krext-st-table .krext-st-nm { min-width: 118px; color: #233c59; font-weight: 600; vertical-align: middle; }
+.krext-st-focus .krext-st-table .krext-st-in { width: 108px; height: 40px; padding: 6px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
+.krext-st-focus .krext-st-table .krext-st-rate { width: 100px; }
+.krext-st-focus .krext-st-table .krext-st-role { width: auto; min-width: 96px; height: 40px; padding: 6px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
+.krext-st-focus .krext-st-support-row input[type="text"] { height: 40px; padding: 6px 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #29415e; font-size: 16px; }
+.krext-st-focus .krext-st-sup { margin-top: 20px; padding-top: 16px; }
+.krext-st-focus .krext-st-sup-head strong { font-size: 16px; }
+.krext-st-focus .krext-st-table.krext-st-sup-table { min-width: 0; }
+.krext-st-focus .krext-st-sup-table td { padding: 6px 8px 6px 0; }
+.krext-st-focus .krext-st-table .krext-st-in:hover { background: #fff; border-color: #b9cbe2; }
+.krext-st-focus .krext-st-table .krext-st-in:focus { background: #fff; border-color: #5d8fd8; }
+.krext-st-focus .krext-st-table .krext-st-role:hover, .krext-st-focus .krext-st-support-row input[type="text"]:hover { background: #fff; border-color: #b9cbe2; }
+.krext-st-focus .krext-st-table .krext-st-role:focus, .krext-st-focus .krext-st-support-row input[type="text"]:focus { background: #fff; border-color: #5d8fd8; }
+.krext-st-focus .krext-st-tag { margin-top: 5px; padding-right: 3px; color: #65758b; font-size: 13px; }
+.krext-st-focus .krext-st-sum { max-width: 180px; margin-top: 5px; font-size: 13px; line-height: 1.5; }
+.krext-st-focus .krext-st-maxtag { color: #3f79c6; }
+.krext-st-focus .krext-plan-acts { gap: 3px; margin-left: 0; }
+.krext-st-focus .krext-plan-acts button { min-width: 32px; min-height: 36px; border-radius: 6px; color: #65758b; font-size: 16px; }
+.krext-st-focus .krext-plan-acts button[data-act="st-drop"]:hover, .krext-st-focus .krext-ws-bdel:hover { color: #b43243; background: #fff0f1; }
+.krext-st-focus .krext-st-months td, .krext-st-focus .krext-st-erp td { padding: 0 14px 12px; font-size: 13px; }
+.krext-st-focus .krext-st-form td { padding: 14px; background: #f7faff; }
+.krext-st-focus .krext-plan-form { gap: 10px; }
+.krext-st-focus .krext-plan-form input, .krext-st-focus .krext-plan-form select { height: 40px; padding: 6px 10px; border: 1px solid #dbe5f0; border-radius: 7px; background: #fff; font-size: 16px; }
+.krext-st-focus .krext-plan-form label { gap: 5px; color: #5d718c; font-size: 14px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[type="date"] { width: 174px; padding: 6px 8px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="name"] { width: 132px; }
+.krext-st-focus .krext-st-form .krext-plan-form select[data-stf="role"] { width: 152px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="supportRole"] { width: 200px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="manual"], .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="value"] { width: 108px; }
+.krext-st-focus .krext-st-warn { gap: 5px; margin-top: 14px; padding: 11px 13px; border-radius: 8px; background: #f7f9fc; font-size: 13px; }
+.krext-st-focus .krext-st-warn li { color: #5f7188; }
+.krext-st-focus .krext-st-warn li.krext-st-warn { margin: 0; padding-top: 0; padding-bottom: 0; background: transparent; color: #9d6819; }
+.krext-st-focus .krext-st-warn li.krext-st-error { color: #b43243; }
+.krext-st-focus .krext-st-support-note { display: block; margin-top: 5px; color: #65758b; font-size: 13px; line-height: 1.5; white-space: normal; }
+.krext-st-focus .krext-st-support-ref { color: #65758b; font-size: 13px; }
+.krext-st-focus .krext-st-support-ref input[type="checkbox"], .krext-st-focus .krext-st-form .krext-plan-form input[type="checkbox"] { width: 17px; height: 17px; padding: 0; accent-color: #2563c4; }
+.krext-st-focus .krext-st-guide { padding: 16px 19px; border: 1px solid #e0e7f0; border-radius: 10px; background: #eaf0f7; color: #5c6e85; font-size: 13px; line-height: 1.8; }
+.krext-st-focus .krext-st-guide strong { color: #4a6484; font-size: 14px; font-weight: 600; }
+.krext-st-focus .krext-st-guide p { margin: 4px 0 0; }
+.krext-st-focus > .krext-st-sync { margin: 16px 2px 0; color: #5f7188; font-size: 13px; line-height: 1.7; }
+.krext-st-focus button:focus-visible, .krext-st-focus a:focus-visible, .krext-st-focus input:focus-visible, .krext-st-focus select:focus-visible { outline: 2px solid #4b84d4; outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  html.krext-only .krext-head { padding: 12px 20px; }
+  html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { padding: 24px 20px; }
+  html.krext-only .krext-foot { padding: 16px 20px; }
+  .krext-st-focus .krext-ws-card, .krext-st-focus .krext-ws-head { padding: 18px; }
+  .krext-st-focus .krext-st-overview { gap: 8px; }
+  .krext-st-focus .krext-st-metric { padding: 14px 12px; }
+  .krext-st-focus .krext-st-metric strong { font-size: 23px; }
+}
+@media (max-width: 520px) {
+  html.krext-only .krext-head { min-height: 56px; padding: 12px 16px; gap: 8px; }
+  html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { padding: 22px 14px; }
+  html.krext-only .krext-foot, html.krext-only .plusbar { padding-right: 16px; padding-left: 16px; }
+  html.krext-only .krext-foot-r { width: 100%; margin-left: 0; }
+  .krext-st-focus > .krext-sec-title { margin-bottom: 20px; }
+  .krext-st-focus .krext-page-title { font-size: 23px; }
+  .krext-st-focus .krext-ws-card, .krext-st-focus .krext-ws-head { padding: 16px; margin-bottom: 16px; }
+  .krext-st-focus .krext-ws-project-heading { flex-wrap: wrap; gap: 8px; }
+  .krext-st-focus .krext-ws-project-copy { flex-basis: calc(100% - 28px); }
+  .krext-st-focus .krext-ws-name { font-size: 16px; }
+  .krext-st-focus .krext-ws-focus-link { margin-left: 28px; }
+  .krext-st-focus .krext-ws-years { gap: 5px; }
+  .krext-st-focus .krext-ws-year { flex-basis: 40%; padding: 6px 8px; }
+  .krext-st-focus .krext-ws-year.krext-ws-add { flex-grow: 1; }
+  .krext-st-focus .krext-ws-note { gap: 6px; }
+  .krext-st-focus .krext-ws-note input[type="month"] { max-width: 100%; }
+  .krext-st-focus .krext-st-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .krext-st-focus .krext-st-metric:first-child { grid-column: 1 / -1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 11px 13px; }
+  .krext-st-focus .krext-st-metric:first-child .krext-st-metric-label { margin: 0 auto 0 0; }
+  .krext-st-focus .krext-st-metric:first-child .krext-st-metric-note { flex-basis: 100%; margin-top: 0; }
+  .krext-st-focus .krext-st-metric strong { font-size: 21px; }
+  .krext-st-focus .krext-st-metric strong small { margin-left: 3px; }
+  .krext-st-focus .krext-st-acts { gap: 6px; }
+  .krext-st-focus .krext-plan-btn { padding: 6px 9px; }
+  .krext-st-focus .krext-plan-btn[data-act="st-clear"] { margin-left: 0; }
+  .krext-st-focus .krext-ws-tools { flex-wrap: wrap; }
+  .krext-st-focus .krext-ws-tools .krext-st-status { flex-basis: calc(100% - 115px); line-height: 1.6; }
+  .krext-st-focus .krext-st-guide { padding: 13px 15px; }
+}

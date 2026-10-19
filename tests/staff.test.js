@@ -1,6 +1,6 @@
 /* lib/staff.js (사업비 변경 — 참여연구원 참여율·지급액 계산, 0.8.7) 테스트. 실행: node tests/staff.test.js
- * rERP 식(월급여 절삭·계상률 올림·균등 분할 = 자료생성 저장 행), 참여인력 행 → 사람(월별 지급·월급여), 다른 과제 월별 참여율, 형편(연간·월 최대), 적용월부터 바꾸기(앞 달 그대로·제외·구간·더하기),
- * 총액·참여율 통째로·월급여 직접, 이전 기간 비율로 초기화(합 = 예산·잔차), 100% 알림(같은 달은 rERP 값만)·예산 상한, 요약 줄·탭 표, 저장 모양. 어디에도 보내지 않는다 */
+ * rERP 식(월급여 절삭·계상률 올림·균등 분할 = 자료생성 저장 행), 참여인력 행 → 사람(월별 지급·월급여), 다른 과제 월별 참여율, 형편(연간·월 최대), 적용일부터 바꾸기(앞 달 그대로·제외·구간·더하기, 날짜까지 — 날 수 비율 조각·기간 구간·경계),
+ * 총액·참여율 통째로(구간만도)·월급여 직접, 이전 기간 비율로 초기화(합 = 예산·잔차), 100% 알림(같은 달은 rERP 값만)·예산 대비 초과금·부족금, 요약 줄·탭 표, 저장 모양. 어디에도 보내지 않는다 */
 globalThis.self = globalThis;
 const path = require('path');
 const assert = require('assert');
@@ -52,7 +52,8 @@ test('참여인력 행 → 사람 — 주민번호는 버리고, 지급기간을
   const moon = staff.people[0];
   assert.deepStrictEqual([moon.erp.monthly, moon.erp.prjNo, moon.erp.at, moon.erp.req, moon.erp.seq, moon.plan.length, moon.plan[8]], [5823000, 'P', 5, '9', '2', 9, { ym: '2026-12', amt: 1159000 }]);
   const s = S.personStats(moon, 'rerp');
-  assert.deepStrictEqual([s.total, s.months, s.from, s.to, s.rate, s.maxRate, s.maxYm, s.limit, s.src], [10479000, 9, '2026-04', '2026-12', 20, 20.01, '2026-04', 5823000, 'rerp']);
+  assert.deepStrictEqual([s.total, s.months, s.from, s.to, s.rate, s.maxRate, s.maxYm, s.limit, s.src], [10479000, 9, '2026-04-01', '2026-12-31', 20, 20.01, '2026-04', 5823000, 'rerp']);
+  assert.deepStrictEqual([moon.cuts, s.runs.length, s.runs[0].rate], [[], 1, 20], '자료생성의 마지막 달 잔액 행(1,159)은 같은 구간 — 경계 없음');
   assert.strictEqual(S.monthlyText(moon.plan), '4~11월 1,165 · 12월 1,159');
   const part = S.peopleOfErp(rows, { prjNo: 'P', months: S.ymRange('2026-10', '2026-12') });
   assert.deepStrictEqual(part.people[0].plan.map((x) => x.amt), [1165000, 1165000, 1159000], '달을 주면 그 달들만');
@@ -93,7 +94,7 @@ test('적용월부터 — 앞 달 그대로, 제외, 구간, 더하기, 틀린 �
   assert.strictEqual(S.monthlyText(r.plan), '4~9월 2,328 · 10~11월 1,000 · 12월 2,322');
   const q = S.applyChange(S.normalizePerson({ name: '새사람', manual: 5000000 }), 'plan', { from: '2026-05', mode: 'rate', value: 15 }, months);
   assert.deepStrictEqual([q.plan.length, q.plan[0], S.personStats(q, 'plan').rate], [8, { ym: '2026-05', amt: 750000 }, 15]);
-  assert.throws(() => S.applyChange(s.people[1], 'plan', { from: '', mode: 'rate', value: 10 }, months), /적용월을 고르세요/);
+  assert.throws(() => S.applyChange(s.people[1], 'plan', { from: '', mode: 'rate', value: 10 }, months), /적용일을 고르세요/);
   assert.throws(() => S.applyChange(s.people[1], 'plan', { from: '2027-01', mode: 'rate', value: 10 }, months), /기간 밖/);
   assert.throws(() => S.applyChange(s.people[1], 'plan', { from: '2026-12', mode: 'rate', value: 101 }, months), /0~100/);
   assert.throws(() => S.applyChange(S.normalizePerson({ name: 'n' }), 'plan', { from: '2026-12', mode: 'rate', value: 10 }, months), /월급여가 없어/);
@@ -127,7 +128,9 @@ test('100% 알림 — 같은 달에 rERP 값이 있으면 그것만, 정확히 1
   assert.strictEqual(S.checks(s, 'plan', { others: { 김거화: [{ ym: '2026-04', rate: 72.54, label: 'x' }] } }).length, 0);
   assert.deepStrictEqual(S.overBudget(s, 'plan', 31425000), { total: 31425000, budget: 31425000, over: false, left: 0 });
   assert.deepStrictEqual(S.checks(s, 'plan', { budgetPay: 31000000 }).map((x) => x.kind), ['budget']);
-  assert.ok(/남음 575천원/.test(S.checks(s, 'plan', { budgetPay: 32000000 })[0].text));
+  assert.ok(/부족금 575천원/.test(S.checks(s, 'plan', { budgetPay: 32000000 })[0].text));
+  assert.ok(/초과금 425천원/.test(S.checks(s, 'plan', { budgetPay: 31000000 })[0].text) && /예산과 같습니다/.test(S.checks(s, 'plan', { budgetPay: 31425000 })[0].text));
+  assert.deepStrictEqual([S.budgetDiff({ total: 30799000, budget: 31425000 }), S.budgetDiff({ total: 31691000, budget: 31425000 }), S.budgetDiff({ total: 1, budget: null }).kind, S.budgetDiff(null).text], [{ diff: -626000, kind: 'short', text: '부족금 626천원' }, { diff: 266000, kind: 'over', text: '초과금 266천원' }, '', '']);
   assert.deepStrictEqual(S.checks(S.normalizeStaff({ people: [{ name: '새사람', plan: [{ ym: '2026-04', amt: 1000 }] }] }), 'plan', {}).map((x) => x.kind), ['salary']);
 });
 test('글·표·저장 모양', () => {
@@ -145,6 +148,57 @@ test('글·표·저장 모양', () => {
   assert.strictEqual(S.normalizeStaff({ people: [] }), null);
 });
 
+test('날짜까지 — 적용일·종료일로 바꾸면 그 달은 날 수 비율의 조각 둘, 기간 구간(runs)은 경계·제외·끊김에서 갈리고 같은 금액의 온달 경계는 지워진다', () => {
+  assert.deepStrictEqual([S.dim('2026-02'), S.dim('2028-02'), S.isYmd('2026-02-29'), S.isYmd('2028-02-29'), S.monthEnd('2026-04'), S.addDays('2026-12-31', 1), S.dayCount('2026-04-15', '2026-04-30')], [28, 29, false, true, '2026-04-30', '2027-01-01', 16]);
+  assert.deepStrictEqual([S.dateOf('2026-10-15'), S.dateOf('20261015'), S.dateOf('2026-10'), S.dateOf('2026-10', 'end'), S.dateOf('x'), S.dateOf('2026-02-30')], ['2026-10-15', '2026-10-15', '2026-10-01', '2026-10-31', '', '']);
+  assert.deepStrictEqual([S.spanText('2026-04-01', '2026-12-31'), S.spanText('2026-12-01', '2026-12-31'), S.spanText('2026-04-15', '2026-12-31'), S.spanText('2026-12-15', '2026-12-31'), S.spanText('2026-04-15', '2027-03-31'), S.spanText('2026-04', '2026-12'), S.monthsText(8.5333), S.monthsText(9)], ['4~12월', '12월', '4.15~12.31', '12.15~12.31', "'26.4.15~'27.3.31", '4~12월', '8.53', '9']);
+  const months = S.spanMonths(SPAN);
+  const kim = S.peopleOfErp(S.rowsOfErp(REC), { prjNo: 'P', now: 1 }).people[1];
+  // 12월부터 20% — 구간 둘 (사용자 화면: 4~11월 27.46% · 12월 20.00%), 연간 26.63% · 20,320천원 (2026-10-19 스크린샷과 같음)
+  const dec = S.applyChange(kim, 'rerp', { from: '2026-12', mode: 'rate', value: 20 }, months);
+  const sd = S.personStats(dec, 'rerp');
+  assert.deepStrictEqual([dec.cuts, sd.total, sd.rate, sd.runs.map((r) => [S.spanText(r.from, r.to), r.amt, r.rate, r.months, r.off])], [['2026-12-01'], 20320000, 26.63, [['4~11월', 18624000, 27.46, 8, false], ['12월', 1696000, 20, 1, false]]]);
+  assert.strictEqual(S.statsText(sd), '26.63% · 20,320천원 · 4~12월 (4~11월 27.46% · 12월 20.00%)');
+  // 12월 15일부터 20% — 12월은 1~14일(2,328 × 14/31 → 1,049) · 15~31일(1,696 × 17/31 → 930) 조각 둘, 참여개월은 날 수 비율
+  const mid = S.applyChange(kim, 'rerp', { from: '2026-12-15', mode: 'rate', value: 20 }, months);
+  assert.deepStrictEqual(mid.plan.slice(-2), [{ ym: '2026-12', amt: 1049000, to: '2026-12-14' }, { ym: '2026-12', amt: 930000, from: '2026-12-15' }]);
+  const sm = S.personStats(mid, 'rerp');
+  assert.deepStrictEqual([mid.cuts, sm.total, sm.runs.map((r) => [S.spanText(r.from, r.to), r.amt, r.rate, S.monthsText(r.months)]), S.monthlyText(mid.plan)], [['2026-12-15'], 20603000, [['4.1~12.14', 19673000, 27.45, '8.45'], ['12.15~12.31', 930000, 20, '0.55']], '4~11월 2,328 · 12.1~12.14 1,049 · 12.15~12.31 930']);
+  assert.deepStrictEqual([S.monthSums(mid.plan).slice(-1), S.sameMonthly(kim.plan, dec.plan), S.sameMonthly(kim.plan, S.applyChange(kim, 'rerp', { from: '2026-12', mode: 'amt', value: 2322000 }, months).plan)], [[['2026-12', 1979000]], false, true], '달 합으로 견준다');
+  // 가운데를 날짜로 제외 — 걸치는 조각은 날 수 비율로 잘리고 구간 넷
+  const gap = S.applyChange(mid, 'rerp', { from: '2026-07-10', to: '2026-08-20', mode: 'exclude' }, months);
+  assert.deepStrictEqual([gap.cuts, S.personStats(gap, 'rerp').runs.map((r) => `${S.spanText(r.from, r.to)} ${r.off ? '제외' : r.amt}`)], [['2026-07-10', '2026-08-21', '2026-12-15'], ['4.1~7.9 7660000', '7.10~8.20 제외', '8.21~12.14 8859000', '12.15~12.31 930000']]);
+  // 새 사람을 4월 15일부터 20% — 4월은 16/30 (1,165 → 621), 연간 20.01% · 8.53개월
+  const nu = S.applyChange(S.normalizePerson({ name: '새', manual: 5823000 }), 'rerp', { from: '2026-04-15', mode: 'rate', value: 20 }, months);
+  const sn = S.personStats(nu, 'rerp');
+  assert.deepStrictEqual([nu.plan[0], nu.plan.length, sn.total, sn.rate, S.monthsText(sn.months), nu.cuts, sn.runs.length, S.spanText(sn.from, sn.to)], [{ ym: '2026-04', amt: 621000, from: '2026-04-15' }, 9, 9941000, 20.01, '8.53', [], 1, '4.15~12.31']);
+  assert.deepStrictEqual(S.splitByFrac(9941000, nu.plan.map(S.segFrac)), [621000, 1165000, 1165000, 1165000, 1165000, 1165000, 1165000, 1165000, 1165000]);
+  assert.deepStrictEqual([S.splitByFrac(10479000, Array(9).fill(1)), S.splitByFrac(1000, [1, 1, 1]), S.splitByFrac(5000, [0.5])], [S.splitEven(10479000, 9), [0, 0, 1000], [5000]]);
+  // 구간만 바꾸기 — 그 구간의 조각에만, 12월을 27.45% 로 되돌리면 11월과 같은 금액이라 경계가 지워져 구간 하나
+  const t = S.setTotal(dec, 18000000, months, { from: '2026-04-01', to: '2026-11-30' });
+  assert.deepStrictEqual([S.personStats(t, 'rerp').runs.map((r) => r.amt), t.plan[8].amt], [[18000000, 1696000], 1696000]);
+  const back = S.setRate(dec, 'rerp', 27.45, months, { from: '2026-12-01', to: '2026-12-31' });
+  assert.deepStrictEqual([back.cuts, S.personStats(back, 'rerp').runs.length, S.monthlyText(back.plan)], [[], 1, '4~12월 2,328']);
+  assert.deepStrictEqual(S.setRate(mid, 'rerp', 20, months).cuts, [], '통째로 바꾸면 경계도 사라진다');
+  // rERP 행의 경계 — 지급기간이 정말 바뀐 행(4~9월 2,328 · 10~12월 1,696)은 구간 둘, 모양·경계 다듬기
+  const two = S.peopleOfErp(S.rowsOfErp([
+    { EMP_NM: '김거화', ROLE_NM: '과제책임자', PAY_LIMT_AMT: '8480000', PAY_AMT: '2328000', PLAN_YM_FROM: '202604', PLAN_YM_TO: '202609', NCNT: '6', REQ_CNT: '9', SEQ_NO: '1' },
+    { EMP_NM: '김거화', ROLE_NM: '과제책임자', PAY_LIMT_AMT: '8480000', PAY_AMT: '1696000', PLAN_YM_FROM: '202610', PLAN_YM_TO: '202612', NCNT: '3', REQ_CNT: '9', SEQ_NO: '1' }]), { prjNo: 'P' }).people[0];
+  assert.deepStrictEqual([two.cuts, S.personStats(two, 'rerp').runs.map((r) => [S.spanText(r.from, r.to), r.rate])], [['2026-10-01'], [['4~9월', 27.46], ['10~12월', 20]]]);
+  // 경계 없는 옛 저장분(0.8.7 — 12월만 바꾼 뒤 저장된 4~11월 2,328 · 12월 1,696)도 온달 금액이 바뀌는 곳에서 두 구간, 균등 분할의 마지막 달 잔액(1,165×8 + 1,159 · 2,328×8 + 2,322)은 한 구간
+  const legacy = S.normalizePerson({ name: '김거화', manual: 8480000, plan: months.map((ym) => ({ ym, amt: ym === '2026-12' ? 1696000 : 2328000 })) });
+  assert.deepStrictEqual([legacy.cuts, S.personStats(legacy, 'rerp').runs.map((r) => [S.spanText(r.from, r.to), r.amt])], [[], [['4~11월', 18624000], ['12월', 1696000]]]);
+  assert.deepStrictEqual(S.personStats(S.setTotal(legacy, 10479000, months), 'rerp').runs.map((r) => r.amt), [10479000], '균등 분할의 잔액 달은 같은 구간');
+  assert.deepStrictEqual(S.personStats(S.normalizePerson({ name: 'x', manual: 8480000, plan: months.map((ym, i) => ({ ym, amt: i < 2 ? 2328000 : 2322000 })) }), 'rerp').runs.map((r) => r.amt), [4656000, 16254000], '마지막 달 하나가 아니면 잔액이 아니다');
+  const np = S.normalizePlan([{ ym: '2026-12', amt: 1, from: '2026-12-01', to: '2026-12-31' }, { ym: '2026-12', amt: 2, from: '2026-12-15' }, { ym: '2026-11', amt: 3, to: '2026-11-10' }, { ym: '2026-11', amt: 4, from: '2026-11-05', to: '2026-11-20' }, { ym: '2026-11', amt: 5, from: '2026-11-20', to: '2026-11-15' }, { ym: '2026-10', amt: 6, from: '2026-11-01' }]);
+  assert.deepStrictEqual(np, [{ ym: '2026-10', amt: 6 }, { ym: '2026-11', amt: 3, to: '2026-11-10' }, { ym: '2026-12', amt: 1 }], '달 전체 from·to 는 지우고, 겹치는 조각은 앞 것만, 거꾸로·다른 달의 날짜는 버린다');
+  assert.deepStrictEqual([S.normalizeCuts(['2026-12-15', 'x', '2026-12-01', '2026-12-15']), S.pruneCuts([{ ym: '2026-11', amt: 1 }, { ym: '2026-12', amt: 1 }], ['2026-12-01', '2026-11-01', '2027-01-01']), S.pruneCuts([{ ym: '2026-11', amt: 1 }, { ym: '2026-12', amt: 2 }], ['2026-12-01'])], [['2026-12-01', '2026-12-15'], [], ['2026-12-01']]);
+  assert.strictEqual(S.normalizeStaff({ people: [mid] }).people[0].plan.length, mid.plan.length, '저장 모양을 거쳐도 조각이 남는다');
+  const tsv = S.staffTsv({ basis: 'rerp', src: 'erp', people: [dec] }, 'rerp').split('\n');
+  assert.deepStrictEqual([tsv.length, tsv[1].split('\t').slice(3, 8), tsv[2].split('\t').slice(3, 8)], [3, ['4~11월', '8', '18,624', '27.46%', '27.46%'], ['12월', '1', '1,696', '20.00%', '']], '구간마다 한 줄');
+  assert.ok(/구간 4~11월 18,624천원 27.46% · 12월 1,696천원 20.00%/.test(S.staffLines({ basis: 'rerp', src: 'erp', people: [dec] }, 'rerp')[1]));
+});
+
 test('연차 — 계획 키 과제번호@연차, 현재 연차 번호, 연차의 달 범위(현재 그대로 · 다음은 종료 다음 달부터 12달 · 앞은 시작 전 달까지 12달), 과제의 연차별 계획', () => {
   const P = { prjNo: 'P', anl: '2', stDt: '20270101', endDt: '20271231' };
   assert.deepStrictEqual([S.planKey('P', 1), S.planKey('P', '3'), S.planKey('P', null), S.planKey('P', 0), S.planKey('P', 999)], ['P@1', 'P@3', 'P', 'P', 'P']);
@@ -158,6 +212,10 @@ test('연차 — 계획 키 과제번호@연차, 현재 연차 번호, 연차의
   const norm = S.normalizePlans({ 'P@2': { prjNm: 'x', people: [{ name: '홍길동', plan: [{ ym: '2027-01', amt: 1 }] }] }, 'P@1': { prjNo: 'P', year: '1' }, P: { prjNo: 'P' }, 'R@9': { prjNo: 'R', year: 3 } });
   assert.deepStrictEqual(Object.keys(norm).sort(), ['P', 'P@1', 'P@2', 'R@3'], '과제번호·연차가 빠지면 키에서, 있으면 값이 앞선다');
   assert.deepStrictEqual([norm['P@2'].prjNo, norm['P@2'].year, norm['P@2'].people.length, norm['P@1'].year, norm.P.year], ['P', 2, 1, 1, null]);
+});
+
+test('역할 짧은 이름(roleShort) — 과제책임자 → 책임 · 참여연구원 → 참여 · 행정지원 → 행정, 책임·행정이 든 다른 역할명도 그것, 그 밖은 그대로, 빈 값은 빈 글', () => {
+  assert.deepStrictEqual(['과제책임자', '참여연구원', '행정지원', ' 참여연구원 ', '실무책임자', '행정 담당', '연구보조원', '', null].map(S.roleShort), ['책임', '참여', '행정', '참여', '책임', '행정', '연구보조원', '', '']);
 });
 
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

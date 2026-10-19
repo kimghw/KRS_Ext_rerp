@@ -6,6 +6,7 @@
   try { state.version = chrome.runtime.getManifest().version; } catch (e) {}
   // 사이드 패널·탭에 떴으면(popup/mode.js → KRX_SIDE) 창이 닫히지 않으므로 청구 준비 줄에 파일을 끌어다 놓을 수 있고(render.js prepCtx.files), 팝업 창(설정 actionPopup)이면 제목 줄에 "사이드 패널로 열기" 버튼(chrome.sidePanel.open, Chrome 116+)
   state.sidePanel = !!window.KRX_SIDE;
+  state.tab = !!window.KRX_TAB;   // 브라우저 탭(주소 #tab — 사업비 관리 [참여인력 변경] 단추가 연 것, mode.js): 아래 applyHash 가 주소의 과제·연차·only 를 적용
   state.sideOpen = !state.sidePanel && !!(chrome.sidePanel && chrome.sidePanel.open);
   try { const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']); state.data = l.cache || null; state.view = l.panelView === 'card' ? 'card' : 'project'; state.section = KRX_RENDER.secOf(l.panelSection); } catch (e) {}   // 카드미청구 · 과제집행비율 · 연구내용
   try { state.plans = await KRX_PLAN.load(); } catch (e) {}
@@ -19,8 +20,24 @@
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
-  KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
+  const staffApi = KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
   const prepApi = KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
+
+  /* 브라우저 탭으로 열렸을 때(mode.js KRX_TAB — 주소 #tab&page=staff&only=staff&prj=과제번호&year=연차, lib/staff-ui.js openTab → background.js openExtTab):
+   * 사업비 관리 화면을 그 과제·연차로 열고(staffApi.focus), only=staff 면 참여인력 부분만(state.staffOnly → render.js · lib/staff-ui.js section only, html.krext-only 가 Help Chat 줄·툴바를 숨김).
+   * 이미 열린 탭의 주소만 바뀌어도(hashchange, 다시 읽지 않음) 같이 적용한다 */
+  const applyHash = () => {
+    if (!state.tab) return;
+    const q = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const only = q.get('only') === 'staff';
+    state.staffOnly = only ? 'staff' : '';
+    document.documentElement.classList.toggle('krext-only', only);
+    if (only) document.title = '참여연구원 변경 — R&D ERP 현황';
+    if (q.get('page') === 'staff' && staffApi && staffApi.focus) staffApi.focus({ prjNo: q.get('prj') || '', year: Number(q.get('year')) || 0 });
+    else if (only) draw();
+  };
+  applyHash();
+  window.addEventListener('hashchange', applyHash);
 
   host.addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-act]');

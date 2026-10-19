@@ -28,7 +28,7 @@
 
   /* 요청에 붙이는 화면 상태: 무엇을 보고 있었는지와 조회 오류만 (금액·이름 같은 내용은 보내지 않음) */
   async function context() {
-    const out = { from: window.KRX_SIDE ? '사이드 패널' : '툴바 팝업' };   // 어디에 떴는지는 popup/mode.js 가 정함 (없으면 팝업으로 봄)
+    const out = { from: window.KRX_TAB ? '브라우저 탭' : window.KRX_SIDE ? '사이드 패널' : '툴바 팝업' };   // 어디에 떴는지는 popup/mode.js 가 정함 (없으면 팝업으로 봄)
     try { out.version = chrome.runtime.getManifest().version; } catch (e) {}
     try {
       const l = await chrome.storage.local.get(['cache', 'panelView', 'panelSection']);
@@ -128,7 +128,7 @@
   btnNew.addEventListener('click', async () => { stopTimers(); cur = { fresh: true }; lines = []; next = 0; detail = ''; note = null; open = false; await save(); render(); input.focus(); });
   /* [설정 프롬프트 복사]: 서버를 못 붙인 PC 에서 Claude Code 에 붙여 넣을 글 — lib/help-setup.js 가 만들고, 그 파일이 없거나 깨졌으면 짧은 글로 (이 스크립트의 독립성 유지) */
   const setupText = (reason) => {
-    const o = { url: base, from: window.KRX_SIDE ? '사이드 패널 Help Chat' : '툴바 팝업 Help Chat', reason: reason || '' };
+    const o = { url: base, from: window.KRX_TAB ? '브라우저 탭 Help Chat' : window.KRX_SIDE ? '사이드 패널 Help Chat' : '툴바 팝업 Help Chat', reason: reason || '' };
     try { o.version = chrome.runtime.getManifest().version; } catch (e) {}
     try { if (window.KRX_HELP_SETUP) return KRX_HELP_SETUP.prompt(o); } catch (e) {}
     return `[KR eClass + R&D ERP 현황 확장 — Help 서버(LLM) 연결 설정]\n이 폴더(kr_ext_rerp 저장소)의 CLAUDE.md "Help Chat (help-server) 을 쓸 때 필요한 것" 절을 따라 준비물(Node 22 이상 · git · Claude Code CLI 2.1.280 이상과 로그인)을 확인하고, 별도 터미널에서 node help-server/server.js 를 띄운 뒤 ${base}/health 로 확인해 주세요. 확장 코드 수정·커밋은 하지 마세요.`;

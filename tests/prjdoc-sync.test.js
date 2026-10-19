@@ -100,13 +100,14 @@ function memLocal(init) {
       else if (part === 'budget') { const key = `${prj}@${data.year}`; const plan = st.staff.plans[key] || S.normalizePlanEntry({ prjNo: prj, year: data.year }, key); plan.budget = data.budget.map((r) => ({ name: r.name, plan: r.plan })); plan.budgetPay = S.budgetPayOf(plan.budget); st.staff.plans[key] = plan; }   // background.js 처럼 그 연차 계획의 budget(·budgetPay)만(없으면 빈 계획)
       else if (part === 'changes') st.changes[`${prj}@${data.year}`] = clone(data.list);
       else if (part === 'alias') { st.aliases = clone(data.aliases); st.aliasesAt = clone(data.aliasesAt); }
+      else if (part === 'support') st.support = clone(data.all);   // projectSupport 전체 맵(이 과제만 바뀐 것)
       else if (part === 'project') st.projects[prj] = Object.assign({}, st.projects[prj], clone(data));   // shareProjects[prj] 에 겹치듯
       else throw new Error('모르는 칸 ' + part);
     },
   };
 }
 const deps = (store, mem, extra) => Object.assign({ store, io: { fetch: () => { throw new Error('실 fetch 금지'); } }, base: cfgOf(BASE), driveHost: ORIGIN, names: { P1: '과제1', P2: '과제2' }, rsprs: { P1: '김거화', P2: '동료' }, myPrjNos: ['P1', 'P2'], leadPrjNos: ['P1'], aliases: {}, index: {}, discover: true,
-  want: { plan: true, research: true, staff: true, budget: true, changes: true, alias: true }, who: '나', loadLocal: mem.loadLocal, saveLocal: mem.saveLocal, now: 100000 }, extra || {});
+  want: { plan: true, research: true, staff: true, budget: true, changes: true, alias: true, support: true }, who: '나', loadLocal: mem.loadLocal, saveLocal: mem.saveLocal, now: 100000 }, extra || {});
 const PAGE_KEYS = ['prjNo', 'title', 'webUrl', 'at', 'created', 'pulled', 'pushed', 'count', 'remoteAt', 'remoteBy'];   // planSyncState.pages 와 호환해야 하는 칸
 const docOf = (store, p, name) => D.parse(store.tree[p][name]).doc;
 const myLocal = () => ({
@@ -127,7 +128,7 @@ await test('처음: 업무/shared 도 과제 폴더도 없음 → base 를 만�
   assert.deepStrictEqual(Object.keys(store.tree).sort(), [`${ME}/Documents`, `${ME}/Documents/업무`, BASE, `${BASE}/SSCB`].sort(), '업무 · shared · 과제 폴더(약칭)');
   assert.deepStrictEqual(Object.keys(store.tree[`${BASE}/SSCB`]).sort(), ['1차년도.json', '2차년도.json', '예상비용.json']);
   const y1 = docOf(store, `${BASE}/SSCB`, '1차년도.json'), y2 = docOf(store, `${BASE}/SSCB`, '2차년도.json'), pl = docOf(store, `${BASE}/SSCB`, '예상비용.json');
-  assert.deepStrictEqual(y1.project, { prjNo: 'P1', prjNm: '과제1', rspr: '김거화', alias: 'SSCB', aliasAt: 10, jobId: '', io: '', start: '', end: '', note: '' }, 'start/end(과제 전체 기간)는 rerp 가 몰라 비움 — ERP 현재 연차 기간(stDt/endDt)을 넣지 않는다');
+  assert.deepStrictEqual(y1.project, { prjNo: 'P1', prjNm: '과제1', rspr: '김거화', alias: 'SSCB', aliasAt: 10, jobId: '', io: '', start: '', end: '', note: '', support: [], supportAt: 0 }, 'start/end(과제 전체 기간)는 rerp 가 몰라 비움 — ERP 현재 연차 기간(stDt/endDt)을 넣지 않는다');
   assert.deepStrictEqual([y1.year, y1.budget.map((b) => [b.name, b.plan, b.at, b.by]), y1.staff.plans.map((p) => p.year), y1.staff.del, y1.research.map((x) => [x.id, 'prjNo' in x]), y1.changes.map((c) => c.id), y1.updatedBy, y1.updatedAt],
     [{ n: 1, start: '2026-04', end: '2026-12' }, [['인건비', 31425000, 1000, '김거화'], ['연구활동비', 5000000, 1000, '김거화']], [1], {}, [['mw급과제#1', false]], ['c10'], '나', '1970-01-01T00:01:40.000Z']);
   assert.deepStrictEqual([y2.project, y2.year, y2.staff.plans.map((p) => p.year), y2.research.map((x) => x.n), y2.changes.map((c) => c.id)], [y1.project, { n: 2, start: '2027-01', end: '2027-12' }, [2], [2], ['c30']], 'project 는 연차 파일마다 같은 내용 · 2차년도에는 2차 것만');

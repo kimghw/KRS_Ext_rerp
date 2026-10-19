@@ -9,4 +9,9 @@
   catch (e) { popup = !/[?#]side(\b|$)/.test(location.href); }
   window.KRX_SIDE = !popup;
   if (!popup) document.documentElement.classList.add('krext-side');
+  // 브라우저 탭(주소 #tab — 사업비 관리의 [참여인력 변경] 단추가 연 것, lib/staff-ui.js openTab): html.krext-tab 은 넓은 창에서 가운데 1120px 까지만, only=staff 면 html.krext-only 로 Help Chat 줄·아래 툴바를 숨김 (popup.html 스타일, popup.js applyHash 가 hashchange 때 다시 맞춤)
+  const tab = !popup && /[#&?]tab(\b|$)/.test(location.hash);
+  window.KRX_TAB = tab;
+  if (tab) document.documentElement.classList.add('krext-tab');
+  if (tab && /[#&]only=staff(\b|$)/.test(location.hash)) document.documentElement.classList.add('krext-only');
 })();

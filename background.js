@@ -568,6 +568,26 @@ async function applySidePanel() {
   try { if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: !popup }); } catch (e) {}
 }
 applySidePanel();
+/* 확장 자신의 페이지를 브라우저 탭으로 연다 (메시지 openExtTab — 사업비 관리 [참여인력 변경] 단추, lib/staff-ui.js openTab: popup/popup.html#tab&page=staff&only=staff&prj=…&year=…).
+ * 같은 경로(해시 앞)의 탭이 이미 있으면 새로 만들지 않고 그 탭의 주소를 바꿔(해시만 다르면 다시 읽지 않고 hashchange — popup.js applyHash) 앞으로 가져온다. 부른 쪽의 창에 있는 탭을 먼저, 없으면 아무 창의 것 */
+async function openExtTab(url, sender) {
+  const root = chrome.runtime.getURL('');
+  if (!url || !url.startsWith(root)) return { ok: false, error: '확장 페이지만 열 수 있습니다' };
+  const path = url.split('#')[0];
+  let tabs = [];
+  try { tabs = (await chrome.tabs.query({})).filter((t) => t.url && t.url.split('#')[0] === path); } catch (e) {}
+  const win = sender && sender.tab && sender.tab.windowId != null ? sender.tab.windowId : null;
+  const t = (win != null && tabs.find((x) => x.windowId === win)) || tabs[0] || null;
+  if (t) {
+    await chrome.tabs.update(t.id, { url, active: true });
+    try { await chrome.windows.update(t.windowId, { focused: true }); } catch (e) {}
+    return { ok: true, tabId: t.id, reused: true };
+  }
+  const opts = { url, active: true };
+  if (win != null) opts.windowId = win;
+  const made = await chrome.tabs.create(opts);
+  return { ok: true, tabId: made.id, reused: false };
+}
 chrome.action.onClicked.addListener((tab) => {
   try { if (chrome.sidePanel && chrome.sidePanel.open && tab && tab.windowId != null) chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {}); } catch (e) {}   // await 없이 먼저 — 제스처가 살아 있을 때
   applySidePanel();
@@ -611,6 +631,7 @@ const SHARE_INDEX_KEY = 'shareIndex';         // { [prjNo]: { base, folder, site
 const SHARE_CHANGES_KEY = 'shareChanges';     // { ['과제번호@연차']: [{ id, date, kind, item, before, after, reason, by, at, auto }] } — lib/staff-ui.js 가 적고 동기화가 연차 파일의 changes 칸과 합집합(id, at 차례, 최대 500)
 const SHARE_PROJECTS_KEY = 'shareProjects';   // { [prjNo]: { jobId, io, start, end, note, … } } — 연차 파일 project 칸 가운데 rERP 가 모르는 것(KRS WORKSPACE 몫 — start·end 는 과제 **전체** 연구기간)을 보존·표시용으로 (rERP 가 아는 prjNm·rspr 는 R&D ERP 값이 늘 이김;
                                               //   rERP 과제 목록의 stDt/endDt 는 현재 **연차** 기간이라 project.start/end 로 보내지 않고 loadLocal 의 projects[].stDt/endDt 로만 — lib/prjdoc.js yearSpan 용)
+const SHARE_SUPPORT_KEY = 'projectSupport';   // { [prjNo]: { people:[{ name, role, ref }], at } } — 행정지원(과제마다, 연차 아님). 사업비 관리 참여인력 카드에서 고치고 연차 파일 project.support · supportAt 로 KRS WORKSPACE 와 **양쪽이** 맞춤(supportAt 큰 쪽 — 2026-10-19 사용자 "행정지원은 서로 변경 가능하고")
 const SHARE_CHANGES_MAX = 500;
 const SHARE_PART_SVC = 'rtask_0008_t03_01_r001';   // 과제정보 › 참여인력 — 자동 공유할 사람 이름 (lib/staff.js rowsOfErp · byName, lib/staff-ui.js 와 같은 조회)
 let shareInflight = null, shareNext = null, shareNextOpts = null, shareTimer = 0;
@@ -627,7 +648,7 @@ const shareStore = Object.assign(Object.create(null), KRX_SP, {
 });
 const SHARE_MISSING = { off: '"공유 (Plus)" 체크(팝업 아래 줄 또는 설정 › 공유 (Plus))', items: '설정 › 공유 (Plus) 의 동기화 항목(예상 비용 · 연구내용 · 사업비 · 변경이력) 가운데 하나 이상 체크' };
 /* 무엇을 맞출지 — 설정 공유 (Plus) 탭의 체크. budget(예산 줄)은 사업비 체크와 함께, alias 는 늘 (prjdoc-sync 의 want) */
-const shareWant = (p) => ({ plan: p.planSync !== false, research: p.researchSync !== false, staff: p.staffSync !== false, budget: p.staffSync !== false, changes: p.changesSync !== false, alias: true });
+const shareWant = (p) => ({ plan: p.planSync !== false, research: p.researchSync !== false, staff: p.staffSync !== false, budget: p.staffSync !== false, changes: p.changesSync !== false, alias: true, support: true });   // 행정지원도 별칭처럼 늘
 const shareDriveHost = (p) => String((p && p.driveHost) || '').trim() || KRX_SETTINGS.DEFAULTS.plus.driveHost;
 const shareObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 /* 예상 비용 파일 이름 — KRX_PRJDOC.planName(함수 또는 문자열), 없으면 기본 */
@@ -688,7 +709,7 @@ function shareMergeChanges(a, b) {
  *   stDt/endDt(RCH_ST_DT/RCH_END_DT, YYYYMMDD)는 R&D ERP 가 주는 **현재 연차** 기간이라(lib/rnd-api.js 가 ANL 이 가장 큰 행을 고름) 과제 전체 연구기간인 project.start/end 에 넣지 않는다 — 넣으면 연차가 바뀔 때마다 모든 연차 파일의 연구기간이 바뀌고
  *   두 rerp 사용자의 캐시 연차가 다르면 서로 번갈아 고친다(2026-10-18 검토). prjdoc 의 yearSpan(연차 기본 기간)에만 쓴다 */
 async function shareLoadLocal() {
-  const l = await chrome.storage.local.get([KRX_PLAN.KEY, KRX_PLAN.DKEY, KRX_STAFF.KEY, KRX_STAFF.DKEY, 'projectAliases', 'projectAliasesAt', SHARE_CHANGES_KEY, SHARE_PROJECTS_KEY, 'projectList', CACHE_KEY]);
+  const l = await chrome.storage.local.get([KRX_PLAN.KEY, KRX_PLAN.DKEY, KRX_STAFF.KEY, KRX_STAFF.DKEY, 'projectAliases', 'projectAliasesAt', SHARE_CHANGES_KEY, SHARE_PROJECTS_KEY, SHARE_SUPPORT_KEY, 'projectList', CACHE_KEY]);
   const projects = {};
   for (const pr of ((l.projectList && l.projectList.projects) || []).concat(((l[CACHE_KEY] || {}).projects) || [])) {
     if (!pr || !pr.prjNo || projects[pr.prjNo]) continue;
@@ -706,6 +727,7 @@ async function shareLoadLocal() {
     staff: { plans: KRX_STAFF.normalizePlans(l[KRX_STAFF.KEY]), del: KRX_STAFF.gcTomb(l[KRX_STAFF.DKEY]) },
     aliases: shareObj(l.projectAliases),
     aliasesAt: shareObj(l.projectAliasesAt),
+    support: shareObj(l[SHARE_SUPPORT_KEY]),
     changes: shareObj(l[SHARE_CHANGES_KEY]),
     projects
   };
@@ -810,6 +832,16 @@ async function shareSaveLocal(part, prj, data, names) {
     for (const [k, v] of Object.entries(data)) if (v !== undefined && v !== null && typeof v !== 'function') keep[k] = v;
     all[prj] = Object.assign({}, shareObj(all[prj]), keep);
     await chrome.storage.local.set({ [SHARE_PROJECTS_KEY]: all });
+    return;
+  }
+  if (part === 'support') {   // 행정지원 — { people, at } (prjdoc toLocalYear 의 support 칸) 또는 사람 목록만(그러면 지금 시각). 빈 목록은 그 과제 칸을 지움
+    const d = isObj(data) ? data : { people: data };
+    const people = KRX_STAFF.normalizeSupport(d.people || d.support);
+    const at = Number(d.at || d.supportAt) || (Array.isArray(data) ? Date.now() : 0);
+    const cur = (await chrome.storage.local.get(SHARE_SUPPORT_KEY))[SHARE_SUPPORT_KEY];
+    const all = Object.assign({}, shareObj(cur));
+    if (people.length || at) all[prj] = { people, at }; else delete all[prj];
+    await chrome.storage.local.set({ [SHARE_SUPPORT_KEY]: all });
     return;
   }
   if (part === 'alias') {
@@ -1158,6 +1190,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.hash) await chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') + '#' + String(msg.hash).replace(/^#/, '') }); else await chrome.runtime.openOptionsPage();
         return { ok: true };
       case 'openRcms': return await KRX_RCMS.open(sender);          // 패널·팝업 하단 "RCMS 열기": 탭을 열고 자동 로그인을 걸어 둠 (lib/rcms.js)
+      case 'openExtTab': return await openExtTab(String(msg.url || ''), sender);   // 사업비 관리 [참여인력 변경]: 확장 페이지(popup/popup.html#tab…)를 브라우저 탭으로 — 같은 경로의 탭이 있으면 그 탭의 주소만 바꿔 앞으로 (lib/staff-ui.js openTab)
       case 'rcmsLogin': return await KRX_RCMS.login(msg, sender);   // RCMS 화면(content/rcms.js): 로그인 폼에 넣을 값, 버튼을 누를지
       case 'clearCapture': await chrome.storage.local.set({ [CAPTURE_KEY]: [] }); return { ok: true };
       case 'invalidate': await chrome.storage.local.remove(CACHE_KEY); return { ok: true };
