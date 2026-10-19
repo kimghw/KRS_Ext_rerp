@@ -50,10 +50,61 @@
   .helpbar .help-line.err, .helpbar .help-line.warn { color: #b3261e; }
   .helpbar .help-line.say { color: #2b2b46; }
   .helpbar .help-detail { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e1e6ee; white-space: pre-wrap; word-break: break-word; color: #2b2b46; }
+  /* 참여연구원 변경 탭의 오른쪽 변경 도우미 채팅(popup/staff-chat.js — LLM(Help 서버)이 연결돼 있을 때만 입력): html.krext-only 에서만 본문(#krext-panel)과 나란히 놓고(좁은 창은 본문 아래),
+     그 밖의 모드에서는 .krext-row 가 display:contents 라 기존 세로 배치(패널 · Help Chat 줄 · 공유 줄 · 툴바) 그대로 */
+  .krext-row { display: contents; }
+  .staff-chat { display: none; }
+  html.krext-only body { max-width: 1640px; }
+  html.krext-only .krext-row { display: flex; flex: 1 1 auto; min-height: 0; }
+  html.krext-only .krext-row > .krext-panel.krext-popup { flex: 1 1 auto; min-width: 0; }
+  html.krext-only .staff-chat { display: flex; flex-direction: column; flex: 0 0 400px; min-height: 0; border-left: 1px solid #dfe6ee; background: #fff; color: #22324b; font-size: 14px; }
+  html.krext-only .staff-chat[hidden] { display: none; }
+  .staff-chat .sc-head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 10px 16px; border-bottom: 1px solid #e7edf4; }
+  .staff-chat .sc-head strong { font-size: 15px; white-space: nowrap; }
+  .staff-chat .sc-status { flex: 1; min-width: 0; font-size: 12px; color: #65758b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .staff-chat .sc-status.ok { color: #1b6e3c; }
+  .staff-chat .sc-status.err { color: #b3261e; }
+  .staff-chat button { flex: none; font: inherit; font-size: 12px; padding: 4px 9px; border: 1px solid #c9d1dc; border-radius: 6px; background: #fff; color: #1f4e9c; cursor: pointer; white-space: nowrap; }
+  .staff-chat button:hover:not(:disabled) { background: #eef3fa; }
+  .staff-chat button:disabled { color: #9aa3af; cursor: default; }
+  .staff-chat .sc-log { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: #f7f9fc; }
+  .staff-chat .sc-empty { color: #65758b; font-size: 13px; line-height: 1.6; }
+  .staff-chat .sc-msg { max-width: 92%; padding: 8px 12px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .staff-chat .sc-msg.user { align-self: flex-end; background: #2563c4; color: #fff; border-bottom-right-radius: 4px; }
+  .staff-chat .sc-msg.user .sc-time { color: #c9dbf7; }
+  .staff-chat .sc-msg.bot { align-self: flex-start; background: #fff; border: 1px solid #e1e7ef; border-bottom-left-radius: 4px; }
+  .staff-chat .sc-msg.bot.err { border-color: #f1c4c4; background: #fff6f6; color: #8f1f1f; }
+  .staff-chat .sc-msg.sc-wait { color: #65758b; }
+  .staff-chat .sc-ops { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: #3f5572; }
+  .staff-chat .sc-ops li { position: relative; padding: 3px 0 3px 18px; }
+  .staff-chat .sc-ops li::before { content: '✔'; position: absolute; left: 0; color: #1b6e3c; }
+  .staff-chat .sc-ops li.bad::before { content: '✖'; color: #b3261e; }
+  .staff-chat .sc-ops li small { display: block; color: #65758b; font-size: 11.5px; }
+  .staff-chat .sc-time { margin-top: 3px; font-size: 11px; color: #9aa3af; }
+  .staff-chat .sc-form { flex: none; display: flex; gap: 8px; margin: 0; padding: 10px 16px 6px; border-top: 1px solid #e7edf4; }
+  .staff-chat .sc-form textarea { flex: 1; min-width: 0; resize: none; font: inherit; font-size: 14px; line-height: 1.45; padding: 8px 10px; border: 1px solid #c9d1dc; border-radius: 8px; background: #fff; }
+  .staff-chat .sc-form textarea:disabled { background: #eef1f6; }
+  .staff-chat .sc-form button { align-self: flex-end; padding: 8px 12px; font-size: 13px; }
+  .staff-chat .sc-hint { flex: none; padding: 0 16px 10px; font-size: 11.5px; line-height: 1.5; color: #65758b; }
+  html.krext-only .krext-st-agent { margin-left: 8px; cursor: pointer; }   /* 제목 줄 [에이전트] — 눌리면 파랑 (lib/staff-ui.js focusTitle, popup.js st-agent → KRX_STAFF_CHAT.toggle) */
+  html.krext-only .krext-st-agent[aria-pressed="true"] { background: #2563c4; border-color: #2563c4; color: #fff; }
+  html.krext-only .krext-st-agent[aria-pressed="true"]:hover { background: #1f56ad; }
+  @media (max-width: 1180px) {   /* 좁은 창: 채팅을 본문 아래에 */
+    html.krext-only .krext-row { flex-direction: column; }
+    html.krext-only .staff-chat { flex: 0 0 auto; max-height: 46vh; border-left: 0; border-top: 1px solid #dfe6ee; }
+  }
 </style>
 </head>
 <body>
+<div class="krext-row" id="krextRow"><!-- 참여연구원 변경 탭(html.krext-only)에서만 본문과 변경 도우미 채팅을 나란히 — 그 밖에는 display:contents -->
 <div id="krext-panel" class="krext-panel krext-popup"></div>
+<aside id="staffChat" class="staff-chat" hidden aria-label="참여연구원 변경 도우미" title="변경 도우미: 보고 있는 과제·연차의 참여연구원 계획을 글로 바꿔 달라고 하면 이 PC 의 Help 서버(node help-server/server.js)가 Claude 로 작업 목록을 만들고 이 탭이 표와 같은 길로 반영합니다 — LLM(Help 서버)이 연결돼 있을 때만. R&D ERP 에는 쓰지 않습니다 (popup/staff-chat.js)">
+  <div class="sc-head"><strong>변경 도우미</strong><span id="scStatus" class="sc-status" role="status"></span><button type="button" id="scProbe" title="Help 서버(LLM) 연결을 다시 확인합니다">연결 확인</button><button type="button" id="scNew" title="대화 기록을 지웁니다 (계획은 그대로)">새 대화</button></div>
+  <div id="scLog" class="sc-log" aria-live="polite"></div>
+  <form id="scForm" class="sc-form"><textarea id="scText" rows="2" maxlength="2000" spellcheck="false" aria-label="변경 도우미에게 보낼 요청"></textarea><button type="submit" id="scSend" title="보내기 (Enter)">보내기</button></form>
+  <div class="sc-hint" id="scHint"></div>
+</aside>
+</div>
 <div class="helpbar" id="helpbar" title="Help Chat: 확장이 기대와 다르게 동작하거나 고치고 싶은 점을 한 줄로 보내면, 이 PC 의 Help 서버(node help-server/server.js)가 Claude Code CLI(Opus 5.5)로 확장 코드를 고칩니다. 이 창을 닫아도 계속되고, 끝나면 '적용'으로 확장을 다시 불러옵니다 (커밋은 하지 않음)">
   <form id="helpForm">
     <input type="text" id="helpText" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter">
@@ -91,6 +142,8 @@
 <script src="../lib/research.js"></script>
 <script src="../lib/staff.js"></script><!-- 사업비: 과제마다 연차별 참여연구원 참여율·지급액 계산 (0.8.7) -->
 <script src="../lib/staff-ui.js"></script><!-- 제목 줄 사업비 관리 화면 그리기·입력 처리 -->
+<script src="../lib/staff-chat-core.js"></script><!-- 참여연구원 변경 도우미의 공용 부분(작업 한 줄 글 opText — 프롬프트·스키마는 Help 서버가 씀) (0.8.8) -->
+<script src="staff-chat.js"></script><!-- 참여연구원 변경 탭의 오른쪽 변경 도우미 채팅 — LLM(Help 서버) 연결 때만 (0.8.8) -->
 <script src="../lib/render.js"></script>
 <script src="capture.js"></script>
 <script src="popup.js"></script>

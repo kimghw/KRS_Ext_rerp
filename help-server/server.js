@@ -14,6 +14,8 @@
  * 증빙 찾아오기(0.8.5): POST /fetch → GET /fetch/job?id=&since= → GET /fetch/file?id=&name= · POST /fetch/cancel — 확장 백그라운드(lib/prep-fetch.js)가 "자주 사용" 가맹점 사이트에서
  *   거래명세서(강의면 수강증·강의내용도)를 찾아 달라고 하면 site-fetch/(별도 폴더 — 이 서버는 경로만 넘김)가 작업용 Chrome 을 CDP 로 열고 Claude 를 헤드리스로 돌려 서류를 저장한다(/ask·/classify 와 따로, 한 번에 하나).
  *   GET /health 의 fetch 에 그 모델을 적는다(Node 22 미만이면 빈 값).
+ * 참여연구원 변경 도우미(0.8.8): POST /staff — 참여연구원 변경 탭의 오른쪽 채팅(popup/staff-chat.js)이 요청 한 줄 + 보고 있는 과제·연차 계획의 요약 + 최근 대화를 보내면 help-server/staff-chat.js 가 claude -p 를 한 번 돌려
+ *   답(reply)과 확장이 반영할 작업 목록(ops)을 돌려준다(반영·계산·저장은 확장 lib/staff-ui.js agent.apply). 자동 분류와 같은 자리(CLASSIFY_SLOTS)를 나눠 쓴다. GET /health 의 staff 에 그 모델을 적어 확장이 이 기능이 있는 서버인지 안다.
  * 환경 변수: KRX_HELP_PORT(8106) · KRX_HELP_MODEL(claude-opus-5-5) · KRX_HELP_FAST_MODEL(claude-haiku-5-5, 자동 분류) · KRX_HELP_CLAUDE(claude 실행 파일) · KRX_HELP_PERMISSION(acceptEdits) · KRX_HELP_TIMEOUT_MIN(30) · KRX_HELP_EXT_ID
  *   증빙 찾아오기: KRX_FETCH_MODEL(KRX_HELP_MODEL) 외 site-fetch/README.md */
 'use strict';
@@ -24,12 +26,14 @@ const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
 const classify = require('./classify');
 const siteFetch = require('../site-fetch');   // 증빙 찾아오기 — 다른 웹 사이트에 가는 부분은 site-fetch/ 에 따로 (이 서버는 /fetch 경로만 넘겨 줌)
+const staffChat = require('./staff-chat');     // 참여연구원 변경 도우미 — 탭 채팅의 POST /staff (0.8.8)
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.KRX_HELP_PORT) || 8106;
 const MODEL = process.env.KRX_HELP_MODEL || 'claude-opus-5-5';
 const FAST_MODEL = process.env.KRX_HELP_FAST_MODEL || 'claude-haiku-5-5';   // 청구 준비 자동 분류(/classify) — 없거나 막히면 MODEL 로 (--fallback-model)
 const FETCH_MODEL = process.env.KRX_FETCH_MODEL || MODEL;                     // 증빙 찾아오기(/fetch) — 웹 사이트를 돌아다녀야 해서 기본은 MODEL
+const STAFF_MODEL = process.env.KRX_HELP_STAFF_MODEL || MODEL;                // 참여연구원 변경 도우미(/staff) — 금액·기간을 따져야 해서 기본은 MODEL
 const PERMISSION = process.env.KRX_HELP_PERMISSION || 'acceptEdits';
 const TIMEOUT_MS = (Number(process.env.KRX_HELP_TIMEOUT_MIN) || 30) * 60000;
 const RESUME_MS = 2 * 3600000;                       // 마지막 요청 뒤 이 시간 안이면 같은 대화를 잇는다
@@ -38,6 +42,7 @@ const LOG_DIR = path.join(__dirname, 'logs');        // 끝난 작업 기록 <id
 const STATE = path.join(__dirname, '.state.json');   // { origin: 고정된 확장 출처, session: { id, at } }
 const KEEP_LOGS = 50, MAX_TEXT = 6000, MAX_BODY = 64 * 1024, MAX_LINES = 2000;   // MAX_TEXT: 설정 페이지의 사이트 만들기 채팅은 가맹점 블록(lib/fetch-sites.js buildPrompt)까지 보내 한 줄보다 길다
 const CLASSIFY_BODY = 40 * 1024 * 1024, CLASSIFY_MS = 120000, CLASSIFY_SLOTS = 2, CLASSIFY_QUEUE = 8;   // 자동 분류: 본문(이미지·PDF base64 포함) · 한 번 제한 시간 · 동시 실행 · 대기 줄
+const STAFF_BODY = 256 * 1024, STAFF_MS = 180000;   // 참여연구원 변경 도우미: 본문(계획 요약 · 이전 대화) · 한 번 제한 시간
 /* acceptEdits 는 파일 수정만 묻지 않고 허용한다. 헤드리스에서는 물어볼 사람이 없어 그 밖의 명령은 거절되므로 문법 검사·테스트·조회에 쓰는 것만 허용 (Windows 는 PowerShell 도구도 있음) */
 const ALLOWED = ['node', 'git status', 'git diff', 'git log', 'git show', 'curl', 'python'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]).concat(['Bash(git status)', 'PowerShell(git status)', 'Bash(git diff)', 'PowerShell(git diff)', 'Skill(fetch-site)']);   // Skill(fetch-site): 설정 페이지의 사이트 만들기 채팅이 가리키는 .claude/skills/fetch-site (Read 로 읽어도 됨)
 const DISALLOWED = ['git commit', 'git push', 'git reset', 'git checkout', 'git restore', 'git stash', 'git clean', 'git rebase', 'git merge'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]);
@@ -294,6 +299,23 @@ async function classifyRequest(body) {
   } finally { classifyDone(); }
 }
 
+/* 참여연구원 변경 도우미 한 번 — 자동 분류와 같은 자리를 나눠 쓴다. 서버는 계획을 바꾸지도 저장하지도 않고 콘솔에 작업 수만 적는다(이름·금액 없음) */
+async function staffRequest(body) {
+  let input;
+  try { input = staffChat.clean(body); } catch (e) { return { status: 400, body: { ok: false, kind: 'empty', error: String((e && e.message) || e) } }; }
+  if (!(await classifySlot())) return { status: 429, body: { ok: false, kind: 'busy', error: '요청이 밀려 있습니다 — 잠시 뒤 다시' } };
+  const t0 = Date.now();
+  try {
+    const out = await staffChat.run(input, { bins: claudeBins(), model: STAFF_MODEL, fallback: STAFF_MODEL === MODEL ? '' : MODEL, env: childEnv(), timeoutMs: STAFF_MS, kill: killTree });
+    const ms = Date.now() - t0;
+    console.log(`[${new Date().toLocaleTimeString()}] 참여연구원 채팅 ${Math.round(ms / 100) / 10}초${out.cost ? ` $${out.cost.toFixed(3)}` : ''}: 작업 ${out.ops.length}개${out.dropped ? ` (버림 ${out.dropped})` : ''}${out.ops.length ? '' : ' · 답만'}`);
+    return { status: 200, body: { ok: true, model: STAFF_MODEL, ms, reply: out.reply, ops: out.ops, dropped: out.dropped } };
+  } catch (e) {
+    console.log(`[${new Date().toLocaleTimeString()}] 참여연구원 채팅 실패: ${oneLine(e && e.message, 200)}`);
+    return { status: 502, body: { ok: false, kind: 'claude', error: oneLine((e && e.message) || e, 300) } };
+  } finally { classifyDone(); }
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const bad = guard(req);
@@ -301,7 +323,7 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
     if (req.method === 'GET' && u.pathname === '/health') {
       return send(res, 200, { ok: true, name: 'krx-help', version: manifestVersion(), repo: ROOT, model: MODEL, cli: cliVersion, busy: running ? running.job.id : '',
-        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), classify: FAST_MODEL, classifyPtcl: true,
+        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), classify: FAST_MODEL, classifyPtcl: true, staff: STAFF_MODEL,
         fetch: siteFetch.available() ? '' : FETCH_MODEL, fetchNote: siteFetch.available(), fetchBusy: siteFetch.busy() });
     }
     if (u.pathname === '/fetch' || u.pathname.startsWith('/fetch/')) return fetchRoute(req, res, u);   // 증빙 찾아오기 (site-fetch/)
@@ -324,6 +346,10 @@ const server = http.createServer(async (req, res) => {
       const r = await classifyRequest(await readBody(req, CLASSIFY_BODY));
       return send(res, r.status, r.body);
     }
+    if (req.method === 'POST' && u.pathname === '/staff') {   // 참여연구원 변경 도우미 (popup/staff-chat.js) — Help Chat 작업과 따로 돈다
+      const r = await staffRequest(await readBody(req, STAFF_BODY));
+      return send(res, r.status, r.body);
+    }
     if (req.method === 'POST' && u.pathname === '/cancel') {
       await readBody(req);
       if (!running) return send(res, 200, { ok: true, idle: true });
@@ -343,7 +369,7 @@ function fetchRoute(req, res, u) {
 
 server.on('error', (e) => { console.error(e && e.code === 'EADDRINUSE' ? `포트 ${PORT} 를 이미 쓰고 있습니다 (Help 서버가 이미 떠 있거나 KRX_HELP_PORT 로 다른 포트 지정)` : e); process.exit(1); });
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`확장 Help Chat 서버 http://127.0.0.1:${PORT}  저장소 ${ROOT}  모델 ${MODEL}  권한 ${PERMISSION}  자동 분류 ${FAST_MODEL}  증빙 찾아오기 ${siteFetch.available() || FETCH_MODEL}`);
+  console.log(`확장 Help Chat 서버 http://127.0.0.1:${PORT}  저장소 ${ROOT}  모델 ${MODEL}  권한 ${PERMISSION}  자동 분류 ${FAST_MODEL}  증빙 찾아오기 ${siteFetch.available() || FETCH_MODEL}  참여연구원 변경 도우미 ${STAFF_MODEL}`);
   const tryVersion = (bins) => execFile(bins[0], ['--version'], { env: childEnv(), windowsHide: true }, (err, out) => {
     if (err) return bins.length > 1 ? tryVersion(bins.slice(1)) : console.error('claude CLI 를 실행하지 못했습니다 — 설치·로그인(claude) 뒤 다시 시도하세요');
     cliVersion = String(out).trim().split(/\s+/)[0]; console.log(`claude CLI ${cliVersion}`);

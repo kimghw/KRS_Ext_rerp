@@ -33,7 +33,7 @@ node help-server/server.js
 
 ### 환경 변수 (선택)
 
-`KRX_HELP_PORT`(8106 — 바꾸면 설정 페이지의 Help 서버 주소도 맞출 것) · `KRX_HELP_MODEL`(claude-opus-5-5) · `KRX_HELP_FAST_MODEL`(claude-haiku-5-5 — 청구 준비 자동 분류 `POST /classify`) · `KRX_HELP_CLAUDE`(claude 실행 파일 경로) · `KRX_HELP_PERMISSION`(acceptEdits) · `KRX_HELP_TIMEOUT_MIN`(30) · `KRX_HELP_EXT_ID`(허용할 확장 id)
+`KRX_HELP_PORT`(8106 — 바꾸면 설정 페이지의 Help 서버 주소도 맞출 것) · `KRX_HELP_MODEL`(claude-opus-5-5) · `KRX_HELP_FAST_MODEL`(claude-haiku-5-5 — 청구 준비 자동 분류 `POST /classify`) · `KRX_HELP_STAFF_MODEL`(KRX_HELP_MODEL — 참여연구원 변경 도우미 `POST /staff`) · `KRX_HELP_CLAUDE`(claude 실행 파일 경로) · `KRX_HELP_PERMISSION`(acceptEdits) · `KRX_HELP_TIMEOUT_MIN`(30) · `KRX_HELP_EXT_ID`(허용할 확장 id)
 
 증빙 찾아오기(`site-fetch/`): `KRX_FETCH_MODEL`(KRX_HELP_MODEL) · `KRX_FETCH_TIMEOUT_MIN`(15) · `KRX_FETCH_BUDGET_USD`(0 = 제한 없음) · `KRX_FETCH_CHROME`(chrome.exe) · `KRX_FETCH_PROFILE`(작업용 Chrome 프로필) · `KRX_FETCH_CDP`(이미 떠 있는 디버그 Chrome — 예 krs-web-agents 의 `http://127.0.0.1:9444`) · `KRX_FETCH_HEADLESS` — 자세히는 [site-fetch/README.md](site-fetch/README.md). 이 PC 는 `site-fetch/local.json`(git 제외)으로 평소 쓰는 "KRS 전용" Chrome(krs-web-agents `chrome_profile/KRS`, 9333)에 붙어 작업마다 새 창에서 찾는다 — 그 프로필의 ChatGPT·Microsoft·Claude 로그인 공유. 그 Chrome 이 떠 있어야 함. 가맹점 등록의 **로그인해 둔 Chrome**(바탕화면 바로가기 이름 "SUB 전용" · 포트 9444 · 주소)이 있으면 그 가맹점은 그 Chrome 에 붙는다 — 바탕화면 `.lnk` 인수에서 포트를 읽고, 안 떠 있으면 그 바로가기로 띄움(`site-fetch/chrome.js ensureBrowser(spec)`)
 
@@ -48,6 +48,7 @@ node help-server/server.js
 | 포트 8106 을 이미 쓰고 있습니다 (서버 콘솔) | 서버가 이미 떠 있거나 다른 프로그램이 사용 → 기존 것을 쓰거나 `KRX_HELP_PORT` |
 | 청구 준비에 "Help 서버가 이전 버전이라 Claude 자동 분류를 건너뜁니다" | 0.8.5 전에 띄운 서버 → 서버를 끄고 다시 `node help-server/server.js` |
 | 청구 준비 찾아오기에 "Help 서버가 이전 버전이라 찾아오기를 할 수 없습니다" | 증빙 찾아오기가 생기기 전에 띄운 서버 → 서버를 끄고 다시 `node help-server/server.js` |
+| 참여연구원 변경 탭의 변경 도우미([에이전트])에 "Help 서버가 이전 버전" | 0.8.8 전에 띄운 서버 → 서버를 끄고 다시 `node help-server/server.js` 한 뒤 [연결 확인] |
 | 찾아오기에 "Node … 22 이상이 필요합니다" | 서버를 띄운 Node 가 낮음 → Node 22+ 로 서버 다시 실행 |
 | 찾아오기에 "작업용 Chrome 이 20초 안에 뜨지 않았습니다" | 같은 프로필을 다른 Chrome 이 쓰는 중이거나 Chrome 을 못 찾음 → 작업용 Chrome 창을 닫고 다시, 또는 `KRX_FETCH_CHROME` |
 | 찾아오기가 "찾지 못함: …(추가 인증 필요·로그인 실패)" | 남아 있는 작업용 Chrome 창에서 직접 로그인·인증 → 다시 찾아오기(로그인은 그 프로필에 남음). 아이디·비밀번호는 설정 › LLM 설정 › 증빙 찾아오기 |
@@ -57,6 +58,7 @@ node help-server/server.js
 
 - 같은 서버가 **청구 준비 자동 분류**(`POST /classify`, `help-server/classify.js`)도 한다: 빠른 모델로 `claude -p` 를 저장소가 아닌 임시 폴더에서 `--safe-mode`·도구 없이 한 번 돌리므로 이 저장소의 CLAUDE.md·Stop 훅은 돌지 않는다. `classify.js` 를 고치면 서버를 다시 띄워야 반영된다.
 - 자동 분류는 서버 없이 **Claude API** 로도 된다(0.8.6): 설정 › LLM 설정 › Claude API 의 키(`storage.local.claudeApiKey`)로 확장 백그라운드가 `api.anthropic.com` 에 직접(`lib/claude-api.js`, 의존 패키지가 없어 SDK 대신 fetch). 프롬프트·스키마·결과 검사는 서버와 같은 `lib/classify-core.js` — 고치면 서버를 다시 띄우고 확장도 다시 올려야 둘 다 반영된다. Help Chat·증빙 찾아오기는 서버로만.
+- 같은 서버가 **참여연구원 변경 도우미**(`POST /staff`, `help-server/staff-chat.js`)도 한다: 참여연구원 변경 탭 제목 줄의 [에이전트] 단추로 여는 채팅(`popup/staff-chat.js`)이 보낸 요청 + 계획 요약으로 `claude -p` 를 임시 폴더에서 `--safe-mode`·도구 없이 한 번 돌려 작업 목록(ops)을 받고, 반영은 확장(`lib/staff-ui.js bind().agent.apply` — 폼·칸과 같은 길)이 한다. 프롬프트·스키마·검사는 `lib/staff-chat-core.js` — 고치면 서버를 다시 띄우고 확장도 다시 올려야 둘 다 반영된다. LLM(Help 서버)이 연결돼 있을 때만 입력란이 켜진다.
 - 같은 서버가 **증빙 찾아오기**(`POST /fetch` …)도 한다 — 다른 웹 사이트에 가는 부분은 확장 코드와 섞지 않고 `site-fetch/` 폴더에 따로 둔다(서버는 `/fetch*` 경로만 넘김). 작업용 Chrome(별도 프로필, 창이 보임)을 띄우고 `claude -p` 를 임시 폴더에서 `--safe-mode --restricted --permission-mode dontAsk`(허용 = `node cdp.mjs …` · Read)로 돌리므로 이 저장소의 CLAUDE.md·Stop 훅은 돌지 않는다. 아이디·비밀번호는 Claude 에 보이지 않게 브라우저 손잡이(`site-fetch/cdp.mjs`)만 쓴다. `site-fetch/` 를 고치면 서버를 다시 띄워야 반영되고(사이트 안내 `site-fetch/sites/*.md` 는 다음 요청부터 바로), 확장 없이 시험하려면 `node site-fetch/run.js 요청.json`.
 - Claude 의 작업 규칙은 `help-server/rules.md`: 커밋·푸시·되돌리기, 버전 올리기, R&D ERP·HR·eClass 에 쓰는 동작, 확장 다시 불러오기를 하지 않는다. 변경은 작업 트리에만 남으므로 확인 뒤 직접 커밋한다.
 - 설정 페이지 › LLM 설정 › 증빙 찾아오기의 **사이트 만들기 채팅**도 같은 `/ask` 로 온다(글이 `[증빙 찾아오기 — 새 사이트 붙이기]` 로 시작). 그 요청은 **fetch-site 스킬**(`.claude/skills/fetch-site/SKILL.md`, 대화형에서 `/fetch-site`)의 절차대로 — `node site-fetch/run.js` 단독 실행으로만 시험하고 `site-fetch/sites/<이름>.md` 를 만들며, 마지막 답변에 `howto:` 줄(채팅이 그 가맹점의 "기억한 찾는 방법" 칸에 넣음)을 둔다. 시험 서류는 `site-fetch-out/`(git 제외). 서버의 `GET /fetch/skill` · `GET /fetch/guide?url=` 가 설정 페이지의 **스킬 복사** · **안내 복사**에 원문을 준다.

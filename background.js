@@ -1220,6 +1220,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'fetchSiteSave': try { return { ok: true, site: await KRX_PREP_FETCH.saveSite(msg.site || {}, msg.cred || null, fromExtPage(sender)) }; } catch (e) { return { ok: false, error: String(e.message || e) }; }   // 비밀번호는 확장 페이지에서 온 것만
       case 'fetchSiteRemove': return { ok: await KRX_PREP_FETCH.removeSite(String(msg.id || '')) };
       case 'callService': return await KRX_API.call(msg.service, msg.input || {});
+      case 'fetchBudget': return await KRX_API.fetchBudget(String(msg.prjNo || '').trim(), await KRX_SETTINGS.load());   // 자금현황 비목별 잔액(과제집행비율과 같은 조회) — 사업비 관리 참여인력 카드가 인건비 비목 승인액으로 몇 월까지 지급됐는지 셈한다(lib/staff-ui.js fetchRows → KRX_STAFF.paidThroughOf)
       case 'diagnose': {   // 진단은 그 과제의 참여인력 캐시를 지금 값으로 바꾸므로, 끝나면 패널도 다시 조회해 반영 (캐시 TTL 무시, 다른 과제의 참여인력은 캐시)
         const r = await KRX_API.diagnose(String(msg.prjNo || '').trim(), await KRX_SETTINGS.load());
         if (r && r.member) refresh(true).catch(() => {});

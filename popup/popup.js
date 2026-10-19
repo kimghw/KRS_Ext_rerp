@@ -21,6 +21,7 @@
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
   const staffApi = KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
+  if (state.tab && self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.init({ api: staffApi, state, draw });   // 참여연구원 변경 탭의 오른쪽 변경 도우미 채팅(popup/staff-chat.js, 0.8.8) — only=staff 일 때 제목 줄 [에이전트] 단추(st-agent)로 열고 닫음, LLM(Help 서버)이 연결돼 있을 때만 입력
   const prepApi = KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
 
   /* 브라우저 탭으로 열렸을 때(mode.js KRX_TAB — 주소 #tab&page=staff&only=staff&prj=과제번호&year=연차, lib/staff-ui.js openTab → background.js openExtTab):
@@ -33,6 +34,7 @@
     state.staffOnly = only ? 'staff' : '';
     document.documentElement.classList.toggle('krext-only', only);
     if (only) document.title = '참여연구원 변경 — R&D ERP 현황';
+    if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.show(only);   // 변경 도우미 채팅은 참여연구원 변경 탭에만
     if (q.get('page') === 'staff' && staffApi && staffApi.focus) staffApi.focus({ prjNo: q.get('prj') || '', year: Number(q.get('year')) || 0 });
     else if (only) draw();
   };
@@ -51,6 +53,7 @@
     else if (act === 'claim') { if (ev.target.closest('a')) return; ev.preventDefault(); if (btn.dataset.href) chrome.tabs.create({ url: btn.dataset.href }); }
     else if (act === 'rcms') { ev.preventDefault(); openRcms(btn.href); }
     else if (act === 'sidepanel') { ev.preventDefault(); openSidePanel(); }
+    else if (act === 'st-agent') { ev.preventDefault(); if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.toggle(); }   // 참여연구원 변경 탭 제목 줄 [에이전트] — 변경 도우미 채팅 열기/닫기 (lib/staff-ui.js focusTitle)
   });
   // 제목 줄 "사이드 패널로 열기"(팝업 창에만): 같은 문서를 이 창의 사이드 패널로 열고 팝업은 닫는다. 사용자 클릭 안에서 불러야 하므로 여기서 바로 연다. 아이콘 클릭이 팝업을 열지 사이드 패널을 열지는 설정 actionPopup (background.js applySidePanel, 기본 사이드 패널)
   if (state.sidePanel) KRX_CAP.bind(host, state, draw, prepApi);   // 청구 준비 줄의 화면 캡처(화면 전체·영역 선택): 왼쪽 탭을 찍어 첨부 파일로 (popup/capture.js, 사이드 패널만)

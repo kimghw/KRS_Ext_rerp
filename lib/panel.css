@@ -521,11 +521,50 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-st-tag { display: block; font-size: 10px; color: #8a919c; text-align: right; line-height: 1.2; padding-right: 6px; }
 .krext-st-maxtag { color: #245fbd; white-space: nowrap; }
 .krext-st-act { width: 1%; white-space: nowrap; text-align: right; }
-.krext-st-months td, .krext-st-erp td { padding: 0 6px 5px; font-size: 11px; color: #6b7480; line-height: 1.7; }
-.krext-st-months .krext-st-mo { display: inline-block; margin-right: 8px; white-space: nowrap; }
+.krext-st-months td, .krext-st-erp td { padding: 0 6px 5px; font-size: 11px; color: #6b7480; line-height: 1.5; }
+/* 달마다의 지급 — 1~12월 고정 칸(패널은 6칸 × 2줄, 참여연구원 변경 탭은 12칸 한 줄): 사람마다 같은 달이 같은 자리에(2026-10-19 사용자 "칸 줄이 안맞음 … 1월부터 12월까지 일정 간격으로") */
+.krext-st-months .krext-st-mogrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px 6px; }
+.krext-st-months .krext-st-mogrid + .krext-st-mogrid { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e3e8ef; }
+.krext-st-months .krext-st-mo { display: flex; flex-direction: column; min-width: 0; margin: 0; white-space: nowrap; }
+.krext-st-months .krext-st-mo i { font-style: normal; font-size: 10px; color: #8a93a2; }
 .krext-st-months .krext-st-mo b { color: #222; font-weight: 600; font-variant-numeric: tabular-nums; }
-.krext-st-months .krext-st-mo.krext-st-off b { color: #a0a7b2; text-decoration: line-through; }
-.krext-st-months .krext-st-mo.krext-st-max b { color: #245fbd; }
+.krext-st-months .krext-st-mo b small { display: block; font-size: 9px; font-weight: 400; color: #8a93a2; }
+.krext-st-months .krext-st-mo-none i { color: #c3c9d3; }
+.krext-st-months .krext-st-mo b.krext-st-off { color: #a0a7b2; text-decoration: line-through; }
+.krext-st-months .krext-st-mo b.krext-st-max { color: #245fbd; }
+/* rERP 지급 완료 달 — 라벨 오른쪽 "지급" 꼬리표, 탭에서는 잠긴 칸(단추 아님) */
+.krext-st-months .krext-st-mo i em.krext-st-paidtag { display: inline-block; margin-left: 4px; padding: 0 3px; border-radius: 3px; font-style: normal; font-size: 9px; font-weight: 600; line-height: 1.4; color: #1f7a3f; background: #e6f4ea; vertical-align: 1px; }
+.krext-st-editable .krext-st-months .krext-st-mo.krext-st-paid { border-color: #cfe5d6; background: #eef7f1; cursor: not-allowed; }
+.krext-st-paidst { color: #1f7a3f; font-weight: 600; }
+.krext-st-form-hint { font-size: 11px; }
+/* 폼 아래 증감 줄 — 회의실 현황 격자 꼴의 칸: [−50%]…[기준]…[+50%] 또는 나머지 [10%]…[100%], 맨 오른쪽 [예산에 맞추기] · 그 아래 읽기 줄 (lib/staff-ui.js quickRow) */
+.krext-st-quick { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-left: 18px; font-size: 11px; color: #5d718c; }
+.krext-st-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(36px, 1fr); gap: 3px; max-width: 760px; user-select: none; -webkit-user-select: none; touch-action: none; }
+.krext-st-step { appearance: none; -webkit-appearance: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 1px solid transparent; border-radius: 5px; background: #eceef2; color: #5d718c; font: inherit; font-size: 11px; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background .1s ease, color .1s ease, border-color .1s ease; }
+.krext-st-step-dn { background: #f7e8eb; color: #a3404f; }
+.krext-st-step-up { background: #e3f2e8; color: #23704a; }
+.krext-st-step-share { background: #e8eef8; color: #1f4f8f; }
+.krext-st-step-base { background: #dfe5ee; color: #34495e; font-weight: 600; cursor: default; }
+button.krext-st-step:hover:not(:disabled) { border-color: #9cbbe6; }
+.krext-st-step-dn.krext-st-step-on { background: #d9536a; color: #fff; }
+.krext-st-step-up.krext-st-step-on { background: #2e9e63; color: #fff; }
+.krext-st-step-share.krext-st-step-on { background: #2563c4; color: #fff; }
+.krext-st-step-nudge { background: #f3f5f8; color: #34495e; font-weight: 600; }
+.krext-st-step-nudge:first-of-type { margin-left: 0; }
+.krext-st-steps > .krext-st-step-nudge + .krext-st-step-nudge { margin-left: -1px; }
+.krext-st-steps > [data-step="50"] + .krext-st-step-nudge, .krext-st-steps > [data-step="100"] + .krext-st-step-nudge { margin-left: 6px; }
+.krext-st-step-fit { grid-column: span 2; margin-left: 6px; border-color: #9cbbe6; background: #eef3fb; color: #1f4f8f; font-weight: 600; }
+.krext-st-step-fit.krext-st-step-on { background: #2563c4; border-color: #2563c4; color: #fff; }
+.krext-st-step-fit.krext-st-fit-over.krext-st-step-on { background: #d9536a; border-color: #d9536a; color: #fff; }
+.krext-st-step-fit small { font-size: 10px; font-weight: 400; }
+.krext-st-step-fit.krext-st-fit-over { border-color: #e3a3ab; background: #fbeef0; color: #b43243; }
+.krext-st-step:disabled { opacity: .45; cursor: default; }
+.krext-st-step-read { display: flex; flex-wrap: wrap; gap: 2px 10px; min-height: 16px; }
+.krext-st-quick-k b { color: #1f4f8f; font-variant-numeric: tabular-nums; }
+.krext-st-step-pv { color: #34495e; }
+.krext-st-step-pv.krext-st-step-pending { color: #1f4f8f; }
+.krext-st-step-pv b { color: #1f4e9c; }
+.krext-st-sum .krext-st-low { color: #b43243; font-weight: 600; }
 .krext-st-form td { padding: 2px 0 6px; }
 .krext-st-form .krext-plan-form input[data-stf="name"], .krext-st-form .krext-plan-form input[data-stf="role"] { width: 84px; }
 .krext-st-form .krext-plan-form input[data-stf="manual"], .krext-st-form .krext-plan-form input[data-stf="value"] { width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -664,9 +703,7 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-ws .krext-st-tab svg { vertical-align: -1px; margin-left: 1px; }
 .krext-ws-cardhead.krext-ws-pinned { cursor: default; }
 .krext-ws-cardhead.krext-ws-pinned:hover { color: var(--ws-muted); }
-.krext-ws-focus-meta { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .krext-ws-focus-link { flex: none; margin-left: auto; font-size: 12px; white-space: nowrap; }
-.krext-st-focus .krext-ws-head { margin-bottom: 10px; }
 .krext-ws .krext-st-table { margin-top: 2px; }
 /* 과제 카드의 공유 줄 (0.8.7 v2, lib/staff-ui.js shareLine — 공유 (Plus) 켜짐): 과제 폴더 이름 · 폴더 열기 · 참여연구원에게 공유 · 링크 복사 · 주소 복사 · 결과 */
 .krext-ws-share { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--ws-line); font-size: 12px; color: var(--ws-muted); }
@@ -689,14 +726,26 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-ws .krext-st-table .krext-st-in:hover, .krext-ws .krext-st-table .krext-st-in:focus { border-color: var(--ws-line); background: var(--ws-soft); }
 .krext-ws .krext-st-table .krext-st-in:focus-visible { outline: 2px solid var(--ws-pick); outline-offset: 2px; }
 .krext-ws .krext-st-tag { color: var(--ws-faint); }
-.krext-ws .krext-st-maxtag, .krext-ws .krext-st-months .krext-st-mo.krext-st-max b { color: var(--ws-pick); }
+.krext-ws .krext-st-maxtag, .krext-ws .krext-st-months .krext-st-mo b.krext-st-max { color: var(--ws-pick); }
 .krext-ws .krext-st-months, .krext-ws .krext-st-erp { display: none; }
 .krext-ws .krext-st-months-open .krext-st-months, .krext-ws .krext-st-months-open .krext-st-erp { display: table-row; }
 .krext-ws .krext-st-months td, .krext-ws .krext-st-erp td { padding: 0 6px 6px; color: var(--ws-muted); }
 .krext-ws .krext-st-months .krext-st-mo b { color: var(--ws-fg); }
-.krext-ws .krext-st-months .krext-st-mo.krext-st-off b { color: var(--ws-faint); }
+.krext-ws .krext-st-months .krext-st-mo i, .krext-ws .krext-st-months .krext-st-mo b small { color: var(--ws-faint); }
+.krext-ws .krext-st-months .krext-st-mo b.krext-st-off { color: var(--ws-faint); }
 .krext-ws .krext-st-month-toggle { font-size: 12px; font-weight: 700; }
 .krext-ws .krext-st-month-toggle.krext-on { color: var(--ws-pick); background: var(--ws-pick-soft); }
+/* 달 칸 고르기(참여연구원 변경 탭 — 회의실 현황처럼 칸을 누르거나 끌어 달을 고른다, 2026-10-19 사용자 "2번째처럼 … 드래그해서 선택할 수 있게", lib/staff-ui.js monthGrid edit): 편집 표의 격자는 늘 보이고(M 은 rERP 등록 줄만), 기간 안의 달은 단추(data-act="st-pick"), 고른 달은 파랑, 지급이 없는 달은 빈 칸(·), 기간 밖은 점선 */
+.krext-ws .krext-st-editable .krext-st-months { display: table-row; }
+.krext-st-editable .krext-st-months .krext-st-mogrid { gap: 4px; user-select: none; -webkit-user-select: none; }
+.krext-st-editable .krext-st-months .krext-st-mo { box-sizing: border-box; min-height: 40px; padding: 4px 6px; border: 1px solid #dfe6ef; border-radius: 7px; background: #f3f6fa; }
+.krext-st-editable .krext-st-months button.krext-st-mo { appearance: none; -webkit-appearance: none; margin: 0; color: inherit; font: inherit; line-height: inherit; text-align: left; cursor: pointer; touch-action: none; transition: background .12s ease, border-color .12s ease, box-shadow .12s ease; }
+.krext-st-editable .krext-st-months button.krext-st-mo:hover { border-color: #b9cbe2; background: #fff; }
+.krext-st-editable .krext-st-months button.krext-st-mo.krext-st-picked { border-color: #2563c4; background: #dbe8fb; box-shadow: inset 0 0 0 1px #2563c4; }
+.krext-st-editable .krext-st-months button.krext-st-mo.krext-st-picked i { color: #2563c4; }
+.krext-st-editable .krext-st-months button.krext-st-mo > b:empty::before { content: "·"; color: #c3c9d3; font-weight: 400; }
+.krext-st-editable .krext-st-months .krext-st-mo-none { border-style: dashed; border-color: #e7ecf2; background: transparent; }
+.krext-st-pickhint { flex: none; white-space: nowrap; }
 /* 참여인력: 기간 구간이 둘 이상이면 구간마다 한 줄(성명·역할·월급여·✎× 는 rowspan) — 성명 밑에 연간 합·참여율, 머리의 부족금은 주황(초과금은 krext-red) */
 .krext-st-sum { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; line-height: 1.3; color: #8a919c; white-space: normal; max-width: 150px; }
 .krext-st-sum span { display: inline-block; white-space: nowrap; }
@@ -769,7 +818,7 @@ html.krext-only .krext-updated { font-size: 13px; color: #c2d0df; opacity: 1; }
 html.krext-only .krext-head .krext-btn { width: 32px; height: 32px; border-color: #4b6580; border-radius: 8px; background: #28445f; }
 html.krext-only .krext-head .krext-btn:hover { background: #385976; }
 html.krext-only .krext-head .krext-btn:focus-visible { outline: 2px solid #b9d7ff; outline-offset: 3px; }
-html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 32px; background: #f3f6fa; }
+html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 20px 32px 28px; background: #f3f6fa; }
 html.krext-only .krext-foot { flex: none; padding: 16px 32px; gap: 10px 22px; border-top-color: #e0e7ef; background: #f3f6fa; color: #5f7188; font-size: 13px; }
 html.krext-only .krext-foot a { color: #536980; }
 html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-color: #e0e7ef; }
@@ -781,70 +830,50 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
   --ws-shadow: 0 3px 12px rgb(25 44 72 / 3%);
   margin-bottom: 0; font-size: 16px; line-height: 1.6;
 }
-.krext-st-focus > .krext-sec-title { margin-bottom: 24px; gap: 8px 12px; }
+/* 참여연구원 변경 탭은 위를 얇게 — 제목 줄(제목 · 별칭 · 과제 정보 링크) → 연차 칩 → 참여인력 카드(머리 한 줄에 요약 + 단추, rERP 상태 줄, 바로 표). 과제 카드·기간 칸·요약 세 칸은 없음(2026-10-19 사용자 "너무 공간을 많이 차지함 … 막상 중요한 참여연구원이 한참 아래에 있잖아") */
+.krext-st-focus > .krext-sec-title { align-items: center; margin-bottom: 12px; gap: 6px 12px; }
 .krext-st-focus .krext-sub { font-size: 13px; }
-.krext-st-focus .krext-page-title { color: #172b45; font-size: 26px; font-weight: 700; letter-spacing: -.8px; line-height: 1.3; }
-.krext-st-focus .krext-page-desc { margin-top: 3px; font-size: 15px; line-height: 1.6; }
-.krext-st-focus .krext-st-scope-note { padding: 3px 9px; border: 1px solid #dce5f0; border-radius: 6px; background: #eaf0f8; color: #5c708c; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.krext-st-focus .krext-ws-card { margin-bottom: 20px; padding: 20px 24px; border-radius: 14px; border-color: #dfe6ee; }
-.krext-st-focus .krext-ws-head { margin-bottom: 20px; padding: 22px 24px 20px; border-color: #dce5f1; }
-.krext-st-focus .krext-ws-project-heading { align-items: flex-start; gap: 12px; margin-bottom: 20px; }
-.krext-st-focus .krext-ws-project-heading > svg { width: 20px; height: 20px; margin-top: 4px; color: #547397; }
-.krext-st-focus .krext-ws-project-copy { flex: 1 1 auto; min-width: 0; }
-.krext-st-focus .krext-ws-name { display: block; color: #223853; font-size: 18px; font-weight: 700; line-height: 1.4; letter-spacing: -.3px; white-space: normal; overflow-wrap: anywhere; }
-.krext-st-focus .krext-ws-project-fullname { margin-top: 4px; color: #526a86; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
-.krext-st-focus .krext-ws-focus-meta { display: block; margin-top: 5px; color: #65758b; font-size: 13px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
-.krext-st-focus .krext-ws-focus-link { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; margin-top: 1px; padding: 4px 10px; border: 1px solid #dbe5f2; border-radius: 7px; background: #f8faff; color: #315e99; font-size: 14px; }
+.krext-st-focus .krext-page-title { color: #172b45; font-size: 22px; font-weight: 700; letter-spacing: -.6px; line-height: 1.3; }
+.krext-st-focus .krext-st-focus-prj { max-width: 60%; padding: 3px 11px; border-radius: 8px; background: #edf4ff; color: #2563c4; font-size: 17px; font-weight: 700; letter-spacing: -.3px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+.krext-st-focus .krext-ws-focus-link { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 3px 10px; border: 1px solid #dbe5f2; border-radius: 7px; background: #fff; color: #315e99; font-size: 13px; font-weight: 500; }
 .krext-st-focus .krext-ws-focus-link:hover { background: #edf4ff; text-decoration: none; }
 .krext-st-focus .krext-ws-focus-link svg { width: 12px; height: 12px; }
-.krext-st-focus .krext-ws-years { gap: 8px; margin-top: 0; padding: 5px; border: 1px solid #e7edf4; border-radius: 11px; background: #f4f7fb; }
-.krext-st-focus .krext-ws-year { min-height: 42px; padding: 7px 14px; border-color: transparent; border-radius: 7px; background: transparent; color: #5d6e84; font-size: 15px; font-weight: 600; }
-.krext-st-focus .krext-ws-year small, .krext-st-focus .krext-ws-year .krext-badge { font-size: 13px; line-height: 18px; }
+.krext-st-focus .krext-ws-card { margin-bottom: 16px; padding: 14px 20px 16px; border-radius: 14px; border-color: #dfe6ee; }
+.krext-st-focus .krext-ws-years { gap: 6px; margin: 0 0 12px; padding: 4px; border: 1px solid #e7edf4; border-radius: 10px; background: #f4f7fb; }
+.krext-st-focus .krext-ws-year { flex: 0 1 auto; min-height: 36px; padding: 5px 14px; border-color: transparent; border-radius: 7px; background: transparent; color: #5d6e84; font-size: 14px; font-weight: 600; }
+.krext-st-focus .krext-ws-year small, .krext-st-focus .krext-ws-year .krext-badge { font-size: 12px; line-height: 17px; }
 .krext-st-focus .krext-ws-year:hover { background: #e8eff9; }
 .krext-st-focus .krext-ws-year.krext-on { background: #2563c4; border-color: #2563c4; color: #fff; box-shadow: 0 2px 4px rgb(37 99 196 / 12%); }
 .krext-st-focus .krext-ws-year.krext-ws-add { border-color: #d8e2ee; background: #fff; color: #466b9e; }
-.krext-st-focus .krext-ws-note { gap: 7px; margin-top: 18px; color: #65758b; font-size: 14px; }
-.krext-st-focus .krext-ws-note b { margin-right: 2px; font-weight: 600; }
-.krext-st-focus .krext-ws-note input[type="month"] { width: 180px; height: 40px; padding: 5px 10px; border-color: #dde5ef; border-radius: 7px; background: #fff; font-size: 16px; }
-.krext-st-focus .krext-ws-cardhead.krext-ws-pinned { min-height: 30px; margin-bottom: 18px; color: #637c9b; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned { flex-wrap: wrap; gap: 6px 12px; min-height: 0; margin-bottom: 10px; color: #637c9b; }
 .krext-st-focus .krext-ws-cardhead.krext-ws-pinned > svg { width: 18px; height: 18px; }
-.krext-st-focus .krext-ws-cardhead.krext-ws-pinned > span:first-of-type { font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
-.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { display: none; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned > span:first-of-type { font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { flex: 1 1 260px; margin-left: 0; color: #3f5572; font-size: 14px; text-align: left; white-space: normal; overflow: visible; font-variant-numeric: tabular-nums; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state.krext-red { color: #b43243; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state.krext-st-short { color: #9d6819; }
 .krext-st-focus .krext-ws-body { padding-bottom: 0; }
-.krext-st-focus .krext-st-overview { display: grid; grid-template-columns: minmax(0, .8fr) repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
-.krext-st-focus .krext-st-metric { min-width: 0; padding: 16px 18px; border: 1px solid #e5ebf2; border-radius: 10px; background: #f8fafc; }
-.krext-st-focus .krext-st-metric-label { display: block; margin-bottom: 7px; color: #5f7188; font-size: 14px; font-weight: 500; }
-.krext-st-focus .krext-st-metric strong { display: block; color: #233a57; font-size: 26px; line-height: 1.2; font-weight: 700; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
-.krext-st-focus .krext-st-metric strong small { margin-left: 5px; color: #5f7188; font-size: 13px; font-weight: 500; letter-spacing: 0; }
-.krext-st-focus .krext-st-metric-note { display: block; margin-top: 6px; color: #5f7188; font-size: 13px; line-height: 1.5; }
-.krext-st-focus .krext-st-metric-total { border-color: #d8e6fa; background: #f0f6ff; }
-.krext-st-focus .krext-st-metric-total strong { color: #225ab0; }
-.krext-st-focus .krext-st-metric-over { border-color: #f0d3d7; background: #fff6f6; }
-.krext-st-focus .krext-st-metric-over strong, .krext-st-focus .krext-st-metric-over .krext-st-metric-note { color: #b43243; }
-.krext-st-focus .krext-st-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-.krext-st-focus .krext-st-acts { flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
-.krext-st-focus .krext-plan-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; padding: 6px 12px; border: 1px solid #dce4ed; border-radius: 7px; background: #fff; color: #4b627f; font-size: 14px; font-weight: 500; }
+.krext-st-focus .krext-st-acts { flex: 0 1 auto; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 0 auto; }
+.krext-st-focus .krext-plan-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 4px 12px; border: 1px solid #dce4ed; border-radius: 7px; background: #fff; color: #4b627f; font-size: 14px; font-weight: 500; }
 .krext-st-focus .krext-plan-btn:hover { background: #f2f6fc; border-color: #c7d7eb; }
 .krext-st-focus .krext-plan-btn[data-act="st-add"], .krext-st-focus .krext-plan-save { background: #2563c4; color: #fff; border-color: #2563c4; font-weight: 600; }
 .krext-st-focus .krext-plan-btn[data-act="st-add"]:hover, .krext-st-focus .krext-plan-save:hover { background: #1c53aa; border-color: #1c53aa; }
-.krext-st-focus .krext-plan-btn[data-act="st-clear"] { margin-left: auto; color: #7d7180; border-color: transparent; background: transparent; }
+.krext-st-focus .krext-plan-btn[data-act="st-clear"] { color: #7d7180; border-color: transparent; background: transparent; }
 .krext-st-focus .krext-plan-btn[data-act="st-clear"]:hover, .krext-st-focus .krext-plan-btn[data-act="st-clear"].krext-red { color: #b43243; border-color: #efd1d5; background: #fff0f1; }
-.krext-st-focus .krext-ws-tools { gap: 5px; margin: 0 0 12px; }
+.krext-st-focus .krext-ws-tools { gap: 5px; margin: 0 0 8px; }
 .krext-st-focus .krext-st-status { color: #65758b; font-size: 13px; }
-.krext-st-focus .krext-ico-btn { width: 36px; height: 36px; min-height: 36px; border: 1px solid #e1e8f1; border-radius: 7px; background: #fff; color: #65758b; }
+.krext-st-focus .krext-ico-btn { width: 32px; height: 32px; min-height: 32px; border: 1px solid #e1e8f1; border-radius: 7px; background: #fff; color: #65758b; }
 .krext-st-focus .krext-st-month-toggle { font-size: 14px; }
 .krext-st-focus .krext-ico-btn:hover, .krext-st-focus .krext-ico-btn.krext-on { border-color: #cfdef2; background: #edf4ff; color: #2563c4; }
-.krext-st-focus .krext-st-table-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin: 14px 0 9px; color: #5f7188; font-size: 13px; }
 .krext-st-focus .krext-ws-table-scroll { border: 1px solid #e3e9f1; border-radius: 10px; background: #fff; }
 .krext-st-focus .krext-st-table { min-width: 860px; margin: 0; font-size: 16px; line-height: 1.5; }
 .krext-st-focus .krext-st-table th { padding: 12px 14px; background: #f5f8fc; border-bottom: 1px solid #e1e8f1; color: #62738b; font-size: 14px; font-weight: 600; }
-.krext-st-focus .krext-st-table td { padding: 12px 14px; border-bottom-color: #edf1f6; vertical-align: middle; }
-.krext-st-focus .krext-st-row { height: 84px; }
+.krext-st-focus .krext-st-table td { padding: 5px 14px; border-bottom-color: #edf1f6; vertical-align: middle; }
+.krext-st-focus .krext-st-row { height: 56px; }   /* 사람 줄·달 격자를 약 30% 낮게 — 2026-10-19 사용자 "높이를 30%만 줄이면 좋겠어"(줄 86→60px · 달 격자 64→45px) */
 .krext-st-focus .krext-st-row:hover > td { background: #fcfdff; }
 .krext-st-focus .krext-st-table .krext-st-nm { min-width: 118px; color: #233c59; font-weight: 600; vertical-align: middle; }
-.krext-st-focus .krext-st-table .krext-st-in { width: 108px; height: 40px; padding: 6px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
+.krext-st-focus .krext-st-table .krext-st-in { width: 108px; height: 32px; padding: 4px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
 .krext-st-focus .krext-st-table .krext-st-rate { width: 100px; }
-.krext-st-focus .krext-st-table .krext-st-role { width: auto; min-width: 96px; height: 40px; padding: 6px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
+.krext-st-focus .krext-st-table .krext-st-role { width: auto; min-width: 96px; height: 32px; padding: 4px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
 .krext-st-focus .krext-st-support-row input[type="text"] { height: 40px; padding: 6px 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #29415e; font-size: 16px; }
 .krext-st-focus .krext-st-sup { margin-top: 20px; padding-top: 16px; }
 .krext-st-focus .krext-st-sup-head strong { font-size: 16px; }
@@ -854,22 +883,38 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-table .krext-st-in:focus { background: #fff; border-color: #5d8fd8; }
 .krext-st-focus .krext-st-table .krext-st-role:hover, .krext-st-focus .krext-st-support-row input[type="text"]:hover { background: #fff; border-color: #b9cbe2; }
 .krext-st-focus .krext-st-table .krext-st-role:focus, .krext-st-focus .krext-st-support-row input[type="text"]:focus { background: #fff; border-color: #5d8fd8; }
-.krext-st-focus .krext-st-tag { margin-top: 5px; padding-right: 3px; color: #65758b; font-size: 13px; }
-.krext-st-focus .krext-st-sum { max-width: 180px; margin-top: 5px; font-size: 13px; line-height: 1.5; }
+.krext-st-focus .krext-st-tag { margin-top: 2px; padding-right: 3px; color: #65758b; font-size: 12px; }
+.krext-st-focus .krext-st-sum { max-width: 180px; margin-top: 2px; font-size: 12px; line-height: 1.4; }
 .krext-st-focus .krext-st-maxtag { color: #3f79c6; }
 .krext-st-focus .krext-plan-acts { gap: 3px; margin-left: 0; }
-.krext-st-focus .krext-plan-acts button { min-width: 32px; min-height: 36px; border-radius: 6px; color: #65758b; font-size: 16px; }
+.krext-st-focus .krext-plan-acts button { min-width: 32px; min-height: 30px; border-radius: 6px; color: #65758b; font-size: 16px; }
 .krext-st-focus .krext-plan-acts button[data-act="st-drop"]:hover, .krext-st-focus .krext-ws-bdel:hover { color: #b43243; background: #fff0f1; }
-.krext-st-focus .krext-st-months td, .krext-st-focus .krext-st-erp td { padding: 0 14px 12px; font-size: 13px; }
+.krext-st-focus .krext-st-months td, .krext-st-focus .krext-st-erp td { padding: 0 14px 6px; font-size: 13px; }
+.krext-st-focus .krext-st-months .krext-st-mogrid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px 8px; }
+.krext-st-focus .krext-st-months .krext-st-mo i { font-size: 12px; line-height: 1.25; }
+.krext-st-focus .krext-st-months .krext-st-mo b { font-size: 14px; line-height: 1.25; }
+.krext-st-focus .krext-st-months .krext-st-mo b small { font-size: 11px; }
+.krext-st-focus .krext-st-months .krext-st-mo i em.krext-st-paidtag { font-size: 11px; }
+.krext-st-focus .krext-st-editable .krext-st-months .krext-st-mogrid { gap: 5px; }
+.krext-st-focus .krext-st-editable .krext-st-months .krext-st-mo { min-height: 34px; padding: 2px 8px; }
+.krext-st-focus .krext-st-editable .krext-st-months button.krext-st-mo:focus-visible { outline: 2px solid #4b84d4; outline-offset: 2px; }
+.krext-st-focus .krext-st-pickhint { color: #65758b; font-size: 13px; }
+.krext-st-focus .krext-st-form-hint { font-size: 13px; }
+.krext-st-focus .krext-st-quick { gap: 8px; margin-top: 12px; padding-left: 26px; font-size: 14px; }
+.krext-st-focus .krext-st-steps { grid-auto-columns: minmax(44px, 1fr); gap: 4px; max-width: 980px; }
+.krext-st-focus .krext-st-step { height: 38px; border-radius: 6px; font-size: 13px; }
+.krext-st-focus .krext-st-step-fit small { font-size: 11px; }
 .krext-st-focus .krext-st-form td { padding: 14px; background: #f7faff; }
 .krext-st-focus .krext-plan-form { gap: 10px; }
 .krext-st-focus .krext-plan-form input, .krext-st-focus .krext-plan-form select { height: 40px; padding: 6px 10px; border: 1px solid #dbe5f0; border-radius: 7px; background: #fff; font-size: 16px; }
 .krext-st-focus .krext-plan-form label { gap: 5px; color: #5d718c; font-size: 14px; }
-.krext-st-focus .krext-st-form .krext-plan-form input[type="date"] { width: 174px; padding: 6px 8px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[type="date"] { width: 140px; padding: 6px 6px; }   /* 2026-10-19 사용자 "반영/취소는 적용일, 종료일, 참여율 이거랑 1줄로. 날짜 너비 줄이면 될듯" */
+.krext-st-focus .krext-st-form .krext-plan-form select[data-stf="mode"] { width: 150px; }
 .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="name"] { width: 132px; }
 .krext-st-focus .krext-st-form .krext-plan-form select[data-stf="role"] { width: 152px; }
 .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="supportRole"] { width: 200px; }
-.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="manual"], .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="value"] { width: 108px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="manual"] { width: 96px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="value"] { width: 92px; }
 .krext-st-focus .krext-st-warn { gap: 5px; margin-top: 14px; padding: 11px 13px; border-radius: 8px; background: #f7f9fc; font-size: 13px; }
 .krext-st-focus .krext-st-warn li { color: #5f7188; }
 .krext-st-focus .krext-st-warn li.krext-st-warn { margin: 0; padding-top: 0; padding-bottom: 0; background: transparent; color: #9d6819; }
@@ -887,37 +932,25 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
   html.krext-only .krext-head { padding: 12px 20px; }
   html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { padding: 24px 20px; }
   html.krext-only .krext-foot { padding: 16px 20px; }
-  .krext-st-focus .krext-ws-card, .krext-st-focus .krext-ws-head { padding: 18px; }
-  .krext-st-focus .krext-st-overview { gap: 8px; }
-  .krext-st-focus .krext-st-metric { padding: 14px 12px; }
-  .krext-st-focus .krext-st-metric strong { font-size: 23px; }
+  .krext-st-focus .krext-ws-card { padding: 14px 16px 16px; }
+  .krext-st-focus .krext-st-months .krext-st-mogrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 @media (max-width: 520px) {
   html.krext-only .krext-head { min-height: 56px; padding: 12px 16px; gap: 8px; }
   html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { padding: 22px 14px; }
   html.krext-only .krext-foot, html.krext-only .plusbar { padding-right: 16px; padding-left: 16px; }
   html.krext-only .krext-foot-r { width: 100%; margin-left: 0; }
-  .krext-st-focus > .krext-sec-title { margin-bottom: 20px; }
-  .krext-st-focus .krext-page-title { font-size: 23px; }
-  .krext-st-focus .krext-ws-card, .krext-st-focus .krext-ws-head { padding: 16px; margin-bottom: 16px; }
-  .krext-st-focus .krext-ws-project-heading { flex-wrap: wrap; gap: 8px; }
-  .krext-st-focus .krext-ws-project-copy { flex-basis: calc(100% - 28px); }
-  .krext-st-focus .krext-ws-name { font-size: 16px; }
-  .krext-st-focus .krext-ws-focus-link { margin-left: 28px; }
+  .krext-st-focus > .krext-sec-title { margin-bottom: 12px; }
+  .krext-st-focus .krext-page-title { font-size: 20px; }
+  .krext-st-focus .krext-st-focus-prj { max-width: 100%; font-size: 15px; }
+  .krext-st-focus .krext-ws-focus-link { margin-left: 0; }
+  .krext-st-focus .krext-ws-card { padding: 12px 14px 14px; margin-bottom: 12px; }
   .krext-st-focus .krext-ws-years { gap: 5px; }
-  .krext-st-focus .krext-ws-year { flex-basis: 40%; padding: 6px 8px; }
+  .krext-st-focus .krext-ws-year { flex: 1 1 40%; padding: 5px 8px; }
   .krext-st-focus .krext-ws-year.krext-ws-add { flex-grow: 1; }
-  .krext-st-focus .krext-ws-note { gap: 6px; }
-  .krext-st-focus .krext-ws-note input[type="month"] { max-width: 100%; }
-  .krext-st-focus .krext-st-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .krext-st-focus .krext-st-metric:first-child { grid-column: 1 / -1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 11px 13px; }
-  .krext-st-focus .krext-st-metric:first-child .krext-st-metric-label { margin: 0 auto 0 0; }
-  .krext-st-focus .krext-st-metric:first-child .krext-st-metric-note { flex-basis: 100%; margin-top: 0; }
-  .krext-st-focus .krext-st-metric strong { font-size: 21px; }
-  .krext-st-focus .krext-st-metric strong small { margin-left: 3px; }
-  .krext-st-focus .krext-st-acts { gap: 6px; }
-  .krext-st-focus .krext-plan-btn { padding: 6px 9px; }
-  .krext-st-focus .krext-plan-btn[data-act="st-clear"] { margin-left: 0; }
+  .krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { flex-basis: 100%; }
+  .krext-st-focus .krext-st-acts { gap: 6px; margin-left: 0; }
+  .krext-st-focus .krext-plan-btn { padding: 4px 9px; }
   .krext-st-focus .krext-ws-tools { flex-wrap: wrap; }
   .krext-st-focus .krext-ws-tools .krext-st-status { flex-basis: calc(100% - 115px); line-height: 1.6; }
   .krext-st-focus .krext-st-guide { padding: 13px 15px; }

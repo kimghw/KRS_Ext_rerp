@@ -49,5 +49,17 @@ await test('delSlice — 그 과제 묘비만 · putBack — 그 과제 몫만 �
   assert.deepStrictEqual(back.del, { 'P2@1': 20, 'P1@1': 400 }, 'P1 묘비는 새것으로(P1@3 은 사라짐), P2 는 그대로');
   assert.strictEqual(back.plans['P2@1'], local.plans['P2@1']);
 });
+await test('merge — 지급 완료(paid)는 계획 at 과 따로 paid.at 큰 쪽 (2026-10-19 "sharepoint 에도 제공해줘")', () => {
+  const paidA = { from: '2026-04', through: '2026-06', amt: 1, appr: 1, left: 0, at: 100, src: 'erp' }, paidB = Object.assign({}, paidA, { through: '2026-08', at: 200 });
+  const L = { plans: { 'P1@1': plan('P1', 1, 50, [person('a', [1000])], { paid: paidB }) }, del: {} };   // 로컬: 계획은 옛것, rERP 조회는 새것
+  const R = { plans: [plan('P1', 1, 90, [person('a', [2000])], { paid: paidA })], del: {} };            // 원격: 계획은 새것, 조회는 옛것
+  const m = Y.merge(L, R, 1000);
+  assert.deepStrictEqual([m.plans[0].people[0].plan[0].amt, m.plans[0].paid], [2000, paidB], '계획은 원격(at 90), paid 는 로컬(at 200)');
+  assert.ok(m.localChanged && m.remoteChanged);
+  const m2 = Y.merge({ plans: { 'P1@1': plan('P1', 1, 90, [person('a', [1])]) }, del: {} }, { plans: [plan('P1', 1, 50, [person('a', [2])], { paid: paidA })], del: {} }, 1000);
+  assert.deepStrictEqual([m2.plans[0].people[0].plan[0].amt, m2.plans[0].paid, m2.localChanged], [1, paidA, true], '한쪽에만 있으면 그것');
+  const m3 = Y.merge({ plans: { 'P1@1': plan('P1', 1, 90, [person('a', [1])], { paid: paidB }) }, del: {} }, { plans: [plan('P1', 1, 90, [person('a', [1])], { paid: paidB })], del: {} }, 1000);
+  assert.deepStrictEqual([m3.localChanged, m3.remoteChanged], [false, false]);
+});
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);
 })();
