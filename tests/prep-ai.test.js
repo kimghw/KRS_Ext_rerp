@@ -19,7 +19,15 @@ let settings = null;
 globalThis.KRX_SETTINGS = { DEFAULTS: { claimHelper: { attachKinds: ['거래명세서', '교육내용', '수료증'] } }, load: async () => settings };
 const calls = [];
 let reply = null, healthReply = null;
+const apiCalls = [];   // Claude API (api.anthropic.com) 로 간 요청 { url, method, headers, body }
+let apiReply = null;   // { status, body, retryAfter? } 또는 (본문) => 그것
 globalThis.fetch = async (url, init) => {
+  if (String(url).startsWith('https://api.anthropic.com/')) {
+    const body = init && init.body ? JSON.parse(init.body) : null;
+    apiCalls.push({ url, method: (init && init.method) || 'GET', headers: Object.assign({}, init && init.headers), body });
+    const rp = typeof apiReply === 'function' ? apiReply(body) : apiReply;
+    return { ok: rp.status >= 200 && rp.status < 300, status: rp.status, headers: { get: (h) => (/retry-after/i.test(h) ? rp.retryAfter || null : null) }, json: async () => rp.body };
+  }
   if (/\/health$/.test(url)) return { status: 200, json: async () => healthReply };
   const body = JSON.parse(init.body);
   calls.push(body);
@@ -30,12 +38,12 @@ globalThis.fetch = async (url, init) => {
 const classify = require(path.join(root, 'help-server/classify.js'));
 const vm = require('vm');
 const fs = require('fs');
-for (const f of ['lib/prep-store.js', 'lib/prep-ai.js']) vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f });
-const S = KRX_PREP_STORE, AI = KRX_PREP_AI;
+for (const f of ['lib/prep-store.js', 'lib/classify-core.js', 'lib/claude-api.js', 'lib/prep-ai.js']) vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f });
+const S = KRX_PREP_STORE, AI = KRX_PREP_AI, API = KRX_CLAUDE_API;
 
 const PICKS = ['연구실 운영비=연구실운영비', '회의비=회의비=17', '식사비=회의비=17=식비', '연구활동비 기타비용'];
 const reset = () => {
-  store = {}; calls.length = 0;
+  store = {}; calls.length = 0; apiCalls.length = 0; apiReply = null;
   settings = { help: { enabled: true, url: 'http://127.0.0.1:8106', autoPick: true }, claimHelper: { enabled: true, quickPicks: PICKS, attachKinds: ['거래명세서', '교육내용', '수료증'] } };
   healthReply = { ok: true, name: 'krx-help', classify: 'claude-haiku-5-5', classifyPtcl: true };
   reply = { ok: true, type: { value: '연구활동비 기타비용', reason: '온라인 강의' }, files: [] };
@@ -247,6 +255,90 @@ test('remember: 가맹점·적요별 최신 청구종류만, 사용자 예는 �
   assert.deepStrictEqual(store.prepTypeHist.map((h) => [h.shop, h.type]), [['B', '없는 종류'], ['A', '연구실 운영비']]);
   await AI.run(KEY, META);
   assert.deepStrictEqual(calls[0].history.map((h) => h.shop), ['A']);
+});
+
+/* ---------- lib/claude-api.js · Claude API 로 직접 (0.8.6) ---------- */
+const TEST_KEY = 'sk-ant-api03-test-0000000000-WXYZ';
+const apiMsg = (out, extra) => ({ status: 200, body: Object.assign({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', stop_reason: 'end_turn',
+  content: [{ type: 'thinking', thinking: '', signature: 's' }, { type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 900, output_tokens: 80 } }, extra || {}) });
+
+test('Claude API check: GET /v1/models/{모델} 을 키·버전·브라우저 직접 호출 헤더로 부르고 상태를 남김 (401 은 다시 하지 않고 오류)', async () => {
+  reset();
+  apiReply = { status: 200, body: { id: 'claude-haiku-5-5', display_name: 'Claude Haiku 5.5' } };
+  const st = await API.check({ key: TEST_KEY, model: 'claude-haiku-5-5' });
+  assert.strictEqual(st.ok, true); assert.strictEqual(st.name, 'Claude Haiku 5.5');
+  const c = apiCalls[0];
+  assert.strictEqual(c.url, 'https://api.anthropic.com/v1/models/claude-haiku-5-5'); assert.strictEqual(c.method, 'GET');
+  assert.strictEqual(c.headers['x-api-key'], TEST_KEY); assert.strictEqual(c.headers['anthropic-version'], '2023-06-01'); assert.strictEqual(c.headers['anthropic-dangerous-direct-browser-access'], 'true');
+  assert.strictEqual(store.llmApi.ok, true); assert.strictEqual(store.llmApi.keyTag, API.keyTag(TEST_KEY));
+  apiReply = { status: 401, body: { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } } };
+  const bad = await API.check({ key: 'sk-bad', model: 'claude-haiku-5-5' });
+  assert.strictEqual(bad.ok, false); assert.ok(bad.error.includes('401'), bad.error); assert.strictEqual(store.llmApi.ok, false);
+  assert.strictEqual(apiCalls.length, 2);
+  assert.strictEqual(API.modelOf('이상한 값'), 'claude-haiku-5-5'); assert.strictEqual(API.mask(TEST_KEY), 'sk-ant-…WXYZ');
+});
+test('Claude API classify: Help 서버와 같은 프롬프트·스키마로 구조화 출력(effort low) — Haiku 는 대체 모델 없음 · Opus 는 fallbacks "default" + 베타 헤더', async () => {
+  reset(); store.claudeApiKey = TEST_KEY;
+  const input = classify.clean({ tx: { shop: '인프랩', amount: 43560 }, wantType: true, picks: [{ label: '회의비' }, { label: '연구활동비 기타비용' }], kinds: ['수료증'],
+    files: [{ id: 'f1', name: 'a.png', classify: true, b64: 'iVBO', media: 'image/jpeg' }] });
+  apiReply = () => apiMsg({ type: { value: '연구활동비 기타비용', reason: '강의' }, files: [{ id: 'f1', kind: '수료증', reason: '수료증 제목' }, { id: 'zz', kind: '수료증', reason: '' }] });
+  const r = await API.classify(input, { model: 'claude-haiku-5-5' });
+  assert.deepStrictEqual(r.type, { value: '연구활동비 기타비용', reason: '강의' });
+  assert.deepStrictEqual(r.files.map((f) => [f.id, f.kind]), [['f1', '수료증']], '모르는 id 는 버림 (classify-core parse)');
+  const c = apiCalls[0];
+  assert.strictEqual(c.url, 'https://api.anthropic.com/v1/messages'); assert.strictEqual(c.method, 'POST');
+  const { content, schema } = classify.build(input);
+  assert.strictEqual(c.body.model, 'claude-haiku-5-5'); assert.strictEqual(c.body.system, classify.SYSTEM);
+  assert.deepStrictEqual(c.body.messages, [{ role: 'user', content }]);
+  assert.deepStrictEqual(c.body.output_config, { effort: 'low', format: { type: 'json_schema', schema } });
+  assert.strictEqual(c.body.thinking, undefined); assert.strictEqual(c.body.fallbacks, undefined); assert.strictEqual(c.headers['anthropic-beta'], undefined);
+  await API.classify(input, { model: 'claude-opus-5-5' });
+  assert.strictEqual(apiCalls[1].body.fallbacks, 'default'); assert.strictEqual(apiCalls[1].headers['anthropic-beta'], 'server-side-fallback-2026-07-01');
+});
+test('Claude API classify: 거절(refusal)·키 오류는 오류로(키 오류는 상태에도), 429 는 다시 해서 성공', async () => {
+  reset(); store.claudeApiKey = TEST_KEY;
+  const input = classify.clean({ tx: { shop: 'X' }, wantType: true, picks: [{ label: 'A' }], kinds: [], files: [] });
+  apiReply = { status: 200, body: { type: 'message', stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber' }, content: [] } };
+  await assert.rejects(API.classify(input, {}), /거절.*cyber/);
+  apiReply = { status: 401, body: { type: 'error', error: { type: 'authentication_error', message: 'invalid' } } };
+  await assert.rejects(API.classify(input, {}), /API 키가 올바르지 않습니다/);
+  assert.strictEqual(store.llmApi.ok, false);
+  let tries = 0;
+  apiReply = () => (tries++ === 0 ? { status: 429, body: { type: 'error', error: { type: 'rate_limit_error', message: 'slow down' } } } : apiMsg({ type: { value: 'A', reason: '' } }));
+  const r = await API.classify(input, {});
+  assert.strictEqual(r.type.value, 'A'); assert.strictEqual(tries, 2); assert.strictEqual(store.llmApi.ok, true, '성공하면 상태도 사용 가능으로');
+});
+test('run: Help 서버가 없으면 Claude API 키로 직접 묻고(via api), 서버가 있으면 서버 · "항상"이면 API · "사용 안 함"이면 건너뜀', async () => {
+  const ok = () => apiMsg({ type: { value: '연구활동비 기타비용', reason: '강의' }, ptcl: { value: '온라인 강의 수강 - 연구', reason: '' } });
+  reset(); healthReply = null; settings.help.url = 'http://127.0.0.1:8401'; store.claudeApiKey = TEST_KEY; apiReply = ok;
+  const r = await AI.run('api|1', META);
+  assert.strictEqual(r.via, 'api'); assert.strictEqual(r.type.value, '연구활동비 기타비용'); assert.strictEqual(r.ptcl.value, '온라인 강의 수강 - 연구');
+  assert.strictEqual(calls.length, 0); assert.strictEqual(apiCalls.length, 1);
+  assert.strictEqual(apiCalls[0].body.model, 'claude-haiku-5-5', '모델 설정이 없으면 기본');
+  assert.strictEqual(store.claimPrep['api|1'].typeBy, 'auto'); assert.strictEqual(store.claimPrep['api|1'].ptclBy, 'auto');
+
+  reset(); settings.help.url = 'http://127.0.0.1:8402'; store.claudeApiKey = TEST_KEY; apiReply = ok;
+  const r2 = await AI.run('srv|1', META);
+  assert.strictEqual(r2.via, 'server'); assert.strictEqual(calls.length, 1); assert.strictEqual(apiCalls.length, 0);
+
+  reset(); settings.help.url = 'http://127.0.0.1:8403'; settings.help.api = { use: 'always', model: 'claude-sonnet-5-5' }; store.claudeApiKey = TEST_KEY; apiReply = ok;
+  const r3 = await AI.run('alw|1', META);
+  assert.strictEqual(r3.via, 'api'); assert.strictEqual(calls.length, 0); assert.strictEqual(apiCalls[0].body.model, 'claude-sonnet-5-5');
+
+  reset(); healthReply = null; settings.help.url = 'http://127.0.0.1:8404'; settings.help.api = { use: 'off' }; store.claudeApiKey = TEST_KEY; apiReply = ok;
+  assert.strictEqual((await AI.run('off2|1', META)).skipped, 'offline'); assert.strictEqual(apiCalls.length, 0);
+});
+test('run: 서버 분류가 실패하면 Claude API 로 다시 묻고, 둘 다 실패하면 두 이유를 함께', async () => {
+  reset(); settings.help.url = 'http://127.0.0.1:8405'; store.claudeApiKey = TEST_KEY;
+  reply = { ok: false, kind: 'claude', error: 'Not logged in' };
+  apiReply = () => apiMsg({ type: { value: '회의비', reason: '' }, ptcl: { value: '', reason: '' } });
+  const r = await AI.run('fb|1', META);
+  assert.strictEqual(r.via, 'api'); assert.strictEqual(r.type.value, '회의비'); assert.strictEqual(calls.length, 1); assert.strictEqual(apiCalls.length, 1);
+  reset(); settings.help.url = 'http://127.0.0.1:8406'; store.claudeApiKey = TEST_KEY;
+  reply = { ok: false, error: 'Not logged in' };
+  apiReply = { status: 401, body: { type: 'error', error: { type: 'authentication_error', message: 'invalid' } } };
+  const r2 = await AI.run('fb|2', META);
+  assert.strictEqual(r2.ok, false); assert.ok(r2.error.includes('Not logged in') && r2.error.includes('401'), r2.error);
 });
 
 (async () => {

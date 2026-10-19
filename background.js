@@ -1,7 +1,9 @@
 /* 서비스워커: 데이터 수집/캐시, 배지, 캡처 로그 저장, 주기 갱신 */
-importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/prep-store.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
-  'lib/plan.js', 'lib/mcp-client.js', 'lib/plus-onenote.js', 'lib/plan-sync.js',   // 확장 Plus: 예상 비용 ↔ 원노트 동기화 (plan.js 는 저장소 키·월간 구독 계산용)
-  'lib/research.js', 'lib/research-sync.js');   // 연구개발계획서(연구내용) 참조 — 원노트 링크로 받기 (researchBind · researchPull)
+importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/prep-store.js', 'lib/classify-core.js', 'lib/claude-api.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · classify-core·claude-api: 자동 분류를 Claude API 로 직접 (0.8.6) · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
+  'lib/plan.js', 'lib/plan-sync.js',   // 공유 (Plus) 의 예상 비용 몫: plan.js 는 저장소 키·월간 구독 계산용, plan-sync.js 는 병합 규칙(merge)
+  'lib/research.js', 'lib/research-sync.js',   // 연구개발계획서(연구내용) 참조 · 공유 (Plus) 의 연구내용 병합 규칙(merge)
+  'lib/staff.js', 'lib/staff-sync.js',   // 사업비(참여연구원 참여율·지급액 계획, 0.8.7) · 공유 (Plus) 의 사업비 병합 규칙(merge)
+  'lib/sp-store.js', 'lib/prjdoc.js', 'lib/prjdoc-sync.js');   // 공유 (Plus, 2026-10-18 부터 SharePoint 폴더의 과제별 JSON 파일): sp-store 저장소 접근(브라우저 로그인 쿠키 · 작업 탭) · prjdoc 문서 모양·병합 · prjdoc-sync 과제별 차례 — 배선은 아래 shareSync
 
 const CACHE_KEY = 'cache';
 const CAPTURE_KEY = 'captureLog';
@@ -570,258 +572,547 @@ chrome.action.onClicked.addListener((tab) => {
   try { if (chrome.sidePanel && chrome.sidePanel.open && tab && tab.windowId != null) chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {}); } catch (e) {}   // await 없이 먼저 — 제스처가 살아 있을 때
   applySidePanel();
 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); planSync('alarm').catch(() => {}); } });   // 자동 갱신 때 예상 비용 동기화도 (확장 Plus 가 켜져 있을 때만 실제 동작)
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); shareSync('alarm').catch(() => {}); } });   // 자동 갱신 때 공유 (Plus) 도 (켜져 있을 때만 실제 동작)
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if ((area === 'sync' || area === 'local') && changes.settings) {
     settingsGen++;   // 진행 중인 조회가 있으면 끝난 뒤 새 설정으로 한 번 더 돌게 함
-    applySidePanel();
+    applySidePanel();   // 공유 (Plus) 의 폴더 캐시(shareFolder)는 설정 folder 와 견주어 쓰므로 여기서 지울 것이 없다 (shareCfg)
     chrome.storage.local.remove(CACHE_KEY).then(() => { scheduleAlarm(); refresh(true).catch(() => {}); });
   }
 });
 
-/* ----- 확장 Plus: 예상 비용(lib/plan.js) ↔ 원노트 페이지 동기화. 순수 로직은 lib/plan-sync.js, 페이지 접근은 lib/plus-onenote.js, MCP 호출은 lib/mcp-client.js — 여기는 배선만 -----
- * planSync(reason, { prjNo?, createAll? }): 한 번에 하나만(진행 중이면 그 결과를 같이 받음). load/alarm 은 마지막 성공 뒤 PLAN_SYNC_MIN_MS 안이면 건너뜀. prjNo 를 주면 그 과제만(구름 아이콘), createAll 이면 내가 책임자인 과제 전부 페이지를 만든다(설정 버튼)
- *   페이지 생성은 과제 책임자만: leadPrjNos = 참여인력 역할에 "책임"이 있거나 과제책임자 이름이 본인(참여인력 행 이름·설정/자동 감지 이름·R&D ERP 로그인 이름)인 과제 (render.js isLead 와 같은 규칙). 책임자가 아니면 페이지가 생길 때까지 기다림
- *   결과는 storage.local.planSyncState 에 남겨 패널 구름 아이콘 툴팁(과제별)·설정 페이지가 읽고, 과제별 페이지는 storage.local.plusPlanPages 에 캐시(섹션이 바뀌면 무시)
- * 섹션: 설정 plus.sectionName(기본 RERP)의 섹션을 찾고 없으면 plus.notebookId 노트북에 만든다(ensurePlusSection → storage.local.plusSection 캐시). 노트북을 골라야 하면 kind 'notebook' 상태(notebooks 목록)로 팝업·설정이 고르게 한다
- * planSyncQueue: 항목 편집 뒤 4초 모아서 한 번. plusProbe/plusNotebooks/plusResolveSection: 설정 페이지·팝업의 연결 확인·노트북 목록·섹션 찾기/만들기
- * MCP 주소는 http(s)://localhost | 127.0.0.1 만 (manifest host_permissions) — 다른 호스트는 CORS 로 막힌다 */
-const PLAN_SYNC_MIN_MS = 60 * 1000;
-let planSyncInflight = null, planSyncTimer = 0;
-async function plusAllowed(url) {
-  let u = null; try { u = new URL(url); } catch (e) {}
-  if (!u || !/^https?:$/.test(u.protocol)) return { ok: false, kind: 'badurl', error: `MCP 주소가 올바르지 않습니다: ${url}` };
-  if (!/^(localhost|127\.0\.0\.1)$/i.test(u.hostname)) return { ok: false, kind: 'badurl', error: `MCP 주소는 이 PC(localhost · 127.0.0.1)만 됩니다: ${u.hostname}` };
-  return { ok: true };
+/* ----- 공유 (Plus) v2: 예상 비용(lib/plan.js) · 연구내용(lib/research.js) · 사업비(lib/staff.js — 예산 줄·참여인력) · 변경이력(lib/staff-ui.js shareChanges) · 과제 별칭(projectAliases) ↔ SharePoint(OneDrive) 공유 폴더의 **과제별 폴더**. 여기는 배선만 -----
+ * 2026-10-18 사용자 결정으로 저장소가 원노트 페이지(KR_MS365_mcp MCP 서버 → Graph 직접 로그인)에서 폴더의 파일로 바뀌고("원노트 공유는 mcp 없어도 되긴하지? … mcp 없이 grph api 하지 않고 브라우저 토큰으로 하라고"), 같은 날 저녁 과제별 폴더·연차 파일로 다시 정해졌다:
+ *   "onedrive 에 업무/shared 안에 과제별로 .. 약칭으로 없으면 jobid 없으면 임시번호. 이렇게 하고 여기에 넣자. 년차별로 1개 파일이고 1개 파일에서 변경사항이랑 다 관리했으면 좋겠어. 과제 정보랑 등등." → "참여연구원들에게 공유할 수 있게 설정까지 같이해줘 .. workspace 에도 경로주면 알아서 동기화"
+ *   → "예상지출도 다 들어 가겠지? 이건 별도 파일에서 해도 되긴하는데 알아서 해줘"(연차에 걸치는 항목이 두 파일에 걸치지 않게 과제 폴더의 예상비용.json 하나).
+ *   MCP 클라이언트(lib/mcp-client.js) · 원노트 페이지(lib/plus-onenote.js) · Microsoft 로그인(lib/ms-auth.js · lib/graph-onenote.js · lib/plus-connect.js) · KRS WORKSPACE 잇기(lib/ws-info.js)는 모두 걷어 냈다.
+ * 폴더 트리: base(설정 plus.folder — 비면 내 OneDrive 문서/업무/shared: KRX_SP.resolveMyFolder(name) · 두 단 모두 없으면 만듦) / <과제 폴더 — 별칭 → Job Id(파일의 project.jobId, WORKSPACE 몫) → rERP 과제번호, KRX_PRJDOC.folderNameFor> / <n>차년도.json · 예상비용.json.
+ *   폴더 이름은 표시용 — 과제는 파일 안의 project.prjNo 로 알아보고 storage.local.shareIndex = { [prjNo]: { base, folder, site, owner?, at } } 에 캐시한다(prjdoc-sync 가 돌려주는 state.index). 폴더 이름은 만들 때만 정하고 저절로 바꾸지 않는다(shareRename 으로 사용자가).
+ *   받는 쪽(참여자)은 설정 없이도 "나와 공유"(discover) 의 폴더에서 내 참여 과제의 연차 파일을 찾아 대상에 넣는다 — 동료의 personal 사이트라 writer 는 사이트마다 따로(prjdoc-sync).
+ * 역할 나눔: 저장소 접근 lib/sp-store.js(KRX_SP — 브라우저의 SharePoint 로그인 쿠키만. 읽기는 확장 출처 GET(credentials include), 쓰기·공유·링크는 작업 탭(최소화 창)에서 SharePoint REST — kr_ext_aip 방식. 2026-10-18 실측: 확장 출처 쓰기는 403) ·
+ *   문서 모양·병합 lib/prjdoc.js(KRX_PRJDOC v2 — 연차 파일 { v:2, kind:'year', project, year, budget, staff, research, changes, updatedAt, updatedBy } · 예상 비용 파일 { v:2, kind:'plan', project, plan, … }, 칸마다 lib/plan-sync.js · research-sync.js · staff-sync.js 의 merge) ·
+ *   과제별 차례 lib/prjdoc-sync.js(KRX_PRJDOC_SYNC.run — 대상 과제 = 내 참여 과제 ∪ 로컬 자료 ∪ base 폴더 ∪ 나와 공유 → 과제마다 폴더(없으면 책임자이거나 로컬 자료가 있을 때 만듦) → 연차마다 readFile → mergeYear → saveLocal 칸마다 → writer.modify, 예상비용.json 도 같은 식).
+ * shareSync(reason, { prjNo? }): 한 번에 하나만. 진행 중이면 load/alarm 은 그 결과를 같이 받고, edit/manual(편집 큐·버튼·구름 아이콘)은 **끝난 뒤 한 번 더** 돈다(shareNext — 진행 중인 것은 loadLocal 을 이미 지나 그 편집을 모르므로; 기다리는 요청이 여럿이면 한 번으로 모으고 과제가 다르면 전체).
+ *   load/alarm 은 마지막 성공 뒤 SHARE_SYNC_MIN_MS 안이면 건너뜀. prjNo 를 주면 그 과제만(구름/저장 아이콘 — prjdoc-sync 의 only).
+ *   트리거: 패널·팝업을 열 때(load — lib/plan.js bind) · 편집 4초 뒤(planSyncQueue — plan.js · staff-ui.js · 설정의 연구개발계획서 칸) · 자동 갱신 알람(alarm) · 설정/팝업 버튼(manual) · 구름 아이콘(manual + prjNo). 메시지 이름은 옛 'planSync' · 'planSyncQueue' 그대로(패널·설정이 보냄).
+ *   폴더를 **새로 만든** 과제가 있고 설정 shareWith 가 'participants' 면 그 과제의 참여인력(rtask_0008_t03_01_r001 의 EMP_NM — lib/staff.js rowsOfErp·byName, 내 이름 제외)에게 폴더를 편집 권한으로 공유하고 결과를 pages[prj].share 에 남긴다(shareFolderPeople 과 같은 길 —
+ *   이름 겹침(ambiguous)·못 찾음(notFound)은 설정 페이지·사업비 관리의 [참여연구원에게 공유] 로 다시, 또는 OneDrive 에서 직접).
+ *   결과 storage.local.shareState = { at, ok, reason, ms, base:{ path, viewUrl }, folder(= base, 호환), count(과제), files, written, pulled, errors, error?, kind?,
+ *     pages:{ [prjNo]: { prjNo, title, folder(이름), folderUrl(보기 주소), planUrl(예상비용.json — 항목이 있을 때), webUrl(현재 연차 파일), owner?(남의 폴더면 주인), years, at, created, pulled, pushed, count, counts{ plan, research, staff, budget, changes }, remoteAt, remoteBy, share?{ shared, ambiguous, notFound, error? }, noFolder?, error?, kind? } } } —
+ *   호환을 위해 planSyncState · researchSyncState · staffSyncState 에도 같은 것을 쓴다(lib/plan.js 아이콘 툴팁 · lib/staff-ui.js 공유 줄·변경이력 · lib/render.js · 설정 페이지가 읽는 키). 옛 캐시 plusPlanPages · plusResearchPages · plusStaffPages · plusSection 은 더 쓰지 않는다.
+ *   kind 'auth'(이 브라우저에서 SharePoint 로그인 필요) · 'badurl'(폴더 주소 모양) · 'offline' · 'nofolder' · 'locked'(남이 체크아웃) · 'parse'(다른 판·깨진 파일 — 그 파일만 건너뜀) · 'http' · 'tab'(작업 탭) 은 KRX_SP.describe · prjdoc-sync 가 메시지와 함께 준다 — 팝업·설정이 그대로 보여 준다
+ * shareProbe(msg): 설정 [연결 확인] — base 를 다시 풀고(msg.folder 가 있으면 저장 전 칸 값) 과제 폴더 목록(listFolders)과 "나와 공유" 의 폴더 수를 받아 본다. shareFolderCopy(msg): base(또는 prjNo 의 과제 폴더 · file 이면 예상비용.json)를 여는 주소를 클립보드에(오프스크린 문서).
+ * shareFolderPeople(msg): 과제 폴더를 사람들(names — 없으면 참여인력 전부)에게 공유 → { share:{ shared, ambiguous, notFound } }. shareOrgLink(msg): 조직 내 편집 링크를 만들어 복사 → { ok, url, copied }. shareRename(msg): 과제 폴더 이름 바꾸기(선택 — shareIndex 도 고침).
+ * 워커가 뜰 때 KRX_SP.sweepWorkers 로 지난 워커가 쓰기 도중 끝나 남긴 작업 창(최소화된 …/_api/web/currentuser?$select=Id)을 거둔다 — 아래 KRX_PREP_FETCH.resume 옆. 쿠키·다이제스트·피커 Key 값은 로그·상태에 찍지 않는다(이메일은 상태 표시에 쓴다) */
+const SHARE_SYNC_MIN_MS = 60 * 1000;
+const SHARE_BASE_NAME = '업무/shared';       // 설정 folder 가 비었을 때 내 OneDrive 문서 아래 밑폴더(두 단) — KRX_SP.resolveMyFolder 의 name (2026-10-18 저녁 사용자 "onedrive 에 업무/shared 안에 과제별로")
+const SHARE_INDEX_KEY = 'shareIndex';         // { [prjNo]: { base, folder, site, owner?, at } } — 과제 → 폴더 캐시 (prjdoc-sync 가 돌려주는 state.index. 맞지 않으면 다시 훑는다)
+const SHARE_CHANGES_KEY = 'shareChanges';     // { ['과제번호@연차']: [{ id, date, kind, item, before, after, reason, by, at, auto }] } — lib/staff-ui.js 가 적고 동기화가 연차 파일의 changes 칸과 합집합(id, at 차례, 최대 500)
+const SHARE_PROJECTS_KEY = 'shareProjects';   // { [prjNo]: { jobId, io, start, end, note, … } } — 연차 파일 project 칸 가운데 rERP 가 모르는 것(KRS WORKSPACE 몫 — start·end 는 과제 **전체** 연구기간)을 보존·표시용으로 (rERP 가 아는 prjNm·rspr 는 R&D ERP 값이 늘 이김;
+                                              //   rERP 과제 목록의 stDt/endDt 는 현재 **연차** 기간이라 project.start/end 로 보내지 않고 loadLocal 의 projects[].stDt/endDt 로만 — lib/prjdoc.js yearSpan 용)
+const SHARE_CHANGES_MAX = 500;
+const SHARE_PART_SVC = 'rtask_0008_t03_01_r001';   // 과제정보 › 참여인력 — 자동 공유할 사람 이름 (lib/staff.js rowsOfErp · byName, lib/staff-ui.js 와 같은 조회)
+let shareInflight = null, shareNext = null, shareNextOpts = null, shareTimer = 0;
+const spFetch = (u, o) => fetch(u, o);   // 서비스워커의 fetch 그대로 — credentials:'include' 는 저장소가 붙인다. 쿠키·다이제스트 값은 로그·결과 어디에도 찍지 않는다
+const spIo = () => ({ fetch: spFetch, chrome });
+/* 저장소 손잡이 — lib/prjdoc-sync.js 가 받는 store { listFiles, readFile, listFolders, sharedWithMe, openWriter, childCfg, … }. KRX_SP 함수에 fetch · chrome 을 여기서 넣어 prjdoc-sync 는 순수하게 둔다.
+ *   그 밖의 KRX_SP 함수(childCfg · parseFolder · revive · fileUrl · folderUrl · describe …)는 그대로 넘긴다(순수 함수) */
+const shareStore = Object.assign(Object.create(null), KRX_SP, {
+  listFiles: (cfg, o) => KRX_SP.listFiles(cfg, Object.assign(spIo(), o || {})),
+  readFile: (cfg, name, o) => KRX_SP.readFile(cfg, name, Object.assign(spIo(), o || {})),
+  listFolders: (cfg, o) => KRX_SP.listFolders(cfg, Object.assign(spIo(), o || {})),
+  sharedWithMe: (io, o) => KRX_SP.sharedWithMe(Object.assign(spIo(), io || {}), o || {}),
+  openWriter: (cfg, o) => KRX_SP.openWriter(cfg, Object.assign(spIo(), o || {}))
+});
+const SHARE_MISSING = { off: '"공유 (Plus)" 체크(팝업 아래 줄 또는 설정 › 공유 (Plus))', items: '설정 › 공유 (Plus) 의 동기화 항목(예상 비용 · 연구내용 · 사업비 · 변경이력) 가운데 하나 이상 체크' };
+/* 무엇을 맞출지 — 설정 공유 (Plus) 탭의 체크. budget(예산 줄)은 사업비 체크와 함께, alias 는 늘 (prjdoc-sync 의 want) */
+const shareWant = (p) => ({ plan: p.planSync !== false, research: p.researchSync !== false, staff: p.staffSync !== false, budget: p.staffSync !== false, changes: p.changesSync !== false, alias: true });
+const shareDriveHost = (p) => String((p && p.driveHost) || '').trim() || KRX_SETTINGS.DEFAULTS.plus.driveHost;
+const shareObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+/* 예상 비용 파일 이름 — KRX_PRJDOC.planName(함수 또는 문자열), 없으면 기본 */
+const sharePlanName = () => { try { const v = KRX_PRJDOC.planName; return String((typeof v === 'function' ? v() : v) || '예상비용.json'); } catch (e) { return '예상비용.json'; } };
+/* cfg 의 파일 주소 — 캐시에서 온 cfg 는 함수가 없을 수 있어 KRX_SP.fileUrl 로 */
+const shareFileUrl = (cfg, name) => (typeof cfg.fileUrl === 'function' ? cfg.fileUrl(name) : KRX_SP.fileUrl(cfg, name));
+/* 오류 → { kind, message } — KRX_SP.describe 가 못 받는 것(일반 Error)도 kind 'error' 로 */
+function describeShare(e) {
+  try { const d = KRX_SP.describe(e); if (d && d.message) return { kind: String(d.kind || 'error'), message: String(d.message) }; } catch (x) {}
+  return { kind: String((e && e.kind) || 'error'), message: String((e && e.message) || e) };
 }
-const plusUrl = (s) => String((s && s.onenoteMcpUrl) || '').trim() || KRX_SETTINGS.DEFAULTS.plus.onenoteMcpUrl;
-/* 설정의 섹션 이름(RERP)으로 섹션을 찾고 없으면 노트북에 만든다. 캐시(storage.local.plusSection)가 같은 이름·노트북이면 그대로 씀. force 면 다시 찾음 */
-async function ensurePlusSection(client, p, force) {
-  const name = String(p.sectionName || '').trim() || KRX_SETTINGS.DEFAULTS.plus.sectionName;
-  const notebookId = String(p.notebookId || '').trim();
-  const cached = (await chrome.storage.local.get('plusSection')).plusSection || null;
-  if (!force && cached && cached.id && cached.name === name && (!notebookId || cached.notebookId === notebookId)) return cached;
-  const sec = Object.assign({ at: Date.now() }, await KRX_ONENOTE.ensureSection(client, { name, notebookId }));
-  await chrome.storage.local.set({ plusSection: sec });
-  return sec;
+const shareFail = (kind, message) => ({ ok: false, kind, message, error: message });
+const SHARE_NOFOLDER_MSG = '이 과제의 공유 폴더가 아직 없습니다 — 공유 (Plus) 를 켜고 지금 동기화하면 만듭니다(과제책임자 또는 이 과제의 자료가 있을 때)';
+/* 설정 plus → base cfg(KRX_SP.parseFolder 결과 — origin · sitePath · folderPath · viewUrl · mine 과 함수 fileApi · fileUrl). storage.local.shareFolder 에 cfg 를 JSON 으로 캐시(함수는 빠짐)하고 거기에 input(설정 folder) · driveHost · baseName · at 를 붙여 둔다 —
+ *   설정 folder·driveHost 가 같고 기본 밑폴더 이름도 같으면(v1 의 문서/RERP 캐시는 baseName 이 없어 다시 푼다) 네트워크 없이 KRX_SP.revive 로 함수를 되살려 쓴다. force(연결 확인)이거나 캐시가 맞지 않으면 다시 푼다:
+ *   KRX_SP.resolveFolder — folder 가 비면 내 OneDrive 의 문서/업무/shared(resolveMyFolder(name), mine:true), 공유 링크면 redirect 를 따라가, 아니면 parseFolder. 실패(auth · badurl · offline …)는 kind 가 붙은 Error 그대로 던진다 */
+async function shareCfg(p, force) {
+  const input = String((p && p.folder) || '').trim();
+  const driveHost = shareDriveHost(p);
+  if (!force) {
+    const c = (await chrome.storage.local.get('shareFolder')).shareFolder || null;
+    if (c && c.origin && c.folderPath && c.input === input && c.driveHost === driveHost && c.baseName === SHARE_BASE_NAME) { try { return typeof KRX_SP.revive === 'function' ? KRX_SP.revive(c) : KRX_SP.parseFolder(c.url || shareFolderUrl(c)); } catch (e) {} }   // 캐시가 안 풀리면(모양이 바뀜) 다시 푼다
+  }
+  const cfg = await KRX_SP.resolveFolder(input, { fetch: spFetch, driveHost, name: SHARE_BASE_NAME });
+  const cached = JSON.parse(JSON.stringify(Object.assign({}, cfg)));   // 함수를 뺀 cfg
+  await chrome.storage.local.set({ shareFolder: Object.assign(cached, { input, driveHost, baseName: SHARE_BASE_NAME, url: cached.url || shareFolderUrl(cfg), path: cfg.folderPath, at: Date.now() }) });
+  return cfg;
 }
-async function planSync(reason, opts) {
+/* 폴더 주소(브라우저·parseFolder 가 받는 모양 — 설정 [주소 복사] · 캐시 url). KRX_SP.folderUrl: 칸마다 encodeURIComponent — encodeURI 는 폴더 이름의 '#' 을 두어 동료가 붙여 넣으면 fragment 로 잘려 상위 폴더로 풀렸다 */
+const shareFolderUrl = (cfg) => (typeof KRX_SP.folderUrl === 'function' ? KRX_SP.folderUrl(cfg) : cfg.origin + String(cfg.folderPath || '').split('/').map(encodeURIComponent).join('/'));
+/* 과제 폴더 cfg — shareIndex 항목({ base, folder, site })으로. base 가 cfg 꼴(JSON)이면 revive, 폴더 주소면 parseFolder, 서버 상대 경로면 site 의 origin 과 합쳐 parseFolder, 그 밖엔 설정 base. 항목이 없으면 null(폴더를 아직 모름) */
+async function shareProjectCfg(prjNo, p, index) {
+  const idx = shareObj(index || (await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
+  const e = idx[String(prjNo || '')];
+  if (!e || !e.folder) return null;
+  let base = null;
+  try {
+    if (e.base && typeof e.base === 'object' && e.base.origin && e.base.folderPath) base = KRX_SP.revive(e.base);
+    else if (typeof e.base === 'string' && /^https:\/\//i.test(e.base)) base = KRX_SP.parseFolder(e.base);
+    else if (typeof e.base === 'string' && e.base.startsWith('/') && e.site) base = KRX_SP.parseFolder(new URL(e.site).origin + e.base.split('/').map(encodeURIComponent).join('/'));
+  } catch (x) { base = null; }
+  if (!base) base = await shareCfg(p, false);
+  return typeof KRX_SP.childCfg === 'function' ? KRX_SP.childCfg(base, String(e.folder)) : KRX_SP.parseFolder(`${shareFolderUrl(base)}/${encodeURIComponent(String(e.folder))}`);
+}
+/* 변경이력 합집합 — id 로(같은 id 는 뒤 것이 칸을 덧씀), at 차례(같으면 date), 최대 SHARE_CHANGES_MAX(오래된 것부터 버림). lib/staff-ui.js appendChanges 와 같은 규칙 */
+function shareMergeChanges(a, b) {
+  const map = new Map();
+  for (const c of (Array.isArray(a) ? a : []).concat(Array.isArray(b) ? b : [])) {
+    if (!c || typeof c !== 'object' || !c.id) continue;
+    const id = String(c.id);
+    map.set(id, map.has(id) ? Object.assign({}, map.get(id), c) : c);
+  }
+  const out = Array.from(map.values()).sort((x, y) => ((Number(x.at) || 0) - (Number(y.at) || 0)) || String(x.date || '').localeCompare(String(y.date || '')));
+  return out.length > SHARE_CHANGES_MAX ? out.slice(out.length - SHARE_CHANGES_MAX) : out;
+}
+/* prjdoc-sync 의 loadLocal — 로컬 자료를 한 번에. plan 은 lib/plan.js 저장소 모양 그대로({ plans, del }), staff 는 lib/staff.js normalizePlans · gcTomb 를 거친 것, research 는 researchPlans 맵, aliases · aliasesAt 는 projectAliases · projectAliasesAt,
+ *   changes 는 shareChanges 맵('과제번호@연차' → []), projects 는 { [prjNo]: { prjNm, rspr, anl, stDt, endDt, start?, end?, jobId?, io?, note?, at? } } — 참여 과제 목록 + 패널 캐시(R&D ERP 값이 이김) + shareProjects(WORKSPACE 몫).
+ *   stDt/endDt(RCH_ST_DT/RCH_END_DT, YYYYMMDD)는 R&D ERP 가 주는 **현재 연차** 기간이라(lib/rnd-api.js 가 ANL 이 가장 큰 행을 고름) 과제 전체 연구기간인 project.start/end 에 넣지 않는다 — 넣으면 연차가 바뀔 때마다 모든 연차 파일의 연구기간이 바뀌고
+ *   두 rerp 사용자의 캐시 연차가 다르면 서로 번갈아 고친다(2026-10-18 검토). prjdoc 의 yearSpan(연차 기본 기간)에만 쓴다 */
+async function shareLoadLocal() {
+  const l = await chrome.storage.local.get([KRX_PLAN.KEY, KRX_PLAN.DKEY, KRX_STAFF.KEY, KRX_STAFF.DKEY, 'projectAliases', 'projectAliasesAt', SHARE_CHANGES_KEY, SHARE_PROJECTS_KEY, 'projectList', CACHE_KEY]);
+  const projects = {};
+  for (const pr of ((l.projectList && l.projectList.projects) || []).concat(((l[CACHE_KEY] || {}).projects) || [])) {
+    if (!pr || !pr.prjNo || projects[pr.prjNo]) continue;
+    projects[pr.prjNo] = { prjNm: String(pr.prjNm || ''), rspr: String(pr.rspr || ''), anl: Number(pr.anl) || 0, stDt: String(pr.stDt || ''), endDt: String(pr.endDt || '') };
+  }
+  for (const [prj, x] of Object.entries(shareObj(l[SHARE_PROJECTS_KEY]))) {   // WORKSPACE 몫(jobId · io · note …)은 받은 그대로, rERP 가 아는 칸은 값이 있을 때만 rERP 것으로
+    if (!x || typeof x !== 'object') continue;
+    const merged = Object.assign({}, x);
+    for (const [k, v] of Object.entries(projects[prj] || {})) if (v || merged[k] === undefined) merged[k] = v;
+    projects[prj] = merged;
+  }
+  return {
+    plan: { plans: shareObj(l[KRX_PLAN.KEY]), del: shareObj(l[KRX_PLAN.DKEY]) },
+    research: await KRX_RESEARCH.load(),
+    staff: { plans: KRX_STAFF.normalizePlans(l[KRX_STAFF.KEY]), del: KRX_STAFF.gcTomb(l[KRX_STAFF.DKEY]) },
+    aliases: shareObj(l.projectAliases),
+    aliasesAt: shareObj(l.projectAliasesAt),
+    changes: shareObj(l[SHARE_CHANGES_KEY]),
+    projects
+  };
+}
+/* prjdoc-sync 의 saveLocal(part, prj, data) — 그 과제 몫만 저장한다(다른 창이 같은 키의 다른 과제를 고치는 중일 수 있고, 백그라운드의 오래된 메모리로 덮지 않게 — lib/plan.js save 와 같은 까닭). data 의 모양은 느슨하게 받는다:
+ *   'plan'     { plans, del } — plans 는 전체 맵({ prj: { key: [항목] } }) · 이 과제 몫({ key: [항목] }) · 또는 평면 목록 items. del 은 전체 묘비 맵({ id: { ts, prj } }) 또는 이 과제 몫 숫자 맵({ id: ts } — lib/plan-sync.js merge 가 주는 것; 빈 것도 이 과제 몫으로 봄)
+ *   'research' 기록 목록(이 과제의 기록 — prjNo 가 없으면 prj 와 과제명으로 채움 · linkBy 는 'auto') · { recs, others? } · 또는 researchPlans 전체 맵(그 가운데 이 과제 것만).
+ *              others({ id: rec } — KRX_PRJDOC.toLocalYear 가 주는, 로컬에서 **다른 과제**에 이어 둔 기록인데 이 파일에서 새 글을 받은 것)는 지금 저장소의 연결 칸(prjNo·prjNm·linkBy·src)을 지키며 글만 갈아 넣는다 — 안 넣으면 매 동기화마다 다시 "받은 것" 이 돼 받음 표시가 반복된다
+ *   'staff'    { plans, del } — plans 는 전체 맵({ "과제@연차": 계획 }) 또는 계획 목록(이 과제 것만 반영), del 은 전체 또는 이 과제 몫({ "과제@연차": ts }). 예산 줄이 있는 계획은 budgetPay 를 그 줄에서 다시 셈한다(병합이 비춘 줄과 어긋난 옛 값 방어 — lib/staff-ui.js syncPay 와 같은 식)
+ *   'budget'   { year, budget|rows:[{ name, plan, at?, by? }] } · { [연차 또는 '과제@연차']: 줄들 } · 연차 계획 통째({ plans }) — 그 연차 staffPlans 항목의 budget(·budgetPay)만 갈아 넣음(없으면 빈 계획을 만듦)
+ *   'changes'  { year, changes|list } · { [연차 또는 '과제@연차']: [...] } — shareChanges 의 그 연차와 **합집합**(id, at 차례, 최대 500 — 덧붙이기만)
+ *   'project'  { jobId?, io?, start?, end?, note?, … } — shareProjects[prj] 에 겹쳐 둠(표시·보존용 WORKSPACE 몫 — start·end 는 과제 전체 연구기간. rERP 가 아는 칸(prjNm·rspr)은 loadLocal 이 R&D ERP 값으로 되돌림)
+ *   'alias'    별칭 문자열 또는 { alias, aliasAt } — projectAliases[prj](비면 지움) · projectAliasesAt[prj] */
+async function shareSaveLocal(part, prj, data, names) {
+  prj = String(prj || '');
+  const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  if (part === 'plan') {
+    const d = isObj(data) ? data : {};
+    let plans = isObj(d.plans) ? d.plans : (Array.isArray(d.items) ? KRX_PLAN_SYNC.unflatten(d.items.map((it) => Object.assign({ prj }, it))) : {});
+    if (Object.values(plans).some(Array.isArray)) plans = { [prj]: plans };   // 이 과제 몫({ key: [항목] })이 왔다
+    let del = isObj(d.del) ? d.del : {};
+    if (!Object.values(del).some(isObj)) {   // 이 과제 몫 숫자 맵(빈 것 포함) → 전체 묘비 맵에 되돌려 넣기 (다른 과제의 묘비는 그대로)
+      const cur = (await chrome.storage.local.get(KRX_PLAN.DKEY))[KRX_PLAN.DKEY] || {};
+      del = KRX_PLAN_SYNC.putBack({ plans: {}, del: isObj(cur) ? cur : {} }, prj, [], del).del;
+    }
+    await KRX_PLAN.save(plans, del, prj);
+    return;
+  }
+  if (part === 'research') {
+    const map = await KRX_RESEARCH.load();
+    let recs = Array.isArray(data) ? data : (isObj(data) && Array.isArray(data.recs)) ? data.recs : null;
+    if (!recs && isObj(data)) recs = Object.values(data).filter((r) => r && r.prjNo === prj);   // 전체 맵 — 이 과제 것만
+    for (const [id, rec] of Object.entries(map)) if (rec && rec.prjNo === prj) delete map[id];   // 이 과제 몫을 통째로 바꿈
+    for (const rec of recs || []) if (rec && rec.id) map[rec.id] = Object.assign({}, rec, rec.prjNo ? {} : { prjNo: prj, prjNm: rec.prjNm || (names && names[prj]) || '', linkBy: rec.linkBy || 'auto' });
+    // 다른 과제에 이어 둔 기록의 새 글 — 연결 칸은 지금 저장소 것을 지킨다(그 사이 사용자가 다른 과제로 옮겼을 수 있음)
+    const others = isObj(data) && isObj(data.others) ? data.others : {};
+    for (const [id, rec] of Object.entries(others)) {
+      const cur = map[id];
+      if (!rec || !rec.id || !cur || !cur.prjNo || cur.prjNo === prj) continue;
+      const keep = {};
+      for (const k of ['prjNo', 'prjNm', 'linkBy', 'src']) if (cur[k] !== undefined) keep[k] = cur[k];
+      map[id] = Object.assign({}, rec, keep);
+    }
+    await KRX_RESEARCH.save(map);
+    return;
+  }
+  if (part === 'staff') {
+    const d = isObj(data) ? data : {};
+    const slice = (k) => String(k).split('@')[0] === prj;
+    const s = await chrome.storage.local.get([KRX_STAFF.KEY, KRX_STAFF.DKEY]);
+    const cur = KRX_STAFF.normalizePlans(s[KRX_STAFF.KEY]), curDel = KRX_STAFF.gcTomb(s[KRX_STAFF.DKEY]);
+    for (const k of Object.keys(cur)) if (slice(k)) delete cur[k];
+    const list = Array.isArray(d.plans) ? d.plans : Object.values(isObj(d.plans) ? d.plans : {});
+    for (const p of list) {
+      const e = KRX_STAFF.normalizePlanEntry(p);
+      if (!e || e.prjNo !== prj || !(e.year >= 1)) continue;
+      if (Array.isArray(e.budget) && e.budget.length) e.budgetPay = KRX_STAFF.budgetPayOf(e.budget);   // 예산 줄이 있으면 인건비 예산은 늘 그 줄에서 — 병합이 비춘 줄과 어긋난 옛 budgetPay 가 'budget' 저장 뒤의 'staff' 저장으로 되살아나지 않게
+      cur[KRX_STAFF.planKey(e.prjNo, e.year)] = e;
+    }
+    for (const k of Object.keys(curDel)) if (slice(k)) delete curDel[k];
+    for (const [k, v] of Object.entries(isObj(d.del) ? d.del : {})) if (slice(k)) curDel[k] = Number(v) || 0;
+    await chrome.storage.local.set({ [KRX_STAFF.KEY]: cur, [KRX_STAFF.DKEY]: curDel });
+    return;
+  }
+  if (part === 'budget') {
+    const d = isObj(data) ? data : {};
+    if (Array.isArray(d.plans) || isObj(d.plans)) return shareSaveLocal('staff', prj, d, names);   // 연차 계획 통째로 왔으면 사업비와 같이
+    const byYear = {};
+    const put = (y, rows) => { const yy = Number(String(y).split('@').pop()); if (yy >= 1 && Array.isArray(rows)) byYear[yy] = rows; };
+    if (d.year >= 1 && Array.isArray(d.budget || d.rows)) put(d.year, d.budget || d.rows);
+    else for (const [k, rows] of Object.entries(d)) put(k, rows);
+    if (!Object.keys(byYear).length) return;
+    const s = await chrome.storage.local.get(KRX_STAFF.KEY);
+    const cur = KRX_STAFF.normalizePlans(s[KRX_STAFF.KEY]);
+    for (const [y, rows] of Object.entries(byYear)) {
+      const key = KRX_STAFF.planKey(prj, Number(y));
+      const plan = cur[key] || KRX_STAFF.normalizePlanEntry({ prjNo: prj, year: Number(y), prjNm: (names && names[prj]) || '' }, key);
+      plan.budget = KRX_STAFF.normalizeBudget(rows.map((r) => ({ name: r && r.name, plan: r && r.plan })));
+      plan.budgetPay = KRX_STAFF.budgetPayOf(plan.budget);
+      cur[key] = plan;
+    }
+    await chrome.storage.local.set({ [KRX_STAFF.KEY]: cur });
+    return;
+  }
+  if (part === 'changes') {
+    const byKey = {};
+    const put = (y, list) => { const yy = Number(String(y).split('@').pop()); if (yy >= 1 && Array.isArray(list)) byKey[`${prj}@${yy}`] = list; };
+    if (isObj(data) && data.year >= 1 && Array.isArray(data.changes || data.list)) put(data.year, data.changes || data.list);
+    else if (isObj(data)) for (const [k, list] of Object.entries(data)) put(k, list);
+    if (!Object.keys(byKey).length) return;   // 연차를 모르는 목록은 넣을 자리가 없다
+    const cur = (await chrome.storage.local.get(SHARE_CHANGES_KEY))[SHARE_CHANGES_KEY];
+    const all = Object.assign({}, shareObj(cur));
+    for (const [k, list] of Object.entries(byKey)) all[k] = shareMergeChanges(all[k], list);
+    await chrome.storage.local.set({ [SHARE_CHANGES_KEY]: all });
+    return;
+  }
+  if (part === 'project') {
+    if (!isObj(data)) return;
+    const cur = (await chrome.storage.local.get(SHARE_PROJECTS_KEY))[SHARE_PROJECTS_KEY];
+    const all = Object.assign({}, shareObj(cur));
+    const keep = {};
+    for (const [k, v] of Object.entries(data)) if (v !== undefined && v !== null && typeof v !== 'function') keep[k] = v;
+    all[prj] = Object.assign({}, shareObj(all[prj]), keep);
+    await chrome.storage.local.set({ [SHARE_PROJECTS_KEY]: all });
+    return;
+  }
+  if (part === 'alias') {
+    const alias = String(isObj(data) ? (data.alias || '') : (data || '')).trim();
+    const at = isObj(data) ? (Number(data.aliasAt) || 0) : Date.now();   // prjdoc 의 aliasAt 그대로(0 이면 시각 없음 — 지움), 문자열만 왔으면 지금
+    const l = await chrome.storage.local.get(['projectAliases', 'projectAliasesAt']);
+    const aliases = Object.assign({}, isObj(l.projectAliases) ? l.projectAliases : {}), ats = Object.assign({}, isObj(l.projectAliasesAt) ? l.projectAliasesAt : {});
+    if (alias) aliases[prj] = alias; else delete aliases[prj];
+    if (at) ats[prj] = at; else delete ats[prj];
+    await chrome.storage.local.set({ projectAliases: aliases, projectAliasesAt: ats });
+    return;
+  }
+  throw new Error(`모르는 저장 칸: ${part}`);
+}
+/* 내 이름들 — 패널 캐시 myNames + R&D ERP 로그인 이름 + 설정 myName (책임자 판정 · 자동 공유에서 나를 빼는 데) */
+const shareMyNames = (cache, settings, who) => new Set(((cache && cache.myNames) || []).concat([who, settings && settings.myName]).map((x) => String(x || '').trim()).filter(Boolean));
+/* 내가 책임자인 과제 — v1 planSync 와 같은 규칙(render.js isLead): 참여인력 역할에 "책임" 이 있거나 과제책임자 이름이 본인(참여인력 행 이름 · 설정/자동 감지 이름 · R&D ERP 로그인 이름)인 과제. 폴더를 새로 만들 수 있는 사람(prjdoc-sync 의 leadPrjNos) */
+function shareLeadPrjNos(projects, cache, settings, who) {
+  const myNames = shareMyNames(cache, settings, who);
+  const lead = new Set();
+  for (const x of (cache && cache.participation && cache.participation.items) || []) {
+    if (/책임/.test(String(x.role || '')) || (x.rspr && (String(x.rspr).trim() === String(x.empNm || '').trim() || myNames.has(String(x.rspr).trim())))) lead.add(x.prjNo);
+  }
+  for (const pr of projects || []) if (pr && pr.prjNo && pr.rspr && myNames.has(String(pr.rspr).trim())) lead.add(pr.prjNo);
+  return Array.from(lead).filter(Boolean);
+}
+/* 과제의 참여인력 이름(내 이름 제외) — R&D ERP 참여인력 조회(로그인이 풀려 있으면 kind 'login' Error) */
+async function shareParticipantNames(prjNo, myNames) {
+  const data = await KRX_API.call(SHARE_PART_SVC, { SEARCH_NM: '', SEARCH_GB: '1', PRJ_NO: String(prjNo) });
+  const by = KRX_STAFF.byName(KRX_STAFF.rowsOfErp(data && data.INFO_REC));
+  return Array.from(new Set(Object.values(by).map((h) => String(h.name || '').trim()).filter((n) => n && !myNames.has(n))));
+}
+/* writer.sharePeople 결과 → 상태에 남길 모양(피커 Key 같은 로그인 값은 싣지 않는다 — 이름·이메일·후보 표시 이름만) */
+function shareResultOf(r, role) {
+  const o = r && typeof r === 'object' ? r : {};
+  const share = {
+    shared: (Array.isArray(o.shared) ? o.shared : []).map((x) => ({ name: String((x && x.name) || ''), email: String((x && x.email) || '') })),
+    ambiguous: (Array.isArray(o.ambiguous) ? o.ambiguous : []).map((x) => ({ name: String((x && x.name) || ''), candidates: (Array.isArray(x && x.candidates) ? x.candidates : []).slice(0, 10).map(String) })),
+    notFound: (Array.isArray(o.notFound) ? o.notFound : []).map(String),
+    role: role || 'edit', at: Date.now()
+  };
+  if (o.error) share.error = String(o.error);
+  return share;
+}
+const shareResultText = (s) => `공유 ${s.shared.length}명${s.ambiguous.length ? ` · 이름 겹침 ${s.ambiguous.length}` : ''}${s.notFound.length ? ` · 못 찾음 ${s.notFound.length}` : ''}${s.error ? ` · 오류: ${s.error}` : ''}`;
+/* 여러 과제 폴더를 사람들에게 공유 — jobs = [{ prjNo, cfg, names, pg(결과를 받을 pages 항목) }]. writer 는 **사이트마다** 하나(동료 폴더는 그 사람의 personal 사이트) */
+async function sharePeopleJobs(jobs, role) {
+  const bySite = new Map();
+  for (const j of jobs) { const k = String((j.cfg && j.cfg.siteUrl) || ''); if (!bySite.has(k)) bySite.set(k, []); bySite.get(k).push(j); }
+  for (const list of bySite.values()) {
+    let w = null;
+    try { w = await shareStore.openWriter(list[0].cfg); }
+    catch (e) { const d = describeShare(e); for (const j of list) j.pg.share = Object.assign(shareResultOf(null, role), { error: d.message, kind: d.kind }); continue; }
+    try {
+      for (const j of list) {
+        try { j.pg.share = shareResultOf(await w.sharePeople(j.cfg.folderPath, j.names, { role: role || 'edit' }), role); }
+        catch (e) { const d = describeShare(e); j.pg.share = Object.assign(shareResultOf(null, role), { error: d.message, kind: d.kind }); }
+      }
+    } finally { try { await w.close(); } catch (e) {} }
+  }
+}
+/* 동기화 결과의 pages 에 과제 폴더 주소(folderUrl) · 예상비용.json 주소(planUrl — 항목이 있을 때) · 주인(owner)을 shareIndex 로 채운다(prjdoc-sync 가 이미 넣었으면 그대로). 네트워크 없음 */
+async function shareDecoratePages(state, p, index) {
+  for (const [prj, pg] of Object.entries(state.pages || {})) {
+    const e = index[prj];
+    if (!pg || !e || !e.folder) continue;
+    try {
+      const cfg = await shareProjectCfg(prj, p, index);
+      if (!cfg) continue;
+      if (!pg.folder) pg.folder = String(e.folder);
+      if (!pg.folderUrl) pg.folderUrl = cfg.viewUrl || shareFolderUrl(cfg);
+      if (!pg.planUrl && (pg.planFile || (pg.counts && pg.counts.plan > 0))) pg.planUrl = shareFileUrl(cfg, sharePlanName());
+      if (!pg.owner && e.owner) pg.owner = String(e.owner);
+    } catch (x) {}
+  }
+}
+/* 폴더를 **새로 만든** 과제(prjdoc-sync 의 state.created 목록 또는 pages[prj].folderCreated — pages[prj].created 는 "파일을 새로 만듦" 이라 쓰지 않는다: 있던 폴더에 다음 연차 파일이 생길 때마다 다시 공유하지 않게)의
+ *   참여인력에게 자동 공유(편집) — 설정 shareWith 'participants'. 남의 폴더(owner)·오류 과제는 건너뛴다. 결과는 pages[prj].share */
+async function shareAutoPeople(state, p, index, settings, who, cache) {
+  const pages = Object.values(state.pages || {}).filter((pg) => pg && !pg.error && !pg.owner && index[pg.prjNo] && index[pg.prjNo].folder);
+  const createdSet = new Set((Array.isArray(state.created) ? state.created : []).map(String));
+  const made = pages.filter((pg) => pg.folderCreated === true || createdSet.has(String(pg.prjNo)));
+  if (!made.length) return;
+  const myNames = shareMyNames(cache, settings, who);
+  const jobs = [];
+  for (const pg of made) {
+    try {
+      const names = await shareParticipantNames(pg.prjNo, myNames);
+      if (!names.length) { pg.share = Object.assign(shareResultOf(null, 'edit'), { note: '참여인력에 나 말고는 없음' }); continue; }
+      const cfg = await shareProjectCfg(pg.prjNo, p, index);
+      if (cfg) jobs.push({ prjNo: pg.prjNo, cfg, names, pg });
+    } catch (e) { const d = describeShare(e); pg.share = Object.assign(shareResultOf(null, 'edit'), { error: d.message, kind: d.kind }); }
+  }
+  if (jobs.length) await sharePeopleJobs(jobs, 'edit');
+}
+/* shareState.pages[prjNo] 에 칸을 덧씀(공유 결과 · 폴더 이름) — 네 호환 키에 같이 */
+async function sharePatchPage(prjNo, patch) {
+  const st = (await chrome.storage.local.get('shareState')).shareState || { at: 0, ok: true, count: 0, written: 0, pulled: 0, errors: 0, pages: {} };
+  st.pages = Object.assign({}, st.pages);
+  st.pages[prjNo] = Object.assign({ prjNo, title: prjNo }, st.pages[prjNo] || {}, patch);
+  await chrome.storage.local.set({ shareState: st, planSyncState: st, researchSyncState: st, staffSyncState: st });
+  return st;
+}
+async function shareSync(reason, opts) {
   opts = opts || {};
-  if (planSyncInflight) return planSyncInflight;
-  planSyncInflight = (async () => {
+  if (shareInflight) {
+    if (reason === 'load' || reason === 'alarm') return shareInflight;   // 곧 끝날 결과로 충분
+    // 편집 큐·버튼·구름 아이콘: 진행 중인 동기화는 loadLocal 을 이미 지나 이 편집을 모른다 → 끝난 뒤 한 번 더(기다리는 요청은 하나로 모음 — 과제가 다르면 전체, manual 이 하나라도 있으면 manual)
+    if (shareNext) {
+      if (shareNextOpts.prjNo && shareNextOpts.prjNo !== String(opts.prjNo || '')) shareNextOpts.prjNo = '';
+      if (reason === 'manual') shareNextOpts.reason = 'manual';
+      return shareNext;
+    }
+    shareNextOpts = { reason, prjNo: String(opts.prjNo || '') };
+    const go = () => { const o = shareNextOpts; shareNext = null; shareNextOpts = null; return shareSync(o.reason, { prjNo: o.prjNo }); };
+    shareNext = shareInflight.then(go, go);
+    return shareNext;
+  }
+  shareInflight = (async () => {
     const settings = await KRX_SETTINGS.load();
     const p = settings.plus || {};
-    if (!p.enabled || p.planSync === false) {
-      const missing = [!p.enabled && '"원노트 동기화 (Plus)" 체크(팝업 아래 줄 또는 설정의 확장 Plus 사용)', p.planSync === false && '설정의 "예상 비용을 과제별 페이지와 동기화" 체크'].filter(Boolean);
-      return { ok: false, skipped: 'off', missing };
-    }
-    const prev = (await chrome.storage.local.get('planSyncState')).planSyncState;
-    if ((reason === 'load' || reason === 'alarm') && prev && prev.ok && Date.now() - prev.at < PLAN_SYNC_MIN_MS) return Object.assign({ skipped: 'recent' }, prev);
-    const url = plusUrl(p);
+    const want = shareWant(p);
+    if (!p.enabled || !(want.plan || want.research || want.staff || want.changes)) return { ok: false, skipped: 'off', missing: [!p.enabled && SHARE_MISSING.off, p.enabled && SHARE_MISSING.items].filter(Boolean) };
+    const prev = (await chrome.storage.local.get('shareState')).shareState || null;
+    if ((reason === 'load' || reason === 'alarm') && prev && prev.ok && Date.now() - prev.at < SHARE_SYNC_MIN_MS) return Object.assign({ skipped: 'recent' }, prev);
     const t0 = Date.now();
-    const allowed = await plusAllowed(url);
-    let state, pages = null, sectionId = '';
-    if (!allowed.ok) state = Object.assign({ at: t0, ok: false, reason }, allowed);
-    else {
-      let client = null;
-      try {
-        const l = await chrome.storage.local.get(['plusPlanPages', 'projectList', 'rndUser']);
-        client = await KRX_MCP.open(url, { clientName: 'kr-ext-rerp', clientVersion: chrome.runtime.getManifest().version });
-        let sec = null, sectionWarn = null;   // RERP 섹션이 없고 노트북도 안 골랐으면(kind 'notebook') 섹션 없이 진행 — 링크로 연결한 페이지는 동기화되고, 페이지 만들기만 못 한다
-        try { sec = await ensurePlusSection(client, p, false); } catch (e) { if (!(e && e.kind === 'notebook')) throw e; sectionWarn = { error: e.message, notebooks: e.notebooks || [] }; }
-        sectionId = sec ? sec.id : '';
-        const cache = await getCache();
-        const names = {};   // 과제명: 패널 캐시 + 참여 과제 목록
-        for (const pr of ((l.projectList && l.projectList.projects) || []).concat((cache && cache.projects) || [])) if (pr && pr.prjNo && pr.prjNm && !names[pr.prjNo]) names[pr.prjNo] = pr.prjNm;
-        const myPrjNos = ((l.projectList && l.projectList.projects) || []).map((pr) => pr.prjNo).filter(Boolean);
-        const who = String((l.rndUser || {}).userNm || settings.myName || '');
-        const myNames = new Set(((cache && cache.myNames) || []).concat([who, settings.myName]).map((x) => String(x || '').trim()).filter(Boolean));
-        const lead = new Set();
-        for (const x of (cache && cache.participation && cache.participation.items) || []) {
-          if (/책임/.test(String(x.role || '')) || (x.rspr && (String(x.rspr).trim() === String(x.empNm || '').trim() || myNames.has(String(x.rspr).trim())))) lead.add(x.prjNo);
-        }
-        for (const pr of ((l.projectList && l.projectList.projects) || []).concat((cache && cache.projects) || [])) if (pr && pr.prjNo && pr.rspr && myNames.has(String(pr.rspr).trim())) lead.add(pr.prjNo);
-        const r = await KRX_PLAN_SYNC.run({
-          client, onenote: KRX_ONENOTE, sectionId, pages: l.plusPlanPages || {}, names, myPrjNos, leadPrjNos: Array.from(lead), only: opts.prjNo || '', createAll: !!opts.createAll, calc: KRX_PLAN, who,
-          loadLocal: async () => { const s = await chrome.storage.local.get([KRX_PLAN.KEY, KRX_PLAN.DKEY]); return { plans: s[KRX_PLAN.KEY] || {}, del: s[KRX_PLAN.DKEY] || {} }; },
-          saveLocal: (plans, del, prj) => KRX_PLAN.save(plans, del, prj)   // 그 과제 몫만 저장 (다른 창이 같은 키를 쓰므로 통째로 덮지 않음)
-        });
-        state = Object.assign({ reason, ms: Date.now() - t0, sectionId, section: sec, sectionWarn }, r.state); pages = r.pages;
-      } catch (e) {
-        const d = KRX_MCP.describe(e);
-        state = { at: t0, ok: false, reason, error: d.message, kind: d.kind, ms: Date.now() - t0, sectionId, pages: (prev && sectionId && prev.sectionId === sectionId && prev.pages) || {} };
-        if (d.kind === 'notebook') state.notebooks = e.notebooks || [];   // 팝업·설정이 노트북을 고르게
-      } finally { if (client) { try { await client.close(); } catch (e) {} } }
+    let state;
+    try {
+      const l = await chrome.storage.local.get(['projectList', 'rndUser', 'projectAliases', SHARE_INDEX_KEY]);
+      const cache = await getCache();
+      const mine = (l.projectList && l.projectList.projects) || [];
+      const projects = mine.concat((cache && cache.projects) || []);
+      const names = {}, rsprs = {};   // 과제명 · 책임자: 참여 과제 목록 + 패널 캐시
+      for (const pr of projects) if (pr && pr.prjNo) { if (pr.prjNm && !names[pr.prjNo]) names[pr.prjNo] = pr.prjNm; if (pr.rspr && !rsprs[pr.prjNo]) rsprs[pr.prjNo] = pr.rspr; }
+      const myPrjNos = Array.from(new Set(mine.map((pr) => pr && pr.prjNo).filter(Boolean)));
+      const who = String((l.rndUser || {}).userNm || settings.myName || '');
+      const leadPrjNos = shareLeadPrjNos(projects, cache, settings, who);
+      const index = shareObj(l[SHARE_INDEX_KEY]);
+      const cfg = await shareCfg(p, false);   // 못 풀면(auth · badurl · offline) 아래 catch 가 kind 그대로 상태에 남겨 팝업·설정이 안내한다
+      const r = await KRX_PRJDOC_SYNC.run({
+        store: shareStore, io: spIo(), base: cfg, cfg, driveHost: shareDriveHost(p), names, rsprs, myPrjNos, leadPrjNos, aliases: shareObj(l.projectAliases), index, discover: p.discover !== false,
+        only: opts.prjNo || '', want, who, loadLocal: shareLoadLocal, saveLocal: (part, prj, data) => shareSaveLocal(part, prj, data, names), now: t0
+      });
+      const rs = (r && r.state) || {};
+      state = Object.assign({ at: t0, ok: true, base: { path: cfg.folderPath, viewUrl: cfg.viewUrl || '' }, count: 0, files: 0, written: 0, pulled: 0, errors: 0, pages: {} }, rs, { reason, ms: Date.now() - t0 });
+      if (!state.base || !state.base.path) state.base = { path: cfg.folderPath, viewUrl: cfg.viewUrl || '' };
+      state.folder = state.folder && state.folder.path ? state.folder : state.base;   // 호환(팝업·옛 설정 페이지가 folder 를 읽음)
+      const newIndex = rs.index && typeof rs.index === 'object' && !Array.isArray(rs.index) ? rs.index : index;   // run 이 돌려준 새 캐시(비어 있어도 그것) — 없으면 지난 것
+      if (newIndex !== index) await chrome.storage.local.set({ [SHARE_INDEX_KEY]: newIndex });
+      delete state.index;   // 캐시는 shareIndex 에 — 상태에는 두지 않는다
+      await shareDecoratePages(state, p, newIndex);
+      if (p.shareWith !== 'none') await shareAutoPeople(state, p, newIndex, settings, who, cache);
+      state.ms = Date.now() - t0;
+    } catch (e) {
+      const d = describeShare(e);
+      state = { at: t0, ok: false, reason, error: d.message, kind: d.kind, ms: Date.now() - t0, base: (prev && prev.base) || null, folder: (prev && (prev.folder || prev.base)) || null, count: 0, written: 0, pulled: 0, errors: 1, pages: (prev && prev.pages) || {} };
+      if (d.kind === 'badurl') { try { await chrome.storage.local.remove('shareFolder'); } catch (e2) {} }   // 캐시한 폴더 주소가 틀렸을 수 있다 — 다음에 다시 푼다
     }
-    // 과제 하나만 돌린 경우 다른 과제의 지난 결과는 남긴다 (툴팁이 과제별로 읽음)
-    if (opts.prjNo && prev && prev.sectionId === state.sectionId && prev.pages) state.pages = Object.assign({}, prev.pages, state.pages || {});
-    const patch = { planSyncState: state }; if (pages) patch.plusPlanPages = pages;
-    await chrome.storage.local.set(patch);
+    if ((opts.prjNo || !state.ok) && prev && prev.pages) state.pages = Object.assign({}, prev.pages, state.pages || {});   // 과제 하나만 돌렸거나 실패했으면(로그인 풀림 등 — run 이 ok:false 로 돌려줄 때도) 다른 과제·지난 결과는 남긴다 (툴팁이 과제별로 읽음, 오류는 error · kind 에)
+    await chrome.storage.local.set({ shareState: state, planSyncState: state, researchSyncState: state, staffSyncState: state });
     return state;
-  })().finally(() => { planSyncInflight = null; });
-  return planSyncInflight;
+  })().finally(() => { shareInflight = null; });
+  return shareInflight;
 }
-function queuePlanSync(reason) { clearTimeout(planSyncTimer); planSyncTimer = setTimeout(() => { planSync(reason || 'edit').catch(() => {}); }, 4000); }
-async function plusProbe(url) {
-  const u = String(url || '').trim() || KRX_SETTINGS.DEFAULTS.plus.onenoteMcpUrl;
-  const allowed = await plusAllowed(u); if (!allowed.ok) return allowed;
-  try { const r = await KRX_MCP.probe(u, { clientName: 'kr-ext-rerp' }); return { ok: true, server: r.server, protocol: r.protocol, tools: r.tools.map((t) => t.name), check: KRX_ONENOTE.checkTools(r.tools) }; }
-  catch (e) { return Object.assign({ ok: false }, KRX_MCP.describe(e)); }
-}
-async function plusNotebooks(url) {   // 설정 페이지·팝업 "노트북 불러오기": 내가 연 모든 노트북 (섹션 목록에서 추림)
-  const u = String(url || '').trim() || KRX_SETTINGS.DEFAULTS.plus.onenoteMcpUrl;
-  const allowed = await plusAllowed(u); if (!allowed.ok) return allowed;
-  let client = null;
-  try { client = await KRX_MCP.open(u, { clientName: 'kr-ext-rerp' }); return { ok: true, notebooks: await KRX_ONENOTE.listNotebooks(client) }; }
-  catch (e) { return Object.assign({ ok: false }, KRX_MCP.describe(e)); }
-  finally { if (client) { try { await client.close(); } catch (e) {} } }
+function queueShareSync(reason) { clearTimeout(shareTimer); shareTimer = setTimeout(() => { shareSync(reason || 'edit').catch(() => {}); }, 4000); }   // 그때 동기화가 진행 중이면 shareSync 가 끝난 뒤 한 번 더 돌게 잡아 둔다
+/* 설정 페이지 [연결 확인] — base 를 다시 풀고(msg.folder 가 있으면 저장 전 칸 값으로) 과제 폴더 목록과 "나와 공유" 의 폴더를 받아 본다
+ *   → { ok, folder:{ path, viewUrl, url }, folders:[{ name, path, itemCount, modified }], count(과제 폴더 수), exists(밑폴더 있음), mine(내 OneDrive 인지), shared(나와 공유의 폴더 가운데 shared 밑 — 연차 파일은 여기서 읽지 않음), sharedFolders:[{ name, webUrl, ownerName }], sharedKnown(shareIndex 에 주인이 적힌 과제 수 — 지난 동기화가 찾은 것), message }
+ *   실패 → { ok:false, kind, message, error } — 'auth' 면 이 브라우저에서 SharePoint(OneDrive) 로그인 필요(설정 페이지가 OneDrive 열기 링크로 안내), 'badurl' 이면 주소 모양(공유 링크 대신 폴더를 연 뒤 주소창의 주소) */
+async function shareProbe(msg) {
+  const p = Object.assign({}, (await KRX_SETTINGS.load()).plus || {});
+  if (msg && msg.folder !== undefined && msg.folder !== null) p.folder = String(msg.folder);
+  try {
+    const cfg = await shareCfg(p, true);
+    let folders = null;
+    try { folders = await shareStore.listFolders(cfg); } catch (e) { if (!(e && e.kind === 'nofolder')) throw e; }
+    let mine = !!cfg.mine || !String(p.folder || '').trim();   // 비워 두었으면 내 OneDrive(resolveMyFolder 가 mine:true). 붙여 넣은 주소면 내 OneDrive 와 사이트가 같은지 본다
+    if (!mine) { try { const my = await KRX_SP.resolveMyFolder({ fetch: spFetch, driveHost: shareDriveHost(p), name: SHARE_BASE_NAME }); mine = my.origin === cfg.origin && String(my.sitePath || '').toLowerCase() === String(cfg.sitePath || '').toLowerCase(); } catch (e) {} }
+    let shared = null;
+    if (p.discover !== false) {
+      try {
+        const dec = (u) => { try { return decodeURIComponent(String(u || '')); } catch (e) { return String(u || ''); } };
+        shared = ((await shareStore.sharedWithMe({}, { driveHost: shareDriveHost(p) })) || []).filter((f) => f && f.folder && /\/shared(\/[^/]*)?\/?$/i.test(dec(f.webUrl))).map((f) => ({ name: String(f.name || ''), webUrl: String(f.webUrl || ''), ownerName: String(f.ownerName || '') }));
+      } catch (e) { shared = null; }
+    }
+    const index = shareObj((await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
+    const sharedKnown = Object.values(index).filter((e) => e && e.owner).length;
+    const list = (folders || []).map((f) => ({ name: String(f.name || ''), path: String(f.path || ''), itemCount: Number(f.itemCount) || 0, modified: String(f.modified || '') }));
+    return { ok: true, folder: { path: cfg.folderPath, viewUrl: cfg.viewUrl || '', url: shareFolderUrl(cfg) }, folders: list, count: list.length, exists: folders !== null, mine, shared: shared ? shared.length : 0, sharedFolders: shared || [], sharedKnown,
+      message: folders === null ? '밑폴더가 아직 없습니다 — 지금 동기화하면 만듭니다' : `연결됨 · 과제 폴더 ${list.length}개${shared !== null ? ` · 나와 공유 ${shared.length}개` : ''}${sharedKnown ? ` (그중 동기화 대상 ${sharedKnown}개)` : ''}` };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
 /* 클립보드 쓰기: 서비스워커는 클립보드에 못 쓰므로 오프스크린 문서(offscreen/offscreen.html, reason CLIPBOARD)를 띄워 execCommand('copy') 로 쓴다.
- * 패널의 내보내기가 페이지를 만드느라 몇 초 걸리면 콘텐츠스크립트의 클릭 권한(transient activation)이 끝나 직접 못 쓰기 때문 */
+ * 패널의 주소 복사가 폴더를 푸느라 몇 초 걸리면 콘텐츠스크립트의 클릭 권한(transient activation)이 끝나 직접 못 쓰기 때문 */
 async function clipboardWrite(text) {
   try {
     const url = chrome.runtime.getURL('offscreen/offscreen.html');
     const has = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] });
-    if (!has.length) await chrome.offscreen.createDocument({ url: 'offscreen/offscreen.html', reasons: ['CLIPBOARD'], justification: '확장 Plus 내보내기: 원노트 페이지 링크를 클립보드에 복사' });
+    if (!has.length) await chrome.offscreen.createDocument({ url: 'offscreen/offscreen.html', reasons: ['CLIPBOARD'], justification: '공유 (Plus): 공유 폴더 주소·링크를 클립보드에 복사' });
     const r = await chrome.runtime.sendMessage({ type: 'offscreenCopy', text });
     try { await chrome.offscreen.closeDocument(); } catch (e) {}
     return !!(r && r.ok);
   } catch (e) { return false; }
 }
-/* 패널 "원노트로 내보내기"(페이지를 아직 모를 때): 그 과제만 동기화해 페이지를 만들고(책임자) 링크+ID 를 클립보드에 복사 → { ...state, copied, page } */
-async function planExport(prjNo) {
-  const st = await planSync('manual', { prjNo, createAll: true });
-  const pg = st && st.pages ? st.pages[prjNo] : null;
-  let copied = false;
-  if (st && st.ok && pg && pg.webUrl && pg.pageId) copied = await clipboardWrite(`${pg.webUrl}\n[예상 비용 페이지 ID] ${pg.pageId}`);
-  return Object.assign({}, st, { copied });
-}
-/* 패널 "원노트에서 가져오기": 동료가 보낸 페이지 링크(내보내기가 복사한 글)를 이 과제에 연결(plusPlanPages[prjNo].bound)하고 그 과제만 바로 동기화 */
-async function planBind(prjNo, text) {
-  const settings = await KRX_SETTINGS.load();
-  const p = settings.plus || {};
-  if (!p.enabled || p.planSync === false) return { ok: false, skipped: 'off', missing: [!p.enabled && '"원노트 동기화 (Plus)" 체크(팝업 아래 줄)', p.planSync === false && '설정의 "예상 비용을 과제별 페이지와 동기화" 체크'].filter(Boolean) };
-  if (!prjNo) return { ok: false, kind: 'badlink', error: '과제번호가 없습니다' };
-  const url = plusUrl(p);
-  const allowed = await plusAllowed(url); if (!allowed.ok) return allowed;
-  let client = null;
+/* 패널 ⬆(plan-export) · 사업비 관리 · 설정 [주소 복사]: 주소를 클립보드에 복사한다 — prjNo 가 있고 그 과제 폴더를 알면 과제 폴더 보기 주소(msg.file 이면 예상비용.json 주소), 아니면 base 를 여는 주소(viewUrl — 없으면 폴더 주소). 공유 (Plus) 가 꺼져 있어도 복사해 준다
+ *   → { ok, copied, url, what('project' | 'base'), prjNo, folder:{ path, viewUrl } } | { ok:false, kind, message, error }. 옛 메시지 이름 'planExport' 도 여기로 */
+async function shareFolderCopy(msg) {
+  const p = (await KRX_SETTINGS.load()).plus || {};
   try {
-    client = await KRX_MCP.open(url, { clientName: 'kr-ext-rerp' });
-    const page = await KRX_ONENOTE.resolveLink(client, text);
-    const pages = (await chrome.storage.local.get('plusPlanPages')).plusPlanPages || {};
-    pages[prjNo] = Object.assign({}, page, { bound: true, at: Date.now() });
-    await chrome.storage.local.set({ plusPlanPages: pages });
-  } catch (e) { return Object.assign({ ok: false }, KRX_MCP.describe(e)); }
-  finally { if (client) { try { await client.close(); } catch (e) {} } }
-  const st = await planSync('manual', { prjNo });
-  return Object.assign({}, st, { ok: !!st.ok, bound: true });
+    const prj = msg && msg.prjNo ? String(msg.prjNo) : '';
+    let cfg = prj ? await shareProjectCfg(prj, p) : null, what = cfg ? 'project' : 'base';
+    if (!cfg) cfg = await shareCfg(p, false);
+    const url = (what === 'project' && msg.file) ? shareFileUrl(cfg, sharePlanName()) : (cfg.viewUrl || shareFolderUrl(cfg));
+    const copied = await clipboardWrite(url);
+    return { ok: true, copied, url, what, prjNo: prj, folder: { path: cfg.folderPath, viewUrl: cfg.viewUrl || '' } };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
-/* ----- 연구개발계획서(연구내용) 원노트 받기 (0.8.5, lib/research-sync.js · lib/research.js): KRS WORKSPACE R&D 탭의 "연구내용 공유"가 올린 「[연구내용] 과제명」 페이지의 링크를
- * 설정 페이지(연구개발계획서 칸)에 붙여 넣으면 그 페이지를 기억하고(storage.local.researchPages = { [pageId]: { pageId, title, webUrl, sectionId, boundAt, at(마지막 받기), ok, error?, kind?,
- * name, code, by, remoteAt(올린 시각), count(차년도 수), older(더 오래된 판이라 건너뛴 수) } }) 기록을 researchPlans 에 넣는다(src = pageId, 판이 더 오래된 차년도는 KRX_RESEARCH.put 이 건너뜀).
- * 그 뒤로는 패널을 열 때(load — 마지막 받기 뒤 RESEARCH_PULL_MIN_MS 안이면 건너뜀)와 설정의 "다시 받기"(manual) 때 기억한 페이지를 모두 다시 읽는다. 한 번에 하나만.
- * 확장 Plus 를 켜지 않아도 된다(읽기만 하고 섹션도 안 씀) — MCP 주소는 plus.onenoteMcpUrl(기본 localhost:5005). researchPullAt = 마지막으로 돈 시각 ----- */
-const RESEARCH_PULL_MIN_MS = 10 * 60 * 1000;
-let researchInflight = null;
-async function researchPull(reason, opts) {
-  opts = opts || {};
-  if (researchInflight) return researchInflight;
-  researchInflight = (async () => {
-    const l = await chrome.storage.local.get(['researchPages', 'researchPullAt']);
-    const pages = l.researchPages || {};
-    const ids = opts.pageId ? [opts.pageId] : Object.keys(pages);
-    if (!ids.length) return { ok: true, skipped: 'none' };
-    if (reason === 'load' && Date.now() - (Number(l.researchPullAt) || 0) < RESEARCH_PULL_MIN_MS) return { ok: true, skipped: 'recent' };
-    const url = plusUrl((await KRX_SETTINGS.load()).plus || {});
-    const allowed = await plusAllowed(url); if (!allowed.ok) return allowed;
-    const out = { ok: true, reason, pages: {}, put: 0 };
-    let client = null;
-    try {
-      client = await KRX_MCP.open(url, { clientName: 'kr-ext-rerp', clientVersion: chrome.runtime.getManifest().version });
-      const map = await KRX_RESEARCH.load();
-      const before = JSON.stringify(map);
-      for (const id of ids) {
-        const pg = Object.assign({ pageId: id }, pages[id] || {}, opts.page && opts.page.pageId === id ? opts.page : {});
-        try {
-          const r = await KRX_RESEARCH_SYNC.pull({ client, onenote: KRX_ONENOTE, pageId: id });
-          let older = 0;
-          for (const rec of r.data.recs) { if (KRX_RESEARCH.put(map, Object.assign(rec, { src: id })).state === 'older') older++; else out.put++; }
-          Object.assign(pg, { title: r.title || pg.title || '', name: r.data.name, code: r.data.code, by: r.data.by, remoteAt: r.data.at, count: r.data.recs.length, older, at: Date.now(), ok: true, error: '', kind: '' });
-        } catch (e) {
-          if (e && /^(offline|timeout)$/.test(e.kind)) throw e;   // 서버가 안 닿으면 다른 페이지도 마찬가지
-          const d = KRX_MCP.describe(e);
-          Object.assign(pg, { at: Date.now(), ok: false, error: d.message, kind: d.kind });
-          out.ok = false; out.error = d.message;
-        }
-        out.pages[id] = pg;
-      }
-      const l2 = await chrome.storage.local.get('projectList');
-      const cache = await getCache();
-      KRX_RESEARCH.link(map, ((l2.projectList && l2.projectList.projects) || []).concat((cache && cache.projects) || []));
-      if (JSON.stringify(map) !== before) await KRX_RESEARCH.save(map);   // 같으면 쓰지 않는다 (패널이 storage.onChanged 로 다시 그림)
-    } catch (e) { return Object.assign({ ok: false, reason }, KRX_MCP.describe(e)); }
-    finally { if (client) { try { await client.close(); } catch (e) {} } }
-    // 받는 동안 설정 페이지에서 끊은 페이지는 되살리지 않는다 (opts.page = 방금 붙여 넣은 링크는 새로 넣음)
-    const cur = (await chrome.storage.local.get('researchPages')).researchPages || {};
-    for (const [id, pg] of Object.entries(out.pages)) if (cur[id] || (opts.page && opts.page.pageId === id)) cur[id] = pg;
-    await chrome.storage.local.set({ researchPages: cur, researchPullAt: Date.now() });
-    return out;
-  })().finally(() => { researchInflight = null; });
-  return researchInflight;
+/* 사업비 관리 [참여연구원에게 공유] · 설정 페이지: 과제 폴더를 사람들에게 공유 — msg = { prjNo, names?(없으면 참여인력 전부, 내 이름 제외), role?('edit' 기본 | 'read') }
+ *   → { ok, prjNo, folder(이름), share:{ shared:[{ name, email }], ambiguous:[{ name, candidates }], notFound:[name], error? }, message } | { ok:false, kind, message, error }. 결과는 shareState.pages[prjNo].share 에도 남긴다 */
+async function shareFolderPeople(msg) {
+  const settings = await KRX_SETTINGS.load(), p = settings.plus || {};
+  const prjNo = String((msg && msg.prjNo) || '').trim();
+  if (!prjNo) return shareFail('error', '과제번호가 없습니다');
+  try {
+    const index = shareObj((await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
+    const cfg = await shareProjectCfg(prjNo, p, index);
+    if (!cfg) return shareFail('nofolder', SHARE_NOFOLDER_MSG);
+    const role = msg && msg.role === 'read' ? 'read' : 'edit';
+    const l = await chrome.storage.local.get('rndUser');
+    const cache = await getCache();
+    const myNames = shareMyNames(cache, settings, String((l.rndUser || {}).userNm || settings.myName || ''));
+    const names = Array.isArray(msg.names) && msg.names.length
+      ? Array.from(new Set(msg.names.map((s) => String(s || '').trim()).filter(Boolean)))
+      : await shareParticipantNames(prjNo, myNames);
+    const folder = String(index[prjNo].folder || '');
+    if (!names.length) {
+      const share = Object.assign(shareResultOf(null, role), { note: '참여인력에 나 말고는 없음' });
+      await sharePatchPage(prjNo, { share });
+      return { ok: true, prjNo, folder, share, message: '공유할 사람이 없습니다 — 참여인력에 나 말고는 없음' };
+    }
+    const pg = {};
+    await sharePeopleJobs([{ prjNo, cfg, names, pg }], role);
+    const share = pg.share || shareResultOf(null, role);
+    await sharePatchPage(prjNo, { share, folder });
+    return { ok: !share.error, prjNo, folder, share, message: shareResultText(share), error: share.error, kind: share.kind };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
-/* 설정 페이지에 붙여 넣은 링크(웹 링크 · onenote: 링크 · "[연구내용 페이지 ID] 1-…" 줄)를 페이지로 풀어 기억하고 바로 받는다 */
-async function researchBind(text) {
-  const url = plusUrl((await KRX_SETTINGS.load()).plus || {});
-  const allowed = await plusAllowed(url); if (!allowed.ok) return allowed;
-  let client = null, page = null;
-  try { client = await KRX_MCP.open(url, { clientName: 'kr-ext-rerp' }); page = await KRX_ONENOTE.resolveLink(client, text); }
-  catch (e) { return Object.assign({ ok: false }, KRX_MCP.describe(e)); }
-  finally { if (client) { try { await client.close(); } catch (e) {} } }
-  if (researchInflight) { try { await researchInflight; } catch (e) {} }
-  const r = await researchPull('manual', { pageId: page.pageId, page: Object.assign({}, page, { boundAt: Date.now() }) });
-  return Object.assign({ page: (r.pages && r.pages[page.pageId]) || page }, r);
+/* 사업비 관리 [링크 복사] · 설정 [조직 내 링크 만들기·복사]: 조직 내 편집 링크(linkKind OrganizationEdit)를 만들어 클립보드에 — msg = { prjNo?(없으면 base), edit?(false 면 읽기) } → { ok, url, copied, prjNo, folder:{ path, viewUrl } } | { ok:false, kind, message, error } */
+async function shareOrgLink(msg) {
+  const p = (await KRX_SETTINGS.load()).plus || {};
+  try {
+    const prjNo = String((msg && msg.prjNo) || '').trim();
+    const cfg = prjNo ? await shareProjectCfg(prjNo, p) : await shareCfg(p, false);
+    if (!cfg) return shareFail('nofolder', SHARE_NOFOLDER_MSG);
+    const w = await shareStore.openWriter(cfg);
+    let r;
+    try { r = await w.orgLink(cfg.folderPath, { edit: !(msg && msg.edit === false) }); } finally { try { await w.close(); } catch (e) {} }
+    const url = String((r && r.url) || '');
+    if (!url) throw Object.assign(new Error(`공유 링크를 받지 못했습니다${r && r.error ? ` — ${r.error}` : ''}`), { kind: 'http' });
+    const copied = await clipboardWrite(url);
+    return { ok: true, url, copied, prjNo, folder: { path: cfg.folderPath, viewUrl: cfg.viewUrl || '' } };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
-/* 페이지 끊기: 기억을 지우고 그 페이지에서 온 기록(src)도 뺀다 */
-async function researchUnbind(pageId) {
-  const l = await chrome.storage.local.get('researchPages');
-  const pages = l.researchPages || {};
-  delete pages[pageId];
-  const map = await KRX_RESEARCH.load();
-  let removed = 0;
-  for (const [id, rec] of Object.entries(map)) if (rec && rec.src === pageId) { delete map[id]; removed++; }
-  await chrome.storage.local.set({ researchPages: pages, [KRX_RESEARCH.KEY]: map });
-  return { ok: true, removed };
-}
-async function plusResolveSection() {   // 팝업·설정: 저장된 설정으로 섹션을 다시 찾고(없으면 만들고) 결과를 돌려줌. 노트북을 골라야 하면 { ok:false, kind:'notebook', notebooks }
-  const settings = await KRX_SETTINGS.load();
-  const p = settings.plus || {};
-  const u = plusUrl(p);
-  const allowed = await plusAllowed(u); if (!allowed.ok) return allowed;
-  let client = null;
-  try { client = await KRX_MCP.open(u, { clientName: 'kr-ext-rerp' }); const sec = await ensurePlusSection(client, p, true); return { ok: true, section: sec }; }
-  catch (e) { const r = Object.assign({ ok: false }, KRX_MCP.describe(e)); if (r.kind === 'notebook') r.notebooks = e.notebooks || []; return r; }
-  finally { if (client) { try { await client.close(); } catch (e) {} } }
+/* 과제 폴더 이름 바꾸기(선택) — msg = { prjNo, name } → { ok, prjNo, name, unchanged? }. 이름은 KRX_PRJDOC.folderNameFor 규칙(파일 이름에 못 쓰는 글자 제거 · 60자)으로 다듬고, shareIndex 의 folder·path·url 을 rename 결과로 고친다
+ *   (path·url 을 옛 경로로 두면 다음 동기화가 그 색인을 믿고 옛 경로를 nofolder 로 보아 — 동료 폴더면 색인을 버리고 다시 훑고, 내 base 면 매번 다시 훑는다; 2026-10-18 검토) */
+async function shareRename(msg) {
+  const p = (await KRX_SETTINGS.load()).plus || {};
+  const prjNo = String((msg && msg.prjNo) || '').trim(), name = String((msg && msg.name) || '').trim();
+  if (!prjNo || !name) return shareFail('error', '과제번호와 새 폴더 이름이 필요합니다');
+  try {
+    const index = shareObj((await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
+    const cfg = await shareProjectCfg(prjNo, p, index);
+    if (!cfg) return shareFail('nofolder', SHARE_NOFOLDER_MSG);
+    const clean = typeof KRX_PRJDOC.folderNameFor === 'function' ? String(KRX_PRJDOC.folderNameFor({ alias: name, prjNo }) || '') : name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').trim().slice(0, 60);
+    if (!clean) return shareFail('badurl', '폴더 이름에 쓸 수 있는 글자가 없습니다');
+    if (clean === String(index[prjNo].folder || '')) return { ok: true, prjNo, name: clean, unchanged: true };
+    const w = await shareStore.openWriter(cfg);
+    let r;
+    try { r = await w.rename(cfg.folderPath, clean); } finally { try { await w.close(); } catch (e) {} }
+    const newPath = String((r && r.path) || `${String(cfg.folderPath).replace(/\/[^/]*$/, '')}/${clean}`);
+    const newCfg = (() => { try { return KRX_SP.parseFolder(String((r && r.url) || `${cfg.origin}${newPath.split('/').map(encodeURIComponent).join('/')}`)); } catch (e) { return null; } })();
+    index[prjNo] = Object.assign({}, index[prjNo], { folder: clean, path: newPath, url: String((r && r.url) || (newCfg ? shareFolderUrl(newCfg) : '')), at: Date.now() });
+    await chrome.storage.local.set({ [SHARE_INDEX_KEY]: index });
+    await sharePatchPage(prjNo, { folder: clean, folderUrl: newCfg ? (newCfg.viewUrl || shareFolderUrl(newCfg)) : '', planUrl: '', webUrl: '' });
+    return { ok: true, prjNo, name: clean, path: newPath };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
 
 /* 확장 페이지(사이드 패널·팝업·설정)에서 온 메시지인가 — eClass 패널(콘텐츠 스크립트)은 eClass 페이지 DOM 안이라 비밀번호를 받지 않는다 */
 const fromExtPage = (sender) => !!sender && sender.id === chrome.runtime.id && String(sender.url || '').startsWith(chrome.runtime.getURL(''));
 KRX_PREP_FETCH.resume().catch(() => {});   // 워커가 다시 떴을 때 진행 중이던 찾아오기를 이어서 지켜봄
+try { KRX_SP.sweepWorkers({ chrome }).catch(() => {}); } catch (e) {}   // 지난 워커가 공유 (Plus) 쓰기 도중 끝나 남긴 SharePoint 작업 창(최소화된 XML 페이지)을 거둔다 — writer 가 살아 있을 수 없는 자리(워커 시작)라 안전
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg && msg.type) {
       case 'getData': return await refresh(!!msg.force, { full: !!msg.full });   // full: 참여인력 캐시도 건너뜀 (↻)
-      case 'planSync': return await planSync(String(msg.reason || 'manual'), { prjNo: msg.prjNo ? String(msg.prjNo) : '', createAll: !!msg.createAll });   // 확장 Plus: 예상 비용 ↔ 과제별 원노트 페이지 (구름 아이콘 manual+prjNo · 패널 열 때 load · 설정 페이지 지금 동기화/모두 만들기)
-      case 'planSyncQueue': queuePlanSync(String(msg.reason || 'edit')); return { ok: true };   // 항목 편집 뒤 4초 모아서
-      case 'planBind': return await planBind(String(msg.prjNo || ''), String(msg.text || ''));   // 패널 "원노트에서 가져오기": 페이지 링크 적용
-      case 'researchBind': return await researchBind(String(msg.text || ''));   // 설정 연구개발계획서: KRS WORKSPACE 가 올린 연구내용 페이지 링크 붙여 넣기
-      case 'researchPull': return await researchPull(String(msg.reason || 'manual'));   // 기억한 연구내용 페이지 다시 받기 (패널을 열 때 load · 설정 "다시 받기")
-      case 'researchUnbind': return await researchUnbind(String(msg.pageId || ''));
-      case 'planExport': return await planExport(String(msg.prjNo || ''));                        // 패널 "원노트로 내보내기": 페이지 만들고(책임자) 링크 복사
-      case 'plusProbe': return await plusProbe(msg.url);                                    // 설정 페이지 "연결 확인"
-      case 'plusNotebooks': return await plusNotebooks(msg.url);                            // 설정 페이지·팝업 "노트북 불러오기"
-      case 'plusResolveSection': return await plusResolveSection();                          // 팝업·설정: 섹션(RERP) 찾기/만들기
+      case 'planSync': return await shareSync(String(msg.reason || 'manual'), { prjNo: msg.prjNo ? String(msg.prjNo) : '' });   // 공유 (Plus): 과제별 공유 파일과 맞춤 (구름/저장 아이콘 manual+prjNo · 패널 열 때 load · 설정/팝업 지금 동기화 manual). 이름은 옛 planSync 그대로 — 패널·설정이 보냄
+      case 'planSyncQueue': queueShareSync(String(msg.reason || 'edit')); return { ok: true };   // 항목 편집 뒤 4초 모아서
+      case 'shareProbe': return await shareProbe(msg);                                      // 설정 페이지 "연결 확인" — base 풀기(msg.folder 가 있으면 저장 전 칸 값) + 과제 폴더 목록 + 나와 공유 → { ok, folder, folders, count, shared, mine } / 로그인 필요(auth)
+      case 'shareFolderCopy': case 'planExport': return await shareFolderCopy(msg);        // 패널 ⬆ · 사업비 관리 · 설정 [주소 복사]: base(또는 prjNo 의 과제 폴더 · file 이면 예상비용.json) 주소를 클립보드에 (planExport 는 옛 이름)
+      case 'shareFolderPeople': return await shareFolderPeople(msg);                       // 사업비 관리·설정 [참여연구원에게 공유]: 과제 폴더를 사람들(names 또는 참여인력 전부)에게 편집 공유 → { ok, share:{ shared, ambiguous, notFound } }
+      case 'shareOrgLink': return await shareOrgLink(msg);                                 // 사업비 관리·설정 [링크 복사]: 조직 내 편집 링크를 만들어 클립보드에 → { ok, url, copied }
+      case 'shareRename': return await shareRename(msg);                                   // 과제 폴더 이름 바꾸기(선택) → { ok, name }
       case 'jctCaptured': refreshAfterWrite(msg.entry); await appendCapture(msg.entry, sender); return { ok: true };
       case 'unapprovedSnapshot': await chrome.storage.local.set({ unapprovedSnapshot: msg.snapshot }); return { ok: true };
       case 'hrPay': { const merged = await mergeHrPay(msg.patch || {}); await patchCacheHrPay(merged); return { ok: true }; }

@@ -12,12 +12,12 @@
   <div><p class="settings-eyebrow">R&amp;D ERP 현황</p><h1>설정</h1><p class="settings-subtitle">업무에 맞게 화면과 자동화 기능을 설정하세요.</p></div>
 </header>
 
-<!-- 탭: 일반 설정 · LLM 설정 · MCP 설정 (options.js showTab — 주소 #llm 또는 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=…)면 LLM 설정, #mcp 면 MCP 설정). 저장 버튼은 세 탭 공통.
+<!-- 탭: 일반 설정 · LLM 설정 · 공유 (Plus) (options.js showTab — 주소 #llm 또는 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=…)면 LLM 설정, #share 면 공유 (Plus)). 저장 버튼은 세 탭 공통.
      LLM 설정 탭 이름 옆 칩은 Help 서버(LLM) 연결 상태(options.js probeLlm → background lib/llm.js). LLM 으로 하는 기능(자동 분류 · Help Chat · 증빙 찾아오기 — 가맹점 등록까지)은 전부 LLM 설정 탭에 있고 연결돼야 켜진다 -->
 <nav class="tabs" role="tablist" aria-label="설정 탭">
   <button type="button" role="tab" class="tab" id="tab-main" data-tab="main" aria-controls="panel-main panel-diagnostics" aria-selected="true">일반 설정</button>
   <button type="button" role="tab" class="tab" id="tab-llm" data-tab="llm" aria-controls="panel-llm" aria-selected="false" tabindex="-1">LLM 설정<span id="llmBadge" class="tab-badge"></span></button>
-  <button type="button" role="tab" class="tab" id="tab-mcp" data-tab="mcp" aria-controls="panel-mcp" aria-selected="false" tabindex="-1">MCP 설정<span id="mcpBadge" class="tab-badge"></span></button>
+  <button type="button" role="tab" class="tab" id="tab-share" data-tab="share" aria-controls="panel-share" aria-selected="false" tabindex="-1">공유 (Plus)<span id="shareBadge" class="tab-badge"></span></button>
 </nav>
 
 <form id="form">
@@ -169,22 +169,13 @@
     <p class="help">RND 폴더의 연구개발계획서 스냅샷 <code>KR_&lt;과제&gt;.yaml</code>(재생성본이 있으면 마지막 <code>_rN</code>)을 넣어 두면, 그 차년도의 <b>개발목표·개발내용·성능목표·수행일정</b>과 <b>연구활동비 세부사용계획</b>을 참조로 씁니다:
       패널의 <b>연구내용</b> 탭(카드미청구 · 과제집행비율 다음)에서 과제별로 보이고, 청구 준비 자동 분류(LLM 설정 탭 — LLM 이 연결돼 있을 때)를 켜 두었으면 Claude 가 청구종류를 고를 때 그 과제의 계획을 근거로 보고, 비어 있는 청구내역(적요)을 쓸 때 개발내용·목표에서 용도를 고릅니다.
       과제명으로 R&amp;D ERP 과제에 저절로 잇고(이름이 조금 달라도 가장 비슷한 과제), 아래 표에서 바꿀 수 있습니다. 같은 과제·차년도에 다시 넣으면 바뀌고, 이미 넣은 판보다 오래된 판은 넣지 않습니다.
-      <code>history/*.yaml</code> 이력 파일은 쓰지 않습니다. 이 브라우저(확장 저장소)에만 남습니다.</p>
+      <code>history/*.yaml</code> 이력 파일은 쓰지 않습니다. 이 브라우저(확장 저장소)에 남고, <b>공유 (Plus)</b> 탭을 켜 두면 과제별 공유 파일로 같은 과제 사람들과 오갑니다(동료가 넣은 기록은 아래 표에 <b>공유</b> 표시 — 판·넣은 시각이 새로운 쪽이 남음).</p>
     <label class="rs-drop" id="researchDrop" tabindex="0">
       <input type="file" id="researchFile" accept=".yaml,.yml,text/yaml,application/x-yaml,application/yaml" multiple>
       <span class="rs-drop-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>연구개발계획서 YAML 넣기</span>
       <span class="rs-drop-sub">RND 폴더의 KR_&lt;과제&gt;.yaml — 끌어다 놓기 · 붙여 넣기(Ctrl+V) · 눌러서 고르기 (여러 개 한꺼번에)</span>
     </label>
     <p id="researchStatus" class="rs-status"></p>
-    <p class="help"><b>원노트 링크로 받기</b>: KRS WORKSPACE 확장 R&amp;D 탭의 <b>연구내용 공유</b>가 원노트에 올린 「[연구내용] 과제명」 페이지의 링크(그 단추가 복사해 준 글)를 아래 칸에 붙여 넣으면 그 과제의 연구내용을 받아 오고,
-      그 뒤로는 패널을 열 때(10분에 한 번)와 <b>다시 받기</b>로 같은 페이지를 다시 읽어 맞춥니다. 이 PC 의 OneNote MCP 서버(확장 Plus 의 주소, 기본 <code>localhost:5005</code>)가 떠 있어야 하고, 동료의 페이지면 그 노트북을 OneNote 에서 한 번 열어 두어야 합니다. 원노트에는 쓰지 않습니다.</p>
-    <div class="row">
-      <input type="text" id="researchLink" class="rs-link" placeholder="원노트 페이지 링크 붙여 넣기 (Enter) — 페이지 어디에 Ctrl+V 해도 됩니다" spellcheck="false" autocomplete="off">
-      <button type="button" id="btnResearchBind" class="btn">원노트에서 받기</button>
-      <button type="button" id="btnResearchPull" class="btn">다시 받기</button>
-      <span id="researchLinkStatus" class="status"></span>
-    </div>
-    <div id="researchPages"></div>
     <div id="researchList"></div>
   </details>
 
@@ -274,25 +265,56 @@
   </details>
   </div>
 
-  <!-- MCP 설정 탭: 이 PC 의 외부 MCP 서버(KR_MS365_mcp OneNote) 연동 — 확장 Plus. LLM(Help 서버)과는 별개의 연결이라 LLM 설정 탭에 두지 않는다. 탭 이름 옆 칩은 켜짐/꺼짐 (options.js updatePlusSummary) -->
-  <div class="tab-panel" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" data-panel="mcp" hidden>
-  <section class="card">
-    <h2>확장 Plus: 외부 MCP 연동 — OneNote 예상 비용 동기화 <span id="plusSummary" class="muted"></span></h2>
-    <p class="help">이 PC 에서 도는 <b>KR_MS365_mcp</b> 의 OneNote MCP 서버(기본 <code>http://localhost:5005/mcp</code>)를 통해 <b>과제집행비율 예상 비용</b>을 <b>과제별 원노트 페이지</b>와 동기화합니다.
-      켜면 아래 이름(기본 <code>RERP</code>)의 섹션을 찾아(없으면 고른 노트북에 만들어) 과제마다 <code>[예상 비용] 과제번호 과제명</code> 페이지를 그 섹션에 만들고, 같은 노트북(공유)의 같은 섹션을 쓰는 사람들은 제목의 과제번호로 같은 페이지를 씁니다. 켜기는 툴바 팝업 아래 줄에서도 됩니다.
-      페이지는 <b>과제 책임자만</b> 만듭니다(참여인력 역할이 책임이거나 과제책임자 이름이 본인인 과제). 책임자인 과제는 항목이 없어도 동기화 때 자동으로 만들어지고, 책임자가 아니면 페이지가 생길 때까지 "책임자 생성 대기"로 표시됩니다(동료가 보낸 링크를 패널의 가져오기로 적용하면 됨).
-      공유 노트북은 각자 OneNote 에서 한 번 열어 둬야 섹션 목록에 나옵니다. MCP 서버에는 2026-09-27 이후의 onenote 도구(<code>read_onenote get_content include_ids</code> · <code>write_onenote replace</code>)가 있어야 합니다 — 연결 확인이 알려 줍니다.</p>
+  <!-- 공유 (Plus) 탭 (v2): 과제마다 SharePoint(OneDrive) 폴더 하나 — 그 안에 연차마다 <n>차년도.json(과제 정보 · 사업비 예산 줄 · 참여연구원 계획 · 연구내용 · 변경이력)과 예상비용.json(모든 연차의 예상 비용) — 을 두고 브라우저의 로그인 쿠키만으로 읽고 쓴다
+       (background.js shareSync(메시지 'planSync' · 'planSyncQueue') · shareProbe · shareFolderCopy · shareOrgLink · shareFolderPeople · shareRename, lib/sp-store.js · lib/prjdoc.js · lib/prjdoc-sync.js). MCP 서버 · Microsoft 로그인(Graph) · 원노트는 2026-10-18 에 모두 걷어 냈다.
+       2026-10-18 사용자 지정: "아니 mcp 없이 grph api 하지 않고 브라우저 토큰으로 하라고" → (저녁) "onedrive 에 업무/shared 안에 과제별로 .. 약칭으로 없으면 jobid 없으면 임시번호. 이렇게 하고 여기에 넣자. 년차별로 1개 파일이고 1개 파일에서 변경사항이랑 다 관리했으면 좋겠어. 과제 정보랑 등등."
+       → "그리고 참여연구원들에게 공유할 수 있게 설정까지 같이해줘. .. 그리고 workspace 에도 경로주면 알아서 동기화" → "예상지출도 다 들어 가겠지? 이건 별도 파일에서 해도 되긴하는데 알아서 해줘."
+       그래서 밑폴더(plus.folder)가 비면 내 OneDrive 의 문서/업무/shared(없으면 만듦), 과제 폴더는 그 아래 <약칭 → 없으면 Job Id → 없으면 rERP 과제번호>/, 예상 비용은 연차에 걸치는 항목이 두 파일에 나뉘지 않게 과제 폴더의 별도 파일.
+       폴더를 새로 만들 때 plus.shareWith 가 'participants' 면 rERP 참여인력에게 편집 권한으로 자동 공유(SharePoint 사람 찾기 → ShareObject), 동료는 plus.discover 가 켜져 있으면 "나와 공유" 목록에서 과제 폴더를 저절로 찾는다 — 주소를 주고받을 필요가 없다.
+       설정 plus = { enabled, folder, planSync, researchSync, staffSync, changesSync, discover, shareWith } (driveHost 는 기본값 — 칸 없음). 상태 storage.local.shareState 의 모양은 options.js 공유 (Plus) 절.
+       LLM(Help 서버)과는 별개의 연결이라 LLM 설정 탭에 두지 않는다. 탭 이름 옆 칩은 켜짐/꺼짐 (options.js updateShareSummary) -->
+  <div class="tab-panel" id="panel-share" role="tabpanel" aria-labelledby="tab-share" data-panel="share" hidden>
+  <section class="card" data-help-key="공유 (Plus)">
+    <h2>공유 (Plus): 과제별 공유 폴더 (과제 정보 · 예산 · 참여연구원 · 연구내용 · 변경이력 · 예상 비용) <span id="plusSummary" class="muted"></span></h2>
+    <p class="section-description">과제마다 OneDrive(SharePoint) 폴더 하나 — 연차별 파일과 예상 비용 파일 — 를 두고 참여연구원과 맞춥니다. KRS WORKSPACE 에도 같은 폴더 주소를 주면 같은 파일로 동기화됩니다.</p>
+    <p class="help">켜 두면 확장이 내 OneDrive 의 <b>문서/업무/shared</b> 밑에 과제마다 폴더(이름은 <b>과제 약칭 → 없으면 Job Id → 없으면 과제번호</b>)를 만들고, 그 안에 연차마다 <code>n차년도.json</code> 하나(과제 정보 · 사업비 예산 줄 · 참여연구원 참여율·지급액 계획 · 연구내용 기록 · 변경이력)와 <code>예상비용.json</code> 하나(모든 연차의 과제집행비율 예상 비용 — 연차에 걸치는 항목이 두 파일에 나뉘지 않게 따로)를 둡니다. 패널·팝업을 열 때와 항목을 바꾼 4초 뒤, 자동 갱신 때 저절로 맞춥니다.
+      파일은 이 브라우저가 <b>SharePoint(OneDrive)에 로그인돼 있는 것만으로</b> 읽고 씁니다 — 서버·앱 등록·별도 로그인이 없습니다. 쓸 때는 SharePoint 탭을 잠깐(최소화된 창에) 열어 그 안에서 저장하고 닫습니다.
+      과제 폴더는 과제 책임자(또는 그 과제의 자료를 먼저 넣은 사람)의 OneDrive 에 만들어지고, <b>자동 공유</b>를 켜 두면 만들 때 R&amp;D ERP 참여인력에게 편집 권한으로 공유됩니다. 참여연구원은 공유 (Plus) 만 켜 두면 됩니다 — <b>자동 찾기</b>가 OneDrive 의 "나와 공유" 목록에서 내 참여 과제의 폴더를 찾아 맞춥니다(ⓘ 동료에게 공유하는 법). 폴더 이름은 보기 좋게 붙인 것일 뿐이고 과제는 파일 안의 과제번호로 알아보므로 이름을 바꿔도 됩니다. 팀 사이트 문서함의 폴더(<code>https://krclass.sharepoint.com/sites/…/Shared Documents/…</code>)를 밑폴더로 써도 됩니다.
+      연차 파일의 변경이력은 덧붙이기만 하고(날짜 · 종류 · 항목 · 전/후 · 사유 · 누가 — WORKSPACE 쪽 항목도 함께), 예산 줄·참여연구원 계획·예상 비용은 수정 시각이 새로운 쪽이 남고 지운 것도 전파되며(90일), 연구내용 기록은 판·넣은 시각이 새로운 쪽, 과제 정보 가운데 R&amp;D ERP 가 아는 칸(과제명·책임자·기간)은 ERP 값이 늘 이기고 Job Id·IO·메모는 WORKSPACE 몫입니다. 다른 사람이 같은 파일을 쓰는 중(체크아웃)이면 그 파일만 건너뛰고 다음에 다시 합니다. 켜기는 툴바 팝업 아래 줄에서도 됩니다.</p>
     <div class="grid">
-      <label class="check wide"><input type="checkbox" id="plusEnabled"> 확장 Plus 사용 (로컬 MCP 서버 연동)</label>
-      <label class="wide">OneNote MCP 주소 <input type="url" id="plusMcpUrl" placeholder="http://localhost:5005/mcp"></label>
-      <label class="wide"><button type="button" id="btnPlusProbe" class="btn">연결 확인</button> <span id="plusProbeStatus" class="status"></span></label>
-      <label>섹션 이름 <input type="text" id="plusSectionName" placeholder="RERP"></label>
-      <label>섹션을 둘 노트북 <select id="plusNotebook"><option value="">(자동: 그 이름의 섹션이 있는 노트북)</option></select></label>
-      <label class="wide"><button type="button" id="btnPlusNotebooks" class="btn">노트북 불러오기</button> <button type="button" id="btnPlusSection" class="btn">섹션 찾기 / 만들기</button> <span id="plusSectionStatus" class="status"></span></label>
-      <label class="check wide"><input type="checkbox" id="plusPlanSync"> 예상 비용을 과제별 페이지와 동기화 — 패널·팝업을 열 때, 항목을 바꾼 4초 뒤, 자동 갱신 때 저절로. 패널 비목 머리글의 저장 아이콘 옆에 <b>원노트로 내보내기(⬆ = 페이지 링크 복사) · 원노트에서 가져오기(⬇ = 동료가 보낸 링크 붙여 넣기) · 열기(↗)</b> 아이콘이 붙습니다(눈 아이콘으로 예상 비용을 펼친 동안만). 켜기는 툴바 팝업 아래 줄에서도 됩니다. 항목별로 마지막 수정이 이기고, 삭제도 전파됩니다 (90일)</label>
-      <label class="wide"><button type="button" id="btnPlusSyncNow" class="btn">지금 동기화</button> <button type="button" id="btnPlusCreateAll" class="btn">내가 책임자인 과제 페이지 모두 만들기</button> <span id="plusSyncStatus" class="status"></span></label>
+      <label class="check wide"><input type="checkbox" id="plusEnabled"> 공유 (Plus) 사용 — 과제별 자료를 공유 폴더의 파일과 동기화</label>
+      <div class="wide connection-form">
+        <label>공유 폴더 주소 (밑폴더) <input type="text" id="plusFolder" placeholder="비우면 내 OneDrive 의 문서/업무/shared — 동료의 밑폴더 주소나 팀 사이트 폴더 주소를 붙여 넣으면 그 폴더" spellcheck="false" autocomplete="off"></label>
+        <button type="button" id="btnShareProbe" class="btn" title="지금 칸의 주소를 저장하고 그 폴더에 연결해 봅니다 — 폴더 경로와 과제 폴더 수, 나와 공유에서 찾은 과제 폴더 수가 보이면 됩니다">연결 확인</button>
+      </div>
+      <p class="field-hint wide">비우면 내 OneDrive 의 <b>문서/업무/shared</b>(없으면 만듦)가 밑폴더가 되고 과제 폴더는 그 아래에 생깁니다. 다른 폴더를 쓰려면 OneDrive 나 문서함에서 연 뒤 주소창의 주소(<code>…/onedrive.aspx?id=…</code> · <code>…/Forms/AllItems.aspx?id=…</code>), 폴더 경로(<code>https://krclass-my.sharepoint.com/personal/…/Documents/업무/shared</code>), 공유 링크(<code>https://…sharepoint.com/:f:/…</code>) 중 어느 것이든 됩니다. 바꾼 뒤 <b>저장</b>하거나 <b>연결 확인</b>을 누르면 저장됩니다.</p>
+      <div class="wide share-state" id="shareProbeState" role="status"></div>
+      <div class="wide row share-folder-row">
+        <span id="shareFolderNow" class="share-folder"></span>
+        <a id="shareFolderOpen" class="btn" href="#" target="_blank" rel="noopener" hidden title="밑폴더를 OneDrive(문서함) 화면으로 엽니다 — 과제 폴더들이 이 안에 있습니다">폴더 열기</a>
+        <button type="button" id="btnShareFolderCopy" class="btn" title="지금 쓰는 밑폴더의 주소를 복사합니다 — KRS WORKSPACE 의 공유 폴더 설정이나 동료의 공유 폴더 주소 칸에 붙여 넣습니다">주소 복사</button>
+        <button type="button" id="btnShareOrgLink" class="btn" title="밑폴더의 조직 내 편집 링크(회사 계정으로 로그인한 사람은 누구나 열고 편집)를 만들어 복사합니다 — 자동 공유가 안 된 사람에게 보내거나 WORKSPACE 에 넣을 때">조직 내 링크 만들기·복사</button>
+        <button type="button" id="btnShareHow" class="desc-toggle" aria-expanded="false" aria-controls="shareHowGuide" title="동료에게 공유하는 법 보기">동료에게 공유하는 법</button>
+        <span id="shareFolderStatus" class="status" role="status"></span>
+      </div>
+      <div class="help share-guide wide" id="shareHowGuide" hidden><b>동료에게 공유하는 법</b> — 과제 폴더는 한 사람 것(보통 과제 책임자의 OneDrive <code>문서/업무/shared/&lt;과제&gt;</code>)이고, 나머지는 그 폴더를 공유받아 같은 파일을 씁니다.
+        <ol>
+          <li><b>저절로 되는 길(기본)</b>: 과제 책임자가 공유 (Plus) 를 켜 두면 첫 동기화 때 과제 폴더가 만들어지고, <b>자동 공유</b>가 켜져 있으면 R&amp;D ERP 참여인력에게 편집 권한으로 바로 공유됩니다. 참여연구원은 공유 (Plus) 만 켜 두면 됩니다 — <b>자동 찾기</b>가 OneDrive 의 "나와 공유" 에서 그 폴더를 찾아 아래 표에 <b>주인</b> 과 함께 보입니다. 아무 주소도 주고받을 필요가 없습니다.</li>
+          <li><b>자동 공유가 안 된 사람</b>(아래 표의 공유 결과에 <b>이름 겹침</b> · <b>못 찾음</b>): 표의 <b>참여연구원에게 공유</b>를 다시 누르거나, 폴더 이름을 눌러 OneDrive 에서 그 과제 폴더를 열고 <b>공유</b> › 사람을 골라 <b>편집 가능</b>으로 보냅니다. 또는 <b>링크 복사</b>(조직 내 편집 링크)를 메일·Teams 로 보내면 받은 사람이 한 번 열기만 해도 "나와 공유" 에 들어와 자동으로 찾아집니다.</li>
+          <li><b>주소로 잇는 길</b>(자동 찾기를 꺼 두었거나 팀 사이트 문서함 폴더를 쓸 때): 밑폴더의 <b>주소 복사</b>나 <b>조직 내 링크</b>를 받아 위 <b>공유 폴더 주소</b> 칸에 붙여 넣고 <b>연결 확인</b> — "연결됨" 과 과제 폴더 수가 보이면 됩니다. 로그인이 필요하다고 나오면 이 브라우저에서 OneDrive(<code>krclass-my.sharepoint.com</code>)에 한 번 로그인한 뒤 다시 누릅니다.</li>
+          <li><b>KRS WORKSPACE 와 같이 쓰기</b>: WORKSPACE 의 공유 폴더 설정에 같은 밑폴더 주소(<b>주소 복사</b>)를 넣으면 같은 과제 폴더의 연차 파일·예상 비용 파일을 양쪽이 번갈아 고칩니다 — Job Id · IO · 메모 · 변경이력은 WORKSPACE 가, 과제명 · 책임자 · 기간은 R&amp;D ERP 값이 늘 이깁니다.</li>
+        </ol></div>
+      <label class="check wide"><input type="checkbox" id="plusShareWith"> 과제 폴더를 만들 때 <b>참여연구원에게 자동 공유(편집)</b> — R&amp;D ERP 참여인력의 이름으로 SharePoint 에서 사람을 찾아 폴더를 편집 권한으로 공유합니다(메일은 보내지 않음). 같은 이름이 여럿이거나 못 찾은 사람은 아래 표의 공유 결과에 남으니 폴더를 열어 OneDrive 에서 직접 공유하거나 <b>참여연구원에게 공유</b>를 다시 누릅니다</label>
+      <label class="check wide"><input type="checkbox" id="plusDiscover"> <b>나와 공유된 과제 폴더 자동 찾기</b> — 동기화 때 OneDrive 의 "나와 공유" 목록에서 내 참여 과제의 폴더(다른 사람의 업무/shared 아래)를 찾아 함께 맞춥니다. 끄면 위 공유 폴더 주소 칸의 밑폴더만 봅니다</label>
+      <p class="share-items wide">동기화 항목</p>
+      <label class="check wide"><input type="checkbox" id="plusPlanSync"> 예상 비용(과제집행비율) — 과제 폴더의 <code>예상비용.json</code>. 패널 비목 머리글의 저장 아이콘 옆에 <b>과제 폴더 주소 복사(⬆) · 예상 비용 파일 열기(↗)</b> 아이콘이 붙습니다(눈 아이콘으로 예상 비용을 펼친 동안만). 항목별로 마지막 수정이 이기고, 삭제도 전파됩니다 (90일)</label>
+      <label class="check wide"><input type="checkbox" id="plusResearchSync"> 연구내용(연구개발계획서 기록) — 그 차년도 파일의 research 칸. 넣어 둔 기록은 올리고 동료가 넣은 기록은 받습니다(판·넣은 시각이 새로운 쪽). 받은 기록은 일반 설정 › 연구개발계획서 표에 <b>공유</b> 표시</label>
+      <label class="check wide"><input type="checkbox" id="plusStaffSync"> 사업비(예산 줄 · 참여연구원 참여율·지급액 계획 · 과제 별칭) — 연차 파일의 budget · staff 칸. 연차 계획마다 수정 시각이 새로운 쪽이 남고, 지운 연차도 전파됩니다 (90일). 과제 별칭은 나중에 바꾼 쪽이 남고 새 과제 폴더의 이름이 됩니다</label>
+      <label class="check wide"><input type="checkbox" id="plusChangesSync"> 변경이력 — 사업비 관리 화면에서 예산 줄·참여연구원·기간·별칭을 고칠 때 남는 한 줄(날짜 · 종류 · 항목 · 전/후 · 사유 · 누가)을 연차 파일의 changes 에 덧붙이고, 동료·WORKSPACE 가 남긴 줄도 받습니다(지우지 않음, 연차마다 최근 500줄)</label>
+      <label class="wide"><button type="button" id="btnPlusSyncNow" class="btn">지금 동기화</button> <span id="plusSyncStatus" class="status"></span></label>
       <p class="help wide" id="plusSyncState"></p>
       <div class="wide" id="plusPages"></div>
+      <div class="wide share-state" id="plusPagesStatus" role="status"></div>
     </div>
   </section>
   </div>
@@ -317,24 +339,56 @@
     <details class="connection-details"><summary>연결 상세 정보</summary><div id="llmDetail" class="llm-detail"></div></details>
   </section>
 
+  <!-- Claude API (0.8.6, lib/claude-api.js): Anthropic API 키로 이 브라우저에서 api.anthropic.com 을 직접 불러 Help 서버 없이도 청구 준비 자동 분류·청구내역 작성(#classifyCard)을 켠다.
+       키는 storage.local.claudeApiKey(저장 버튼으로 함께, 동기화 안 함) · 사용 방식·모델은 help.api · 상태는 storage.local.llmApi([API 확인] = GET /v1/models/{model}, 비용 없음 — 자동 분류의 결과도 갱신).
+       Help Chat · 증빙 찾아오기는 Claude Code 가 파일·작업용 Chrome 을 다뤄야 해서 Help 서버로만 (options.js renderLlm) -->
+  <section class="card llm-conn" id="apiCard" data-help-key="Claude API (API 키)">
+    <h2>Claude API <span id="apiState" class="llm-state">키 없음</span></h2>
+    <p class="section-description">Anthropic API 키를 넣으면 Help 서버 없이도 청구 준비 자동화를 사용합니다.</p>
+    <p class="help">API 키가 있으면 확장이 이 브라우저에서 <b>Claude API</b>(<code>api.anthropic.com</code>)를 직접 불러 <b>첨부 서류 읽기 · 자동 분류</b>와 <b>청구내역 자동 작성</b>을 합니다 — Help 서버와 같은 프롬프트(<code>lib/classify-core.js</code>)로, 이 PC 에 서버를 띄우지 않아도 됩니다.
+      <b>Help Chat</b>과 <b>증빙 찾아오기</b>는 Claude Code 가 확장 파일과 작업용 Chrome 을 직접 다뤄야 해서 계속 Help 서버가 있어야 합니다.
+      사용 방식이 <b>Help 서버가 안 될 때만</b>(기본)이면 서버가 연결돼 있을 때는 서버(Claude Code 로그인 계정)로 묻고, 서버가 없거나 실패할 때만 API 를 씁니다. <b>항상 Claude API</b>면 서버가 있어도 API 로 묻습니다.
+      API 사용료는 이 키의 Anthropic 계정에 청구됩니다(기본 Haiku 5.5 는 한 번에 보통 몇 원 — 첨부 이미지·PDF 가 많거나 Sonnet·Opus 를 고르면 더). 키는 Claude Console(<code>console.anthropic.com</code>) › API Keys 에서 만듭니다.
+      키는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 Anthropic 으로만 보냅니다. 여럿이 쓰는 PC 에서는 넣지 마세요. 키를 바꾸면 <b>저장</b>을 눌러야 자동 분류에 반영됩니다.</p>
+    <div class="connection-form">
+      <label>API 키 <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-api03-…" aria-describedby="apiKeyHint"></label>
+      <button type="button" id="btnApiKeyShow" class="btn" aria-pressed="false" title="입력한 키를 보이거나 가립니다">보기</button>
+      <button type="button" id="btnApiProbe" class="btn" title="이 키로 고른 모델을 쓸 수 있는지 확인합니다 (GET /v1/models — 토큰 비용 없음)">API 확인</button>
+    </div>
+    <p class="field-hint" id="apiKeyHint">이 브라우저에만 저장하며 동기화하지 않습니다. 비우고 저장하면 지웁니다.</p>
+    <span id="apiProbeStatus" class="status" role="status"></span>
+    <div class="grid api-grid">
+      <label>사용 방식
+        <select id="apiUse">
+          <option value="auto">Help 서버가 안 될 때만 (기본)</option>
+          <option value="always">항상 Claude API</option>
+          <option value="off">사용 안 함</option>
+        </select>
+      </label>
+      <label>모델 <select id="apiModel"></select></label>
+    </div>
+    <details class="connection-details"><summary>API 상세 정보</summary><div id="apiDetail" class="llm-detail"></div></details>
+  </section>
+
   <div id="llmFeatures">
     <p id="llmNotice" class="llm-notice" hidden></p>
-    <section class="card" data-help-key="청구 준비 자동 분류 — 첨부 서류 읽기(OCR) · 청구내역 작성">
+    <section class="card" id="classifyCard" data-help-key="청구 준비 자동 분류 — 첨부 서류 읽기(OCR) · 청구내역 작성">
       <h2>청구 준비 자동화</h2>
       <p class="section-description">첨부 서류를 읽고 청구종류와 청구내역 작성을 도와줍니다.</p>
       <div class="feature-status"><span class="llm-chip" data-llm="classify"></span></div>
       <p class="help">거래의 청구 준비 줄을 열 때, 파일(끌어다 놓기·화면 캡처·찾아온 서류)을 넣은 뒤, 청구내역을 고친 뒤 이 PC 의 Help 서버(<code>POST /classify</code>)가 빠른 모델(기본 <code>claude-haiku-5-5</code>, 서버 환경 변수 <code>KRX_HELP_FAST_MODEL</code>)로 한 번 묻습니다 — 보통 몇 초, 줄에 “Claude 분류 중…”이 보입니다.
-        가맹점·금액·사용일·과제명·청구내역·파일 이름과, 아직 종류를 안 정한 이미지·PDF 의 <b>내용</b>(이미지는 줄여서 — 영수증·캡처를 읽는 OCR 구실)이 Claude 로 갑니다. Claude 가 고른 값에는 점선 테두리와 <b>AI</b> 표시(툴팁에 이유)가 붙고, <b>직접 고른 값은 바꾸지 않습니다</b>. 서버가 연결돼 있지 않으면 아무 일도 하지 않습니다.</p>
+        위 <b>Claude API</b> 에 키를 넣었으면 서버가 없거나 실패할 때(또는 늘) 같은 질문을 Claude API 로 직접 보내고, 결과 안내가 “Claude API: …”로 보입니다.
+        가맹점·금액·사용일·과제명·청구내역·파일 이름과, 아직 종류를 안 정한 이미지·PDF 의 <b>내용</b>(이미지는 줄여서 — 영수증·캡처를 읽는 OCR 구실)이 Claude 로 갑니다. Claude 가 고른 값에는 점선 테두리와 <b>AI</b> 표시(툴팁에 이유)가 붙고, <b>직접 고른 값은 바꾸지 않습니다</b>. 서버도 API 키도 없으면 아무 일도 하지 않습니다.</p>
       <label class="check setting-toggle"><input type="checkbox" id="helpAutoPick"><span class="setting-copy"><strong>첨부 서류 읽기 · 자동 분류</strong><span>Claude가 청구종류와 첨부 파일 종류를 골라줍니다.</span></span></label>
       <label class="check setting-toggle"><input type="checkbox" id="helpAutoPtcl"><span class="setting-copy"><strong>청구내역 자동 작성</strong><span>적요가 비어 있으면 첨부 서류와 과제 연구내용을 참고해 한 줄로 작성합니다.</span></span></label>
-      <p class="help">품목은 첨부 파일(찾아온 인보이스·거래명세서는 내용째, 2개까지)에서, 용도는 그 과제의 연구개발계획서(일반 설정 › <b>연구개발계획서 (연구내용 참조)</b>에 넣은 KR_&lt;과제&gt;.yaml 이나 원노트로 받은 것)의 개발내용·목표에서 골라 씁니다(예: “Azure 클라우드 사용료(2026년 9월분) - 차단기 제어 알고리즘 시뮬레이션용”).
+      <p class="help">품목은 첨부 파일(찾아온 인보이스·거래명세서는 내용째, 2개까지)에서, 용도는 그 과제의 연구개발계획서(일반 설정 › <b>연구개발계획서 (연구내용 참조)</b>에 넣은 KR_&lt;과제&gt;.yaml 이나 공유 (Plus) 로 받은 것)의 개발내용·목표에서 골라 씁니다(예: “Azure 클라우드 사용료(2026년 9월분) - 차단기 제어 알고리즘 시뮬레이션용”).
         청구종류를 바꾸거나 서류가 새로 들어오면 다시 쓰고, <b>직접 고친 글은 바꾸지 않습니다</b>(지우면 다시 씀). 계획서가 없는 과제는 과제명으로 씁니다. 서버를 0.8.5 개발 중에 띄웠다면 다시 실행해야 합니다.</p>
       <div class="grid">
         <label class="wide">청구내역 작성 안내 <span class="optional">선택 · 최대 300자</span><input type="text" id="helpPtclGuide" maxlength="300" placeholder="예) 품목(기간) - 용도 형식으로, 용도는 20자 안팎"></label>
       </div>
     </section>
 
-    <section class="card" data-help-key="Help Chat: Claude Code 로 확장 고치기">
+    <section class="card" id="chatCard" data-help-key="Help Chat: Claude Code 로 확장 고치기">
       <h2>Help Chat</h2>
       <p class="section-description">Claude Code에 요청해 확장 기능을 수정합니다.</p>
       <div class="feature-status"><span class="llm-chip" data-llm="chat"></span></div>
@@ -448,6 +502,7 @@
 <script src="../lib/research.js"></script>
 <script src="../lib/fetch-sites.js"></script>
 <script src="../lib/help-setup.js"></script>
+<script src="../lib/claude-api.js"></script>
 <script src="fetch-chat.js"></script>
 <script src="options.js"></script>
 </body>

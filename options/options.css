@@ -23,6 +23,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 16
 .tab-badge.off { background: #e7ecf3; color: #647087; }
 .tab-badge.on { background: #e3f3e8; color: #1a7f37; }
 .tab-badge.err { background: #fdeceb; color: #b3261e; }
+.tab-badge.warn { background: #fff4e0; color: #9a5b00; }
 .tab-badge:empty { display: none; }
 /* LLM 설정 탭 (options.js probeLlm · renderLlm): 연결 상태 · 기능별 칩 · 연결 안 됐을 때 기능 구역(#llmFeatures — 증빙 찾아오기·가맹점 등록 포함)을 흐리게 */
 .llm-state { margin-left: auto; padding: 3px 9px; border-radius: 7px; background: #f0f4fa; font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
@@ -40,7 +41,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 16
 .llm-chip.off { background: #fdeceb; color: #b3261e; }
 .llm-notice { margin: 0 0 16px; padding: 13px 16px; border: 1px solid #f0d9ad; border-radius: 9px; background: #fff9ed; color: #8a5a18; font-size: 13px; }
 .card p.llm-notice { margin: 8px 0 0; }
-.llm-off > .card, .llm-off > #fetchBody { opacity: .55; pointer-events: none; user-select: none; }
+.card.llm-off, #fetchBody.llm-off { opacity: .55; pointer-events: none; user-select: none; }   /* 카드마다 (options.js renderLlm — 자동 분류는 Claude API 로도 켜짐) */
+.api-grid { margin-top: 14px; }
 .section-description { margin: -6px 0 17px; color: var(--muted); font-size: 13px; }
 .feature-status { margin: -4px 0 12px; }
 .connection-form { display: flex; align-items: flex-end; gap: 10px; }
@@ -172,10 +174,36 @@ details.card[open] > summary { margin-bottom: 8px; }
 .rs-table tr.rs-unlinked td.erp select { border-color: #e0a3a8; color: #b3261e; }
 .rs-table tr.rs-text td { background: #fbfcfe; }
 .rs-table pre { margin: 0; font: 12px/1.5 Consolas, "Malgun Gothic", monospace; white-space: pre-wrap; word-break: keep-all; max-height: 420px; overflow: auto; }
-.rs-link { flex: 1 1 360px; min-width: 240px; }
-.rs-pages { margin: 4px 0 10px; }
-.rs-pages td.err { color: #b3261e; }
-.rs-src { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 8px; background: #e6efff; color: #1f4e9c; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+.rs-src { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 8px; background: #e6efff; color: #1f4e9c; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }   /* 공유 (Plus) 의 과제 파일에서 받은 기록 표시 "공유" */
+/* 공유 (Plus) 탭 (options.js 공유 (Plus) 절): 연결 확인 결과 줄과 표 아래 단추 결과 줄(.share-state)은 setStatus 처럼 사라지지 않고 남고, 지금 쓰는 밑폴더 줄(.share-folder) 옆에 폴더 열기·주소 복사·조직 내 링크 단추,
+   동료에게 공유하는 법(.share-guide)은 카드 설명 접기와 같은 ⓘ 배지(.desc-toggle)로 펼침. 동기화 항목 머리(.share-items). 과제별 표(.share-files)는 .prj-table 꼴 — 폴더 칸의 주인 칩(.share-owner), 공유 칸의 결과(.share-res)와 작은 단추(.share-acts), 폴더 없는 줄(.share-nofolder) */
+.share-state { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.share-state:empty { display: none; }
+.share-state.on { color: #1a7f37; }
+.share-state.err { color: #b3261e; }
+.share-state.run { color: #1f4e9c; }
+.grid .share-folder-row { margin: 0; }
+.share-folder { flex: 1 1 240px; min-width: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.share-folder-row .desc-toggle { margin-left: 0; }
+.share-folder-row a.btn { display: inline-flex; align-items: center; text-decoration: none; }   /* 폴더 열기 링크를 옆 단추와 같은 꼴로 */
+#shareFolderStatus:not(:empty) { flex-basis: 100%; }
+.card .help.share-guide { display: block; padding: 12px 14px; margin: 6px 0 0; border-left: 3px solid #c8d9f5; border-radius: 0 8px 8px 0; background: var(--surface); line-height: 1.8; }
+.share-guide ol { margin: 4px 0 0; padding-left: 20px; }
+.share-guide li { margin: 2px 0; }
+.grid p.share-items { margin: 10px 0 -2px; padding-top: 10px; border-top: 1px solid #eef1f6; font-size: 13px; font-weight: 600; color: var(--ink); }
+#plusSyncState .err, .share-files .err { color: #b3261e; }
+#plusSyncState .warn, .share-files .warn { color: #9a5b00; }
+.share-files td.tag { white-space: normal; }
+.share-files td.folder { min-width: 150px; }
+.share-files td.share { min-width: 200px; }
+.share-files tr.share-nofolder td { background: #fffaf2; }
+.share-owner { display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 8px; background: #fff4e0; color: #9a5b00; font-size: 10.5px; font-weight: 600; vertical-align: 1px; white-space: nowrap; }
+.share-res { font-size: 12px; line-height: 1.6; }
+.share-res .ok { color: #1a7f37; font-weight: 600; }
+.share-res .warn { font-weight: 600; }
+.share-acts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.share-acts .btn { min-height: 26px; padding: 2px 8px; font-size: 11.5px; }
+#plusPagesStatus { margin-top: 2px; }
 /* LLM 설정 탭 › 증빙 찾아오기 · 자주 사용 가맹점 (options.js renderFetchSites) */
 .fetch-site { border: 1px solid #dce4f0; border-radius: 11px; background: #fafbfd; padding: 18px; margin: 14px 0; scroll-margin-top: 85px; }
 .fetch-site.fetch-new { border-color: #7fbf95; box-shadow: 0 0 0 2px rgba(63,154,100,.15); }
@@ -241,7 +269,6 @@ details.card[open] > summary { margin-bottom: 8px; }
   .row.sticky { padding: 12px; gap: 8px; }
   .save-hint { flex-basis: 100%; margin: 0; font-size: 11px; }
   .row > input, .row > select { max-width: 100%; min-width: 0; }
-  .rs-link { min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::after { transition: none !important; }

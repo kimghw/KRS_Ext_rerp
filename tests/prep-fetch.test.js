@@ -82,6 +82,27 @@ test('저장 전 검사: 주소·가맹점 글자가 없으면 거절, 종류가
   assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com' }).browser, '');
   assert.strictEqual(SITES.defaultsFor('주식회사 인프랩').browser, '');
 });
+test('찾는 곳 메모는 업체별: 알려진 가맹점은 그 업체의 메뉴 경로, 예전 등록의 빈 메모도 읽을 때 채우고 저장한 뒤 비운 칸은 그대로', async () => {
+  assert.ok(SITES.defaultsFor('주식회사 인프랩').hint.includes('/my/orders'));
+  assert.ok(SITES.defaultsFor('OPENAI *CHATGPT SUBSCR').hint.includes('청구서'));
+  assert.strictEqual(SITES.defaultsFor('(주)어떤가게').hint, '');
+  const hints = SITES.KNOWN.map((k) => k.hint);
+  assert.ok(hints.every((h) => h && h.length <= 500) && new Set(hints).size === hints.length, '업체마다 다른 메모');
+  assert.strictEqual(SITES.knownOf({ label: 'ChatGPT', match: 'openai' }).label, 'ChatGPT');
+  assert.strictEqual(SITES.knownOf({ match: 'x', url: 'https://claude.ai/settings/billing' }).label, 'Claude', '주소로도');
+  assert.strictEqual(SITES.knownOf({ match: '어떤가게' }), null);
+  assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com' }).hintV, 1);
+  store = { fetchSites: [
+    { id: 'a', label: '인프런', match: '인프랩', hint: '' },
+    { id: 'b', label: 'ChatGPT', match: 'openai', hint: '내 메모' },
+    { id: 'c', label: 'Claude', match: 'anthropic', hint: '', hintV: 1 },
+    { id: 'd', label: '어떤가게', match: '어떤가게', hint: '' },
+  ] };
+  const got = (await SITES.load()).map((x) => x.hint);
+  assert.strictEqual(got[0], SITES.KNOWN[0].hint, '예전 등록의 빈 메모 → 업체 메모');
+  assert.deepStrictEqual(got.slice(1), ['내 메모', '', ''], '적어 둔 메모·저장 뒤 비운 칸·모르는 가맹점은 그대로');
+  store = {};
+});
 test('필요 서류: 가맹점이 따로 고른 서류 → 설정의 종류별 필요 서류 → 기본, 0.8.5 개발 중 저장된 기본 서류는 종류 기본으로 읽음', async () => {
   const map = { lecture: ['강의내용', '견적서'], subscription: [] };
   assert.deepStrictEqual(SITES.docsOf({ kind: 'lecture', docs: ['수료증'] }, map), ['수료증']);

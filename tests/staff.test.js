@@ -145,4 +145,19 @@ test('글·표·저장 모양', () => {
   assert.strictEqual(S.normalizeStaff({ people: [] }), null);
 });
 
+test('연차 — 계획 키 과제번호@연차, 현재 연차 번호, 연차의 달 범위(현재 그대로 · 다음은 종료 다음 달부터 12달 · 앞은 시작 전 달까지 12달), 과제의 연차별 계획', () => {
+  const P = { prjNo: 'P', anl: '2', stDt: '20270101', endDt: '20271231' };
+  assert.deepStrictEqual([S.planKey('P', 1), S.planKey('P', '3'), S.planKey('P', null), S.planKey('P', 0), S.planKey('P', 999)], ['P@1', 'P@3', 'P', 'P', 'P']);
+  assert.deepStrictEqual([S.yearLabel(2), S.anlOf(P), S.anlOf({ anl: '' }), S.anlOf(null), S.anlOf({ anl: '0' })], ['2차년도', 2, 1, 1, 1]);
+  assert.deepStrictEqual([S.yearSpan(P, 2), S.yearSpan(P, 3), S.yearSpan(P, 4), S.yearSpan(P, 1), S.yearSpan(P, undefined)], [{ from: '2027-01', to: '2027-12' }, { from: '2028-01', to: '2028-12' }, { from: '2029-01', to: '2029-12' }, { from: '2026-01', to: '2026-12' }, { from: '2027-01', to: '2027-12' }]);
+  assert.deepStrictEqual(S.yearSpan({ prjNo: 'Q', anl: '1', stDt: '20260401', endDt: '20261231' }, 2), { from: '2027-01', to: '2027-12' }, '첫 연차가 9달이어도 다음 연차는 종료 다음 달부터 12달');
+  assert.deepStrictEqual([S.yearSpan({ anl: '1' }, 2), S.yearSpan({ anl: '1', stDt: '20261231', endDt: '20260101' }, 1)], [{ from: '', to: '' }, { from: '', to: '' }]);
+  const plans = { 'P@1': { prjNo: 'P', year: 1 }, 'P@2': { prjNo: 'P', year: 2 }, P: { prjNo: 'P' }, 'Q@1': { prjNo: 'Q', year: 1 } };
+  assert.deepStrictEqual(Object.keys(S.plansOfProject(plans, 'P')), ['1', '2']);
+  assert.deepStrictEqual(S.plansOfProject(null, 'P'), {});
+  const norm = S.normalizePlans({ 'P@2': { prjNm: 'x', people: [{ name: '홍길동', plan: [{ ym: '2027-01', amt: 1 }] }] }, 'P@1': { prjNo: 'P', year: '1' }, P: { prjNo: 'P' }, 'R@9': { prjNo: 'R', year: 3 } });
+  assert.deepStrictEqual(Object.keys(norm).sort(), ['P', 'P@1', 'P@2', 'R@3'], '과제번호·연차가 빠지면 키에서, 있으면 값이 앞선다');
+  assert.deepStrictEqual([norm['P@2'].prjNo, norm['P@2'].year, norm['P@2'].people.length, norm['P@1'].year, norm.P.year], ['P', 2, 1, 1, null]);
+});
+
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

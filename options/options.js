@@ -24,10 +24,10 @@
     return c.acctMatch === null || c.acctMatch === undefined ? true : !!c.acctMatch;
   }
 
-  /* ---------- 탭: 일반 설정 · LLM 설정 · MCP 설정 ([data-panel]). 주소가 #llm(탭을 눌러 둠) 또는 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=… — 증빙 찾아오기는 LLM 설정 탭 안)면 LLM 설정 탭, #mcp 면 MCP 설정(확장 Plus) 탭 ---------- */
-  const tabOfHash = () => (/^#(fetch|llm)/.test(location.hash) ? 'llm' : /^#mcp/.test(location.hash) ? 'mcp' : 'main');
+  /* ---------- 탭: 일반 설정 · LLM 설정 · 공유 (Plus) ([data-panel]). 주소가 #llm(탭을 눌러 둠) 또는 #fetch…(패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=… — 증빙 찾아오기는 LLM 설정 탭 안)면 LLM 설정 탭, #share 면 공유 (Plus) 탭 ---------- */
+  const tabOfHash = () => (/^#(fetch|llm)/.test(location.hash) ? 'llm' : /^#share/.test(location.hash) ? 'share' : 'main');
   function showTab(name) {
-    if (name !== 'llm' && name !== 'mcp') name = 'main';
+    if (name !== 'llm' && name !== 'share') name = 'main';
     document.querySelectorAll('[data-panel]').forEach((el) => { el.hidden = el.dataset.panel !== name; });
     document.querySelectorAll('.tabs [data-tab]').forEach((b) => {
       const active = b.dataset.tab === name;
@@ -430,13 +430,18 @@
     $('rndUrl').value = s.rndUrl || '';
     $('rndAutoLogin').checked = s.rndAutoLogin !== false;
     $('prjPicker').checked = s.prjPicker !== false;
-    const pl = Object.assign({}, S.DEFAULTS.plus, s.plus || {});   // 확장 Plus (외부 MCP 연동)
+    const pl = Object.assign({}, S.DEFAULTS.plus, s.plus || {});   // 공유 (Plus) — 과제별 공유 폴더 (SharePoint/OneDrive)
     $('plusEnabled').checked = !!pl.enabled;
-    $('plusMcpUrl').value = pl.onenoteMcpUrl || '';
-    $('plusSectionName').value = pl.sectionName == null ? S.DEFAULTS.plus.sectionName : pl.sectionName;
-    setPlusNotebook(pl.notebookId || '', pl.notebookLabel || '');
+    savedFolder = String(pl.folder || '').trim();   // 밑폴더 주소 — 비면 내 OneDrive 의 문서/업무/shared (백그라운드 KRX_SP.resolveMyFolder)
+    $('plusFolder').value = savedFolder;
     $('plusPlanSync').checked = pl.planSync !== false;
-    updatePlusSummary();
+    $('plusResearchSync').checked = pl.researchSync !== false;   // 연구내용 · 사업비 동기화 (0.8.7)
+    $('plusStaffSync').checked = pl.staffSync !== false;
+    $('plusChangesSync').checked = pl.changesSync !== false;     // 변경이력 (v2 연차 파일의 changes)
+    $('plusDiscover').checked = pl.discover !== false;           // 나와 공유된 과제 폴더 자동 찾기 (기본 켬)
+    $('plusShareWith').checked = String(pl.shareWith || 'participants') !== 'none';   // 폴더를 만들 때 참여연구원에게 자동 공유 ('participants' | 'none')
+    updateShareSummary();
+    renderShareFolder();
     const hp = Object.assign({}, S.DEFAULTS.help, s.help || {});   // Help Chat (로컬 Help 서버)
     $('helpEnabled').checked = hp.enabled !== false;
     $('helpUrl').value = hp.url || '';
@@ -444,6 +449,9 @@
     $('helpAutoPtcl').checked = hp.autoPtcl !== false;   // 비어 있는 청구내역을 Claude 가 씀 (연구내용 참조)
     $('helpPtclGuide').value = hp.ptclGuide || '';
     $('helpFetch').checked = hp.fetch !== false;   // 증빙 찾아오기 켜기 (LLM 설정 탭 — 가맹점 등록도 같은 탭)
+    const ha = Object.assign({}, S.DEFAULTS.help.api, hp.api || {});   // Claude API 사용 방식·모델 (키는 storage.local — loadApiKey)
+    $('apiUse').value = ['auto', 'always', 'off'].includes(ha.use) ? ha.use : 'auto';
+    setApiModel(ha.model);
     for (const [k] of KRX_SITES.KINDS) $('fetchDocs_' + k).value = KRX_SITES.docsFor(k, hp.fetchDocs).join(', ');   // 종류별 필요 서류
     const ch = Object.assign({}, S.DEFAULTS.claimHelper, s.claimHelper || {});
     $('chEnabled').checked = ch.enabled !== false;
@@ -533,16 +541,16 @@
       rndUrl: $('rndUrl').value.trim() || S.DEFAULTS.rndUrl,
       rndAutoLogin: $('rndAutoLogin').checked,
       prjPicker: $('prjPicker').checked,
-      plus: {
+      plus: {   // 공유 (Plus) — driveHost 는 칸이 없어 저장하지 않음 (lib/settings.js 가 기본값으로 채움)
         enabled: $('plusEnabled').checked,
-        onenoteMcpUrl: $('plusMcpUrl').value.trim() || S.DEFAULTS.plus.onenoteMcpUrl,
-        sectionName: $('plusSectionName').value.trim() || S.DEFAULTS.plus.sectionName,
-        notebookId: $('plusNotebook').value,
-        notebookLabel: $('plusNotebook').value ? ($('plusNotebook').selectedOptions[0] || {}).textContent || '' : '',
-        planSync: $('plusPlanSync').checked
+        folder: $('plusFolder').value.trim(),   // '' = 내 OneDrive 의 문서/업무/shared (밑폴더)
+        planSync: $('plusPlanSync').checked, researchSync: $('plusResearchSync').checked, staffSync: $('plusStaffSync').checked, changesSync: $('plusChangesSync').checked,
+        discover: $('plusDiscover').checked,                                        // 나와 공유된 과제 폴더 자동 찾기
+        shareWith: $('plusShareWith').checked ? 'participants' : 'none'             // 과제 폴더를 만들 때 참여연구원에게 자동 공유(편집)
       },
       help: { enabled: $('helpEnabled').checked, url: $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url, autoPick: $('helpAutoPick').checked,
-        autoPtcl: $('helpAutoPtcl').checked, ptclGuide: $('helpPtclGuide').value.trim().slice(0, 300), fetch: $('helpFetch').checked, fetchDocs: kindDocsNow() },
+        autoPtcl: $('helpAutoPtcl').checked, ptclGuide: $('helpPtclGuide').value.trim().slice(0, 300), fetch: $('helpFetch').checked, fetchDocs: kindDocsNow(),
+        api: { use: $('apiUse').value, model: $('apiModel').value || S.DEFAULTS.help.api.model } },
       claimHelper: {
         enabled: $('chEnabled').checked,
         defaultBudget: $('chDefaultBudget').value.trim(),
@@ -655,9 +663,9 @@
       const how = r.linkBy === 'user' ? '직접 고른 과제' : r.linkBy === 'auto' ? '과제명으로 저절로 이은 과제' : 'R&D ERP 과제 목록에서 과제명을 찾지 못했습니다 — 고르세요';
       const open = rsOpen.has(r.id);
       return `<tr class="${r.prjNo ? '' : 'rs-unlinked'}"><td class="nm">${F.esc(r.name)}<span class="muted">${F.esc(meta)}</span></td>
-        <td class="tag">${r.n}차년도${r.rev ? ` ${F.esc(r.rev)}` : ''}${r.src ? '<span class="rs-src" title="원노트 페이지에서 받은 것 — 위 목록의 페이지를 끊으면 빠집니다">원노트</span>' : ''}</td>
+        <td class="tag">${r.n}차년도${r.rev ? ` ${F.esc(r.rev)}` : ''}${r.src ? '<span class="rs-src" title="공유 (Plus) 의 과제 파일에서 받은 것 — 동료가 넣은 기록">공유</span>' : ''}</td>
         <td class="erp"><select data-rs-link="${F.esc(r.id)}" title="${F.esc(how)}">${opts(r)}</select></td>
-        <td class="tag" title="${F.esc(`${r.src ? '원노트에서 받음 · ' : ''}${r.file ? `파일 ${r.file}` : '붙여 넣은 글'}`)}">${F.esc(F.fmtClock(r.at))}</td>
+        <td class="tag" title="${F.esc(`${r.src ? '공유 파일에서 받음 · ' : ''}${r.file ? `파일 ${r.file}` : '붙여 넣은 글'}`)}">${F.esc(F.fmtClock(r.at))}</td>
         <td class="tag"><button type="button" class="btn" data-rs-view="${F.esc(r.id)}">${open ? '접기' : '보기'}</button> <button type="button" class="btn danger" data-rs-del="${F.esc(r.id)}">빼기</button></td></tr>`
         + (open ? `<tr class="rs-text"><td colspan="5"><pre>${F.esc(RS.textOf(r))}</pre></td></tr>` : '');
     }).join('');
@@ -671,55 +679,7 @@
     const ps = await rsProjects();
     if (RS.link(research, ps)) await RS.save(research);
     renderResearch(ps);
-    await renderResearchPages();
   }
-
-  /* 원노트 링크로 이어 둔 연구내용 페이지 (background.js researchBind · researchPull · researchUnbind, storage.local.researchPages) */
-  async function renderResearchPages() {
-    let pages = {};
-    try { pages = (await chrome.storage.local.get('researchPages')).researchPages || {}; } catch (e) {}
-    const list = Object.values(pages).sort((a, b) => String(a.name || a.title).localeCompare(String(b.name || b.title), 'ko'));
-    const rows = list.map((p) => {
-      const what = p.ok ? [`차년도 ${p.count || 0}개`, p.older ? `오래된 판 ${p.older} 건너뜀` : '', p.remoteAt ? `올림 ${F.fmtClock(p.remoteAt)}${p.by ? ` ${p.by}` : ''}` : ''].filter(Boolean).join(' · ') : (p.error || '아직 받지 않음');
-      return `<tr><td class="nm">${p.webUrl ? `<a href="${F.esc(p.webUrl)}" target="_blank" rel="noopener">${F.esc(p.title || p.pageId)}</a>` : F.esc(p.title || p.pageId)}<span class="muted">${F.esc(p.code || '')}</span></td>
-        <td class="${p.ok ? 'tag' : 'tag err'}">${F.esc(what)}</td><td class="tag">${p.at ? F.esc(F.fmtClock(p.at)) : ''}</td>
-        <td class="tag"><button type="button" class="btn danger" data-rs-unbind="${F.esc(p.pageId)}" title="이 페이지를 더 받지 않고, 이 페이지에서 받은 차년도 기록도 뺍니다">끊기</button></td></tr>`;
-    }).join('');
-    $('researchPages').innerHTML = rows ? `<div class="prj-list rs-pages"><table class="prj-table rs-table"><thead><tr><th>이어 둔 원노트 페이지</th><th>받은 것</th><th>마지막 받기</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
-    $('btnResearchPull').disabled = !list.length;
-  }
-  /* 링크(웹 링크 · onenote: 링크 · "[연구내용 페이지 ID] 1-…" 줄)를 백그라운드가 페이지로 풀어 기억하고 받는다 */
-  const isNoteLink = (s) => /onenote|wd=target\(|page-id=|1-[0-9a-f]{32}![0-9]+-[0-9a-f-]{36}/i.test(String(s || ''));
-  async function bindResearchLink(text) {
-    const t = String(text || '').trim();
-    if (!t) return;
-    $('researchCard').open = true;
-    $('btnResearchBind').disabled = true;
-    rsStatus('원노트 페이지를 찾아 받는 중…');
-    try {
-      const r = await chrome.runtime.sendMessage({ type: 'researchBind', text: t });
-      const pg = (r && r.page) || {};
-      if (r && r.ok) { $('researchLink').value = ''; rsStatus(`${pg.title || '연구내용 페이지'} 받음 — 차년도 ${pg.count || 0}개${pg.older ? ` (더 오래된 판 ${pg.older}개는 건너뜀)` : ''} · 이 페이지를 기억해 다시 받습니다`); }
-      else rsStatus(`받지 못했습니다: ${(r && (r.error || r.message)) || '응답 없음'}${r && r.kind === 'offline' ? ' — 이 PC 의 OneNote MCP 서버(KR_MS365_mcp onenote)를 띄우세요' : ''}`, true);
-    } catch (e) { rsStatus(`받지 못했습니다: ${String((e && e.message) || e)}`, true); }
-    finally { $('btnResearchBind').disabled = false; }
-  }
-  $('btnResearchBind').addEventListener('click', () => bindResearchLink($('researchLink').value));
-  $('researchLink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); bindResearchLink($('researchLink').value); } });
-  $('btnResearchPull').addEventListener('click', async () => {
-    setStatus('researchLinkStatus', '받는 중…');
-    try {
-      const r = await chrome.runtime.sendMessage({ type: 'researchPull', reason: 'manual' });
-      if (r && r.ok) setStatus('researchLinkStatus', r.skipped === 'none' ? '이어 둔 페이지가 없습니다' : `다시 받았습니다 — 페이지 ${Object.keys(r.pages || {}).length}개`);
-      else setStatus('researchLinkStatus', `일부 못 받음: ${(r && (r.error || r.message)) || '응답 없음'}`, true);
-    } catch (e) { setStatus('researchLinkStatus', String((e && e.message) || e), true); }
-  });
-  $('researchPages').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-rs-unbind]');
-    if (!b || !confirm('이 원노트 페이지를 끊을까요? 이 페이지에서 받은 차년도 기록도 빠집니다 (링크를 다시 붙여 넣으면 돌아옵니다)')) return;
-    const r = await chrome.runtime.sendMessage({ type: 'researchUnbind', pageId: b.dataset.rsUnbind });
-    rsStatus(r && r.ok ? `페이지를 끊었습니다 — 기록 ${r.removed}개 뺌` : '끊지 못했습니다', !(r && r.ok));
-  });
 
   /* items: [{ name(파일 이름, 붙여 넣은 글이면 ''), text }] — 풀고, 스냅샷만 판 차례(r0 → rN)로 넣고, 잇고, 저장. 결과는 넣은 칸 밑에 한 줄씩 */
   async function intakeResearch(items) {
@@ -753,6 +713,7 @@
         RS.link(map, ps);
         await RS.save(map);
         research = map;
+        try { const q = chrome.runtime.sendMessage({ type: 'planSyncQueue', reason: 'edit' }); if (q && q.catch) q.catch(() => {}); } catch (e) {}   // 공유 (Plus) 가 켜져 있으면 연구내용을 과제별 공유 파일에 (background.js shareSync — 꺼져 있으면 무시)
         for (const { d, state } of done) {
           const rec = map[d.rec.id];
           const where = rec.prjNo ? `${rec.prjNo} 에 이음` : 'R&D ERP 과제를 찾지 못함 — 아래 표에서 고르세요';
@@ -789,7 +750,7 @@
     showTab('main');   // LLM 설정 탭에 놓아도 결과는 일반 설정 탭의 연구개발계획서 구역에
     $('researchCard').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
-  // 붙여 넣기: 입력 칸이 아닌 곳에서 Ctrl+V — 복사한 YAML 파일, meta: 로 시작하는 줄이 있는 글, 또는 원노트 페이지 링크(연구내용 공유가 복사해 준 글)
+  // 붙여 넣기: 입력 칸이 아닌 곳에서 Ctrl+V — 복사한 YAML 파일, 또는 meta: 로 시작하는 줄이 있는 글
   document.addEventListener('paste', (e) => {
     const t = e.target;
     if (t && t !== $('researchDrop') && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
@@ -797,7 +758,6 @@
     if (files.length) { e.preventDefault(); showTab('main'); intakeFiles(files); return; }
     const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
     if (/^meta\s*:/m.test(text)) { e.preventDefault(); showTab('main'); intakeResearch([{ name: '', text }]); }
-    else if (isNoteLink(text)) { e.preventDefault(); showTab('main'); bindResearchLink(text); }
   });
   $('researchList').addEventListener('change', async (e) => {
     const sel = e.target.closest('select[data-rs-link]');
@@ -816,7 +776,7 @@
     if (del) {
       const map = await RS.load();
       const rec = map[del.dataset.rsDel];
-      if (!rec || !confirm(`${rec.name} ${rec.n}차년도 연구개발계획서를 뺄까요? (파일을 다시 넣으면 돌아옵니다${rec.src ? ' — 원노트에서 받은 것이라 페이지를 끊지 않으면 다음 받기 때 다시 옵니다' : ''})`)) return;
+      if (!rec || !confirm(`${rec.name} ${rec.n}차년도 연구개발계획서를 뺄까요? (파일을 다시 넣으면 돌아옵니다${rec.src ? ' — 공유 파일에서 받은 것이라 공유 (Plus) 가 켜져 있으면 다음 동기화 때 다시 올 수 있습니다' : ''})`)) return;
       delete map[rec.id];
       await RS.save(map);
       rsStatus(`${rec.name} ${rec.n}차년도 뺌`);
@@ -825,13 +785,12 @@
   try {
     chrome.storage.onChanged.addListener((ch, area) => {
       if (area === 'local' && (ch[RS.KEY] || ch.projectList || (ch.cache && ch.cache.newValue))) loadResearch().catch(() => {});
-      else if (area === 'local' && ch.researchPages) renderResearchPages().catch(() => {});
     });
   } catch (e) {}
 
   $('form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    try { await saveFetchSites(); await S.save(read()); await saveRcmsCred(); setStatus('saveStatus', '저장했습니다. eClass 화면은 자동으로 다시 조회됩니다.'); }
+    try { await saveFetchSites(); await S.save(read()); await saveRcmsCred(); await saveApiKey(); savedFolder = $('plusFolder').value.trim(); renderShareFolder(); setStatus('saveStatus', '저장했습니다. eClass 화면은 자동으로 다시 조회됩니다.'); }   // 공유 폴더 주소도 저장됐으니 "주소가 바뀌었습니다" 안내를 거둠 (공유 (Plus) 절)
     catch (e) { setStatus('saveStatus', String(e.message || e), true); }
   });
 
@@ -885,19 +844,20 @@
       const own = SITES.docList(s.docs).length > 0;   // 이 가맹점만 따로 고른 서류 (아니면 종류 기본)
       const need = SITES.docsOf(s, map);
       const docs = Array.from(new Set(SITES.DOC_CHOICES.concat(extra, need)));
+      const k = SITES.knownOf(s) || {};   // 알려진 가맹점이면 칸 예시도 그 업체 것으로
       const last = s.last ? `마지막 ${F.fmtClock(s.last.ts)} · ${s.last.state === 'done' ? `${s.last.n}개 찾아옴` : s.last.state === 'empty' ? '찾지 못함' : s.last.state === 'canceled' ? '중지' : '실패'}${s.last.msg ? ` — ${s.last.msg}` : ''}` : '아직 찾아오지 않음';
       return `<div class="fetch-site${i === fetchNewIdx ? ' fetch-new' : ''}" data-fs="${i}" id="fs-${F.esc(s.id || 'new' + i)}">
         <div class="fetch-site-head"><div class="fetch-site-identity"><strong class="fetch-site-name">${F.esc(s.label || '새 가맹점')}</strong><span class="muted">${F.esc(last)}</span></div><div class="fetch-site-actions"><button type="button" class="btn" data-fs-guide="${i}" title="이 가맹점의 안내 글(등록 값 · 기억한 찾는 방법 · Help 서버의 사이트 안내 파일 site-fetch/sites/*.md 원문)을 복사합니다 — 다른 PC 의 등록이나 Claude 에 옮겨 줄 때">안내 복사</button><button type="button" class="btn" data-fs-prompt="${i}" title="이 가맹점 사이트를 찾아오기에 붙이는(fetch-site 스킬) Claude Code 프롬프트를 이 칸의 값으로 채워 복사합니다 — 이 확장 폴더에서 연 Claude Code 에 붙여 넣으세요. 위 사이트 만들기 채팅은 같은 글을 Help 서버로 보냅니다">만들기 프롬프트 복사</button><button type="button" class="btn danger" data-fs-del="${i}" aria-label="${F.esc(s.label || '새 가맹점')} 삭제">삭제</button></div></div>
         <div class="grid">
-          <label>이름 <input type="text" data-ff="label" value="${F.esc(s.label || '')}" placeholder="예) 인프런"></label>
-          <label>가맹점 글자 <input type="text" data-ff="match" value="${F.esc(s.match || '')}" placeholder="예) 인프랩"><span class="field-hint">카드 내역에 표시되는 이름 · 여러 개는 쉼표로 구분</span></label>
-          <label class="wide">사이트 주소 <input type="url" data-ff="url" value="${F.esc(s.url || '')}" placeholder="https://www.inflearn.com/my/orders"><span class="field-hint">구매내역이나 청구 화면 주소를 넣으면 더 빠르게 찾습니다.</span></label>
+          <label>이름 <input type="text" data-ff="label" value="${F.esc(s.label || '')}" placeholder="예) ${F.esc(k.label || '인프런')}"></label>
+          <label>가맹점 글자 <input type="text" data-ff="match" value="${F.esc(s.match || '')}" placeholder="예) ${F.esc(k.match || '인프랩')}"><span class="field-hint">카드 내역에 표시되는 이름 · 여러 개는 쉼표로 구분</span></label>
+          <label class="wide">사이트 주소 <input type="url" data-ff="url" value="${F.esc(s.url || '')}" placeholder="${F.esc(k.url || 'https://www.inflearn.com/my/orders')}"><span class="field-hint">구매내역이나 청구 화면 주소를 넣으면 더 빠르게 찾습니다.</span></label>
           <label>종류 <select data-ff="kind">${kinds(s.kind)}</select></label>
           <div><span>필요 서류 (찾아오기가 찾고 청구 준비 줄에 ✓/✗ 로 보임)</span><div class="fetch-docs"><label class="fetch-own"><input type="checkbox" data-fown${own ? '' : ' checked'}>종류 기본 따름 — ${F.esc(SITES.kindLabel(s.kind))}: ${F.esc(SITES.docsFor(s.kind, map).join('·'))}</label>${docs.map((d) => `<label><input type="checkbox" data-fd="${F.esc(d)}"${need.includes(d) ? ' checked' : ''}${own ? '' : ' disabled'}><span>${F.esc(d)}</span></label>`).join('')}</div></div>
           <label>아이디 <input type="text" data-ff="loginId" value="${F.esc(s.loginId || '')}" autocomplete="off" spellcheck="false"></label>
           <label>비밀번호 <input type="password" data-ff="loginPw" value="${F.esc(s.loginPw || '')}" autocomplete="new-password"></label>
           <label class="wide">로그인해 둔 Chrome <span class="optional">선택</span><input type="text" data-ff="browser" value="${F.esc(s.browser || '')}" placeholder="예) SUB 전용 · 9444 · http://127.0.0.1:9444" spellcheck="false"><span class="field-hint">바로가기 이름, 디버그 포트 또는 주소를 입력하세요. 실행 중이 아니면 해당 바로가기로 엽니다. 비우면 서버 기본 설정을 사용합니다.</span></label>
-          <label class="wide">찾는 곳 메모 <span class="optional">선택 · Claude에 전달</span><input type="text" data-ff="hint" value="${F.esc(s.hint || '')}" placeholder="예) 마이페이지 › 구매내역 › 거래명세서"></label>
+          <label class="wide">찾는 곳 메모 <span class="optional">선택 · Claude에 전달</span><input type="text" data-ff="hint" value="${F.esc(s.hint || '')}" placeholder="예) ${F.esc(k.hint || '마이페이지 › 구매내역 › 거래명세서')}"><span class="field-hint">알려진 가맹점(인프런·ChatGPT·Claude·Azure·GitHub·Udemy…)은 그 업체의 메뉴 경로가 미리 들어갑니다. 비우고 저장하면 비운 채로 둡니다.</span></label>
           <label class="wide">기억한 찾는 방법 <textarea data-ff="howto" rows="2">${F.esc(s.howto || '')}</textarea><span class="field-hint">지난번에 찾은 경로를 다음 요청에 참고합니다. 사이트가 바뀌어 찾지 못하면 비워주세요.</span></label>
         </div></div>`;
     }).join('') || '<p class="muted">등록한 가맹점이 없습니다. 패널 청구 준비 줄의 <b>자주 사용 등록</b>이나 아래 <b>가맹점 추가</b>로 등록하세요.</p>';
@@ -1048,8 +1008,10 @@
     })();
     try { return await llmProbing; } finally { llmProbing = null; }
   }
-  /* 기능마다 그 서버에서 되는지: [문구, 상태 클래스] */
+  /* 기능마다 그 서버에서 되는지: [문구, 상태 클래스]. 자동 분류는 Claude API 로도 (사용 방식이 "항상"이거나 서버가 그 기능을 못 할 때 — lib/prep-ai.js route 와 같은 판단) */
   function llmFeature(what) {
+    const a = apiInfo();
+    if (what === 'classify' && a.ready && (a.use === 'always' || !(llm && llm.ok && llm.classify))) return [`사용 가능 · Claude API ${a.model}${a.st ? '' : ' (API 확인 전)'}${a.saved ? '' : ' — 저장해야 반영'}`, a.st && a.saved ? 'on' : 'warn'];
     if (!llm) return ['확인 중…', ''];
     if (!llm.ok) return ['LLM 연결 안 됨', 'off'];
     if (what === 'classify') return llm.classify ? [`사용 가능 · ${llm.classify}${llm.classifyPtcl ? '' : ' (청구내역 작성은 이전 버전 서버라 안 됨 — 다시 실행)'}`, llm.classifyPtcl ? 'on' : 'warn'] : ['서버가 이전 버전이라 안 됨 — 서버를 끄고 다시 node help-server/server.js', 'warn'];
@@ -1058,10 +1020,11 @@
   }
   function renderLlm() {
     const ok = !!(llm && llm.ok);
-    const badge = $('llmBadge');
-    badge.textContent = !llm ? '확인 중…' : ok ? '연결됨' : '연결 안 됨';
-    badge.className = 'tab-badge ' + (!llm ? '' : ok ? 'on' : 'err');
-    badge.title = !llm ? '' : ok ? `Help 서버 ${llm.url} · 모델 ${llm.model}` : llm.error || '';
+    const a = apiInfo();
+    const badge = $('llmBadge');   // Help 서버가 연결 안 돼도 Claude API 키가 있으면 "Claude API" (자동 분류만 됨)
+    badge.textContent = !llm ? '확인 중…' : ok ? '연결됨' : a.ready ? 'Claude API' : '연결 안 됨';
+    badge.className = 'tab-badge ' + (!llm ? '' : ok ? 'on' : a.ready ? 'warn' : 'err');
+    badge.title = !llm ? '' : ok ? `Help 서버 ${llm.url} · 모델 ${llm.model}` : a.ready ? `Help 서버 연결 안 됨 — 청구 준비 자동 분류만 Claude API(${a.model})로 됩니다` : llm.error || '';
     const st = $('llmState');
     st.textContent = !llm ? '확인 중…' : ok ? `연결됨 · ${F.fmtClock(llm.at)} 확인` : `연결 안 됨 · ${F.fmtClock(llm.at)} 확인`;
     st.className = 'llm-state ' + (!llm ? '' : ok ? 'on' : 'err');
@@ -1070,12 +1033,14 @@
       ? [`주소 ${F.esc(llm.url)}`, `모델 ${F.esc(llm.model || '-')}`, `자동 분류 ${F.esc(llm.classify || '없음')}`, `청구내역 작성 ${llm.classifyPtcl ? '가능' : '안 됨'}`, `증빙 찾아오기 ${F.esc(llm.fetch || llm.fetchNote || '없음')}`, `claude CLI ${F.esc(llm.cli || '확인 안 됨')}`, llm.version ? `서버가 읽은 확장 ${F.esc(llm.version)}` : '', llm.repo ? `저장소 ${F.esc(llm.repo)}` : '', llm.busy ? '요청 처리 중' : ''].filter(Boolean).map((t) => `<span>${t}</span>`).join('')
       : `<span class="err">${F.esc(llm.error || '연결할 수 없습니다')}</span><span>서버가 안 떠 있으면 이 PC 의 터미널에서 <code>node help-server/server.js</code> — 뜨면 30초 안에 저절로 켜집니다 (또는 연결 확인)</span>`;
     document.querySelectorAll('.llm-chip[data-llm]').forEach((el) => { const [t, cls] = llmFeature(el.dataset.llm); el.textContent = t; el.className = 'llm-chip ' + cls; });
-    // 연결돼 있을 때만 LLM 기능 구역(증빙 찾아오기·가맹점 등록 포함)을 켠다 (확인 전에는 켜 둠)
+    // 연결돼 있을 때만 LLM 기능 구역(증빙 찾아오기·가맹점 등록 포함)을 켠다 (확인 전에는 켜 둠). 자동 분류 카드는 Claude API 키가 있어도 켠다
     const off = !!llm && !ok;
-    $('llmFeatures').classList.toggle('llm-off', off);
-    $('llmFeatures').querySelectorAll(':scope > .card, :scope > #fetchBody').forEach((el) => { el.inert = off; });
+    $('llmFeatures').querySelectorAll(':scope > .card, :scope > #fetchBody').forEach((el) => { const o = off && !(el.id === 'classifyCard' && a.ready); el.classList.toggle('llm-off', o); el.inert = o; });
     $('llmNotice').hidden = !off;
-    $('llmNotice').textContent = off ? 'LLM(Help 서버)이 연결돼 있지 않아 아래 기능(자동 분류 · Help Chat · 증빙 찾아오기)을 쓸 수 없습니다 — 서버를 띄우면 저절로 켜집니다. 설정 값과 가맹점 등록은 그대로 남아 있습니다. 처음 쓰는 PC 면 위 LLM 연결 칸의 "Claude Code 설정 프롬프트 복사" 를 저장소 폴더의 Claude Code 에 붙여 넣으세요.' : '';
+    $('llmNotice').textContent = !off ? '' : a.ready
+      ? 'Help 서버가 연결돼 있지 않습니다 — 청구 준비 자동화(자동 분류 · 청구내역 작성)는 위 Claude API 로 동작하고, Help Chat · 증빙 찾아오기는 서버를 띄우면 저절로 켜집니다. 설정 값과 가맹점 등록은 그대로 남아 있습니다.'
+      : `LLM(Help 서버)이 연결돼 있지 않아 아래 기능(자동 분류 · Help Chat · 증빙 찾아오기)을 쓸 수 없습니다 — 서버를 띄우면 저절로 켜집니다. ${a.key && a.use !== 'off' ? '위 Claude API 키가 확인되지 않았습니다 — 키를 고치면 청구 준비 자동화는 서버 없이도 됩니다.' : '위 Claude API 에 API 키를 넣으면 청구 준비 자동화는 서버 없이도 됩니다.'} 설정 값과 가맹점 등록은 그대로 남아 있습니다. 처음 쓰는 PC 면 위 LLM 연결 칸의 "Claude Code 설정 프롬프트 복사" 를 저장소 폴더의 Claude Code 에 붙여 넣으세요.`;
+    renderApi(a);
     $('llmSetupRow').hidden = !off;   // 연결이 안 될 때만: Claude Code 에 붙여 넣을 설정 프롬프트 (lib/help-setup.js)
     const fn = $('fetchLlmNotice');   // 연결은 됐는데 찾아오기가 없는 서버(이전 버전 · Node 22 미만) — 연결 자체가 안 되면 위 #llmNotice 가 말한다
     fn.hidden = !(ok && !llm.fetch);
@@ -1104,92 +1069,331 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') probeLlm(false).catch(() => {}); });
   try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.llmStatus && ch.llmStatus.newValue && ch.llmStatus.newValue.url === helpBase()) { llm = ch.llmStatus.newValue; renderLlm(); } }); } catch (e) {}   // 백그라운드·패널이 확인한 결과도 반영
 
-  /* ---------- MCP 설정 탭 — 확장 Plus: 외부 MCP 연동 (background.js plusProbe / plusNotebooks / plusResolveSection / planSync, lib/plan-sync.js). localhost 호스트 권한은 manifest 에 고정 ---------- */
-  function updatePlusSummary() {   // 제목 옆 요약 + MCP 설정 탭 이름 옆 칩(켜짐/꺼짐)
-    const on = $('plusEnabled').checked, name = $('plusSectionName').value.trim() || S.DEFAULTS.plus.sectionName;
-    $('plusSummary').textContent = !on ? '사용 안 함' : ($('plusPlanSync').checked ? `예상 비용 동기화 중 · ${name} 섹션` : '켜짐');
-    const b = $('mcpBadge'); b.textContent = on ? '켜짐' : '꺼짐'; b.className = 'tab-badge ' + (on ? 'on' : 'off');
+  /* ---------- LLM 설정 탭 › Claude API (0.8.6, lib/claude-api.js): API 키는 storage.local.claudeApiKey(저장 버튼으로 함께, 동기화 안 함) · 사용 방식·모델은 settings.help.api.
+   * [API 확인] = GET /v1/models/{model}(비용 없음) → storage.local.llmApi (자동 분류의 결과도 갱신 — onChanged 로 따라감). 열 때 저장된 키는 확인한 지 오래됐으면(API_RECHECK_MS) 조용히 다시 확인.
+   * 키가 있고 사용 안 함이 아니면(그 키·모델로 확인에 실패했으면 빼고) Help 서버가 없어도 자동 분류 카드를 켠다 (renderLlm) ---------- */
+  const API_RECHECK_MS = 6 * 3600000;
+  let apiSt = null;          // storage.local.llmApi (마지막 확인 결과)
+  let apiSavedKey = '';      // 저장소에 있는 키 (입력란과 다르면 "저장해야 반영")
+  const API_USE = { auto: 'Help 서버가 안 될 때만', always: '항상 Claude API', off: '사용 안 함' };
+  function setApiModel(m) {   // 목록에 없는 모델(설정에 직접 넣은 것)도 고를 수 있게 한 줄 더함
+    const sel = $('apiModel'), v = KRX_CLAUDE_API.modelOf(m);
+    if (!sel.options.length) sel.innerHTML = KRX_CLAUDE_API.MODELS.map(([id, label]) => `<option value="${F.esc(id)}">${F.esc(label)}</option>`).join('');
+    if (!Array.from(sel.options).some((o) => o.value === v)) sel.insertAdjacentHTML('beforeend', `<option value="${F.esc(v)}">${F.esc(v)}</option>`);
+    sel.value = v;
   }
-  /* 노트북 select: 저장된 노트북은 목록을 불러오기 전에도 보이도록 option 하나를 만들어 둔다 */
-  function setPlusNotebook(id, label) {
-    const sel = $('plusNotebook');
-    if (id && !Array.from(sel.options).some((o) => o.value === id)) { const o = document.createElement('option'); o.value = id; o.textContent = label || id; sel.appendChild(o); }
-    sel.value = id || '';
+  /* 입력란 기준 상태: { key, use, model, st(이 키·모델로 확인한 결과 — 없으면 확인 전), saved(저장된 키와 같음), ready(자동 분류에 쓸 수 있음) } */
+  function apiInfo() {
+    const key = $('apiKey').value.trim(), use = $('apiUse').value || 'auto', model = $('apiModel').value || KRX_CLAUDE_API.DEFAULT_MODEL;
+    const st = apiSt && key && apiSt.keyTag === KRX_CLAUDE_API.keyTag(key) && apiSt.model === model ? apiSt : null;
+    return { key, use, model, st, saved: key === apiSavedKey, ready: !!key && use !== 'off' && !(st && !st.ok) };
   }
-  $('plusEnabled').addEventListener('change', updatePlusSummary);
-  $('plusSectionName').addEventListener('input', updatePlusSummary);
-  $('plusPlanSync').addEventListener('change', updatePlusSummary);
-  $('btnPlusNotebooks').addEventListener('click', async () => {
-    setStatus('plusSectionStatus', '노트북 목록을 받는 중…');
-    let r = null;
-    try { r = await chrome.runtime.sendMessage({ type: 'plusNotebooks', url: $('plusMcpUrl').value.trim() }); } catch (e) { r = null; }
-    if (r && r.ok) {
-      const sel = $('plusNotebook'), cur = sel.value;
-      sel.innerHTML = '<option value="">(자동: 그 이름의 섹션이 있는 노트북)</option>' + (r.notebooks || []).map((n) => `<option value="${F.esc(n.id)}">${F.esc(n.name || n.id)}</option>`).join('');
-      if (cur) setPlusNotebook(cur, ((r.notebooks || []).find((n) => n.id === cur) || {}).name || cur);
-      setStatus('plusSectionStatus', `노트북 ${(r.notebooks || []).length}개 (공유 노트북이 없으면 OneNote 에서 한 번 열어 둔 뒤 다시)`);
-    } else setStatus('plusSectionStatus', r ? `실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
+  function renderApi(a) {
+    a = a || apiInfo();
+    const el = $('apiState');
+    const [t, cls] = !a.key ? ['키 없음', ''] : a.use === 'off' ? ['사용 안 함', ''] : !a.st ? ['확인 전', ''] : a.st.ok ? [`사용 가능 · ${F.fmtClock(a.st.at)} 확인`, 'on'] : [`오류 · ${F.fmtClock(a.st.at)} 확인`, 'err'];
+    el.textContent = t + (a.key && !a.saved ? ' · 저장 안 됨' : ''); el.className = 'llm-state ' + cls;
+    $('apiDetail').innerHTML = !a.key ? '' : [
+      a.st && !a.st.ok ? `<span class="err">${F.esc(a.st.error || '확인하지 못했습니다')}</span>` : '',
+      `키 ${F.esc(KRX_CLAUDE_API.mask(a.key))}${a.saved ? '' : ' (저장 안 됨)'}`, `모델 ${F.esc(a.st && a.st.name ? `${a.st.name} (${a.model})` : a.model)}`,
+      `사용 방식 ${F.esc(API_USE[a.use] || a.use)}`, a.st ? `마지막 확인 ${F.esc(F.fmtClock(a.st.at))}` : '확인 전 — API 확인을 누르세요',
+      `쓰는 곳 청구 준비 자동 분류 · 청구내역 작성`].filter(Boolean).map((x) => x.startsWith('<span') ? x : `<span>${x}</span>`).join('');
+  }
+  async function loadApiKey() {
+    apiSavedKey = await KRX_CLAUDE_API.getKey();
+    $('apiKey').value = apiSavedKey;
+    apiSt = await KRX_CLAUDE_API.status();
+    renderLlm();
+    const a = apiInfo();   // 저장된 키를 확인한 지 오래됐으면(또는 다른 모델로 확인했으면) 조용히 다시 (비용 없음)
+    if (a.key && a.use !== 'off' && (!a.st || Date.now() - a.st.at > API_RECHECK_MS)) apiProbe(false).catch(() => {});
+  }
+  async function saveApiKey() {
+    const k = $('apiKey').value.trim();
+    if (k) await chrome.storage.local.set({ [KRX_CLAUDE_API.KEY]: k });
+    else await chrome.storage.local.remove(KRX_CLAUDE_API.KEY);
+    apiSavedKey = k; renderLlm();
+  }
+  async function apiProbe(loud) {
+    const a = apiInfo();
+    if (!a.key) { if (loud) setStatus('apiProbeStatus', 'API 키를 넣으세요 (Claude Console › API Keys 에서 만듭니다)', true); return null; }
+    if (loud) setStatus('apiProbeStatus', 'Claude API 를 확인하는 중…');
+    const st = await KRX_CLAUDE_API.check({ key: a.key, model: a.model });
+    apiSt = st; renderLlm();
+    if (loud) setStatus('apiProbeStatus', st.ok ? `사용 가능: ${st.name || st.model}${a.saved ? '' : ' — 저장을 눌러야 자동 분류에 쓰입니다'}` : st.error || '확인하지 못했습니다', !st.ok);
+    return st;
+  }
+  $('btnApiProbe').addEventListener('click', () => { apiProbe(true).catch((e) => setStatus('apiProbeStatus', String((e && e.message) || e), true)); });
+  $('btnApiKeyShow').addEventListener('click', () => {
+    const show = $('apiKey').type === 'password';
+    $('apiKey').type = show ? 'text' : 'password';
+    $('btnApiKeyShow').textContent = show ? '가리기' : '보기';
+    $('btnApiKeyShow').setAttribute('aria-pressed', String(show));
   });
-  $('btnPlusSection').addEventListener('click', async () => {   // 저장한 뒤 섹션을 찾고 없으면 만든다
-    try { await S.save(read()); } catch (e) { setStatus('plusSectionStatus', `설정 저장 실패: ${e.message || e}`, true); return; }
-    setStatus('plusSectionStatus', '섹션을 찾는 중…');
+  $('apiKey').addEventListener('input', () => { setStatus('apiProbeStatus', ''); renderLlm(); });
+  ['apiUse', 'apiModel'].forEach((id) => $(id).addEventListener('change', () => { renderLlm(); if (id === 'apiModel' && apiInfo().key && !apiInfo().st) apiProbe(false).catch(() => {}); }));
+  try { chrome.storage.onChanged.addListener((ch, area) => { if (area !== 'local') return; if (ch[KRX_CLAUDE_API.STATUS]) { apiSt = ch[KRX_CLAUDE_API.STATUS].newValue || null; renderLlm(); } if (ch[KRX_CLAUDE_API.KEY]) { apiSavedKey = String(ch[KRX_CLAUDE_API.KEY].newValue || ''); renderLlm(); } }); } catch (e) {}   // 자동 분류의 결과(성공 · 키 오류)도 반영
+
+  /* ---------- 공유 (Plus) 탭 — 과제별 공유 폴더 (background.js shareSync(메시지 'planSync' · 'planSyncQueue') · shareProbe · shareFolderCopy · shareOrgLink · shareFolderPeople · shareRename, lib/sp-store.js · lib/prjdoc.js · lib/prjdoc-sync.js).
+   * 2026-10-18 사용자 지정: "아니 mcp 없이 grph api 하지 않고 브라우저 토큰으로 하라고" → (저녁) "onedrive 에 업무/shared 안에 과제별로 .. 약칭으로 없으면 jobid 없으면 임시번호. 이렇게 하고 여기에 넣자. 년차별로 1개 파일이고 1개 파일에서 변경사항이랑 다 관리했으면 좋겠어. 과제 정보랑 등등."
+   *   → "그리고 참여연구원들에게 공유할 수 있게 설정까지 같이해줘. .. 그리고 workspace 에도 경로주면 알아서 동기화" → "예상지출도 다 들어 가겠지? 이건 별도 파일에서 해도 되긴하는데 알아서 해줘."
+   *   밑폴더(base) = plus.folder, 비면 내 OneDrive 의 문서/업무/shared. 과제 폴더 = base/<약칭 → Job Id → 과제번호>/ 에 <n>차년도.json(과제 정보 · 예산 줄 · 참여연구원 계획 · 연구내용 · 변경이력) + 예상비용.json(모든 연차의 예상 비용 — 별도 파일).
+   *   설정 plus = { enabled, folder, planSync, researchSync, staffSync, changesSync, discover(나와 공유 자동 찾기), shareWith('participants' | 'none' — 폴더를 만들 때 참여연구원에게 자동 공유) } (driveHost 는 기본값 — 칸 없음).
+   * storage.local.shareState (v2) = { at, ok, reason, ms, base:{ path, viewUrl }(v1 은 folder), count(과제), files(쓴/읽은 파일 수), written, pulled, errors, error?, kind?,
+   *   pages:{ [prjNo]: { prjNo, title, folder(폴더 이름), folderUrl(보기 주소), webUrl(현재 연차 파일), owner?(남의 폴더면 사이트 주인 — 나와 공유로 찾은 것), years:[n…], at, created, pulled, pushed, count, counts{ plan, research, staff, budget, changes }, remoteAt, remoteBy,
+   *     noFolder?(폴더가 없고 내가 만들 자격(책임자·로컬 자료)도 없음), error?, kind?, share?{ shared:[{ name, email }], ambiguous:[{ name, candidates:[…] }], notFound:[name], error? }(자동 공유 결과) } }, index }
+   * 메시지 응답(background.js — 모양이 조금 달라도 읽히게 느슨하게 받는다):
+   *   shareProbe → { ok, folder:{ path, viewUrl, url }, folders:[{ name, path, itemCount, modified }], count, exists, mine, shared(나와 공유의 shared 밑 폴더 수), sharedFolders:[{ name, webUrl, ownerName }], sharedKnown, message } | { ok:false, kind, message, error }
+   *   shareFolderCopy { prjNo? } → { ok, copied, url, what:'project'|'base', folder:{ path, viewUrl } } · shareOrgLink { prjNo? } → { ok, url, copied, folder } · shareFolderPeople { prjNo, names? } → { ok, prjNo, folder(이름), share:{ shared:[{ name, email }], ambiguous:[{ name, candidates }], notFound:[name], error? }, message } · shareRename { prjNo, name } → { ok, prjNo, name(다듬은 이름), unchanged? }
+   * 오류 kind(KRX_SP.describe): badurl · auth · offline · nofolder · notfound · locked · parse · http · tab — 문구가 없으면 SHARE_KIND 로 읽히게. auth 면 OneDrive 를 여는 링크를 붙인다(이 브라우저에서 로그인하면 끝) ---------- */
+  const SHARE_KIND = { auth: '이 브라우저에서 SharePoint(OneDrive)에 로그인하세요', offline: '네트워크에 연결할 수 없습니다', badurl: '폴더 주소를 읽을 수 없습니다 — 공유 링크 대신 폴더를 연 뒤 주소창의 주소를 넣으세요', nofolder: '폴더가 없습니다 — 주소를 확인하세요 (내 OneDrive 의 업무/shared 는 동기화 때 만들어짐)', notfound: '파일이 없습니다', locked: '다른 사람이 파일을 편집 중(체크아웃)입니다 — 다음 동기화 때 다시', parse: '파일을 읽을 수 없습니다(다른 판이거나 깨진 JSON) — 그 파일은 건너뜀', http: 'SharePoint 가 오류를 돌려주었습니다', tab: 'SharePoint 작업 탭을 열지 못했습니다' };
+  const BASE_LABEL = '내 OneDrive 의 문서/업무/shared';
+  const shareErrText = (r) => (r && (r.error || r.message)) || (r && SHARE_KIND[r.kind]) || (r && r.kind) || '';
+  const shareFail = (r, what) => (r ? `${what}${r.kind ? ` (${r.kind})` : ''}: ${shareErrText(r)}` : '응답 없음 — 확장을 다시 올린 뒤 다시 해 보세요');
+  const driveHost = () => String((S.DEFAULTS.plus && S.DEFAULTS.plus.driveHost) || 'https://krclass-my.sharepoint.com').replace(/\/+$/, '');
+  const countOf = (v) => (Array.isArray(v) ? v.length : (v == null || v === '' || typeof v === 'boolean' ? null : F.num(v)));   // 목록이든 수든 — 없으면 null
+  const namesOf = (v) => (Array.isArray(v) ? v.map((x) => (x && typeof x === 'object' ? String(x.name || x.folder || x.title || '') : String(x || ''))).filter(Boolean) : []);
+  const listOf = (v) => (Array.isArray(v) ? v : []);
+  let savedFolder = '';            // 저장된 plus.folder (fill · 저장 · 연결 확인 뒤) — 칸의 값이 이것과 다르면 풀린 경로를 보이지 않는다
+  let shareFolderInfo = null;      // 지금 풀린 밑폴더 { path, viewUrl } — 연결 확인 결과 · shareState.base · storage.local.shareFolder 캐시 중 가장 새것
+  let shareFolderAt = 0;           // 그것을 얻은 시각 (shareState.at 과 비교)
+  let sharePagesCache = {};        // 표에 그린 pages (단추의 prjNo → 폴더 이름 등)
+  /* 백그라운드가 주는 폴더 모양 맞추기 — shareState.base(v1 folder)는 { path, viewUrl }, shareFolder 캐시(KRX_SP.parseFolder 결과)는 folderPath · viewUrl */
+  const folderOf = (f) => (f && typeof f === 'object' ? { path: String(f.path || f.folderPath || ''), viewUrl: String(f.viewUrl || '') } : null);
+  const takeFolder = (f, at) => { const o = folderOf(f); if (o && (o.path || o.viewUrl) && (at || 0) >= shareFolderAt) { shareFolderInfo = o; shareFolderAt = at || 0; } };
+  const baseOf = (st) => (st && (st.base || st.folder)) || null;
+  const loginUrl = () => (shareFolderInfo && shareFolderInfo.viewUrl) || driveHost();
+  /* 사라지지 않는 상태 줄(.share-state — 연결 확인 결과 · 표 아래 단추 결과): setStatus 는 4초 뒤 지우므로 주소·이름 목록처럼 읽어야 하는 글은 이것으로. link 가 있으면 "OneDrive 열기" 를 붙인다(로그인 필요 때) */
+  function setStay(id, text, cls, link) {
+    const el = $(id);
+    el.className = 'share-state' + (cls ? ` ${cls}` : '');
+    el.innerHTML = text ? `${F.esc(text)}${link ? ` · <a href="${F.esc(link)}" target="_blank" rel="noopener">OneDrive 열기</a>` : ''}` : '';
+    el.title = text || '';
+  }
+  const setShareProbe = (text, cls, link) => setStay('shareProbeState', text, cls, link);
+  const setPagesStatus = (text, cls, link) => setStay('plusPagesStatus', text, cls, link);
+  /* 클립보드: 사용자 클릭 안이라 이 페이지에서 바로 — 안 되면 false(백그라운드가 copied 를 줬으면 그걸로) */
+  async function copyText(text) { try { await navigator.clipboard.writeText(String(text)); return true; } catch (e) { return false; } }
+  /* 칸의 주소가 저장된 것과 다르면 먼저 저장(백그라운드는 설정 plus.folder 를 읽는다) → 실패하면 statusId 에 알리고 false */
+  async function ensureSaved(statusId) {
+    if ($('plusFolder').value.trim() === savedFolder) return true;
+    try { await S.save(read()); savedFolder = $('plusFolder').value.trim(); return true; } catch (e) { setStatus(statusId, `설정 저장 실패: ${e.message || e}`, true); return false; }
+  }
+  /* 지금 쓰는 밑폴더 줄: 칸이 비면 "내 OneDrive 의 문서/업무/shared", 아니면 "붙여 넣은 폴더" — 풀린 경로가 있으면 함께, 폴더 열기 링크는 viewUrl 이 있을 때만 */
+  function renderShareFolder() {
+    const typed = $('plusFolder').value.trim(), fresh = typed === savedFolder, f = fresh ? shareFolderInfo : null;
+    const where = typed ? '붙여 넣은 폴더' : BASE_LABEL;
+    const el = $('shareFolderNow');
+    el.textContent = !fresh ? '주소가 바뀌었습니다 — 연결 확인(저장됨)이나 저장을 누르세요'
+      : f && f.path ? `밑폴더(${where}): ${f.path} — 과제 폴더는 이 아래`
+      : typed ? `${where} — 연결 확인을 누르면 경로가 보입니다` : `${where} (칸이 비어 있어 기본값) — 연결 확인이나 첫 동기화 때 풀립니다(없으면 만듦)`;
+    el.title = f && f.path ? f.path : '';
+    el.classList.toggle('muted', !(f && f.path));
+    const open = $('shareFolderOpen');
+    open.hidden = !(f && f.viewUrl);
+    if (f && f.viewUrl) open.href = f.viewUrl;
+  }
+  function updateShareSummary() {   // 제목 옆 요약 + 공유 (Plus) 탭 이름 옆 칩(켜짐/꺼짐)
+    const on = $('plusEnabled').checked;
+    const parts = [$('plusPlanSync').checked && '예상 비용', $('plusResearchSync').checked && '연구내용', $('plusStaffSync').checked && '사업비', $('plusChangesSync').checked && '변경이력'].filter(Boolean);
+    const where = $('plusFolder').value.trim() ? '붙여 넣은 폴더' : '내 OneDrive 문서/업무/shared';
+    const extra = [$('plusShareWith').checked && '참여연구원 자동 공유', $('plusDiscover').checked && '나와 공유 자동 찾기'].filter(Boolean);
+    $('plusSummary').textContent = !on ? '사용 안 함' : `${parts.length ? `${parts.join(' · ')} 동기화 중` : '켜짐'} · ${where}${extra.length ? ` · ${extra.join(' · ')}` : ''}`;
+    const b = $('shareBadge'); b.textContent = on ? '켜짐' : '꺼짐'; b.className = 'tab-badge ' + (on ? 'on' : 'off');
+  }
+  $('plusEnabled').addEventListener('change', () => { updateShareSummary(); showShareState(); });
+  $('plusFolder').addEventListener('input', () => { updateShareSummary(); renderShareFolder(); });
+  ['plusPlanSync', 'plusResearchSync', 'plusStaffSync', 'plusChangesSync', 'plusShareWith', 'plusDiscover'].forEach((id) => $(id).addEventListener('change', updateShareSummary));
+  /* 동료에게 공유하는 법: 카드 설명 접기(initDescFold)와 같은 ⓘ 배지(.desc-toggle)로 #shareHowGuide 를 펼친다. 펼친 상태는 storage.local.optShareGuide (initDescFold 의 optHelp 와 따로 — 서로 덮어쓰지 않게) */
+  (async () => {
+    const btn = $('btnShareHow'), guide = $('shareHowGuide');
+    btn.innerHTML = `${ICON_INFO}<span>동료에게 공유하는 법</span>`;
+    let open = false; try { open = !!(await chrome.storage.local.get('optShareGuide')).optShareGuide; } catch (e) {}
+    const apply = (o) => { guide.hidden = !o; btn.classList.toggle('on', o); btn.setAttribute('aria-expanded', String(o)); btn.title = o ? '안내 접기' : '동료에게 공유하는 법 보기'; };
+    apply(open);
+    btn.addEventListener('click', () => { open = !open; apply(open); try { chrome.storage.local.set({ optShareGuide: open }); } catch (e) {} });
+  })();
+  /* 연결 확인: 지금 칸의 주소로 — 백그라운드가 설정 plus.folder 를 읽으므로 먼저 저장. shareProbe → { ok, base|folder, folders(과제 폴더), shared|discovered(나와 공유에서 찾은 수), files, exists, mine, message } | { ok:false, kind, error } */
+  $('btnShareProbe').addEventListener('click', async () => {
+    try { await S.save(read()); savedFolder = $('plusFolder').value.trim(); } catch (e) { setShareProbe(`설정 저장 실패: ${e.message || e}`, 'err'); return; }
+    setShareProbe('공유 폴더에 연결하는 중…', 'run');
     let r = null;
-    try { r = await chrome.runtime.sendMessage({ type: 'plusResolveSection' }); } catch (e) { r = null; }
-    if (r && r.ok) setStatus('plusSectionStatus', `${r.section.name} 섹션: ${r.section.label}${r.section.created ? ' (새로 만듦)' : ''}`);
-    else if (r && r.kind === 'notebook') {
-      const sel = $('plusNotebook');
-      sel.innerHTML = '<option value="">(선택)</option>' + (r.notebooks || []).map((n) => `<option value="${F.esc(n.id)}">${F.esc(n.name || n.id)}</option>`).join('');
-      setStatus('plusSectionStatus', `${r.error} — 노트북을 고르고 다시 누르세요`, true);
-    } else setStatus('plusSectionStatus', r ? `실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
-    showPlusState();
-  });
-  $('btnPlusProbe').addEventListener('click', async () => {
-    setStatus('plusProbeStatus', 'MCP 서버에 연결하는 중…');
-    let r = null;
-    try { r = await chrome.runtime.sendMessage({ type: 'plusProbe', url: $('plusMcpUrl').value.trim() }); } catch (e) { r = null; }
+    try { r = await chrome.runtime.sendMessage({ type: 'shareProbe', folder: savedFolder }); } catch (e) { r = null; }
     if (r && r.ok) {
-      const c = r.check || {};
-      const lack = [!c.hasRead && 'read_onenote 없음', !c.hasWrite && 'write_onenote 없음', c.hasWrite && !c.replace && 'write_onenote 에 replace 없음', c.hasRead && !c.includeIds && 'read_onenote 에 include_ids 없음'].filter(Boolean);
-      setStatus('plusProbeStatus', `연결됨: ${r.server ? `${r.server.name} ${r.server.version || ''}` : '서버'} · 도구 ${(r.tools || []).length}개${lack.length ? ` · 동기화 불가: ${lack.join(', ')} (KR_MS365_mcp 를 최신으로)` : ' · 예상 비용 동기화 가능'}`, lack.length > 0);
-    } else setStatus('plusProbeStatus', r ? `연결 실패 (${r.kind || 'error'}): ${r.error || r.message || ''}` : '응답 없음', true);
-  });
-  async function plusSyncNow(createAll) {
-    try { await S.save(read()); } catch (e) { setStatus('plusSyncStatus', `설정 저장 실패: ${e.message || e}`, true); return; }   // 고른 섹션·주소로 동기화하도록 먼저 저장
-    setStatus('plusSyncStatus', createAll ? '내가 책임자인 과제마다 페이지를 확인하고 없으면 만드는 중… (과제 수만큼 걸립니다)' : '동기화하는 중…');
-    let r = null;
-    try { r = await chrome.runtime.sendMessage({ type: 'planSync', reason: 'manual', createAll: !!createAll }); } catch (e) { r = null; }
-    if (r && r.ok) {
-      const pgs = Object.values(r.pages || {});
-      setStatus('plusSyncStatus', `동기화했습니다 (${r.ms} ms): 과제 ${pgs.length}건 · 항목 ${r.count}건${pgs.some((p) => p.created) ? ` · 페이지 ${pgs.filter((p) => p.created).length}개 만듦` : ''}${pgs.some((p) => p.pulled) ? ' · 페이지 항목을 가져옴' : ''}${r.waiting ? ` · 책임자 생성 대기 ${r.waiting}건` : ''}`);
+      takeFolder(baseOf(r), Date.now());
+      renderShareFolder();
+      const folders = r.folders != null ? r.folders : r.projectFolders;
+      const nf = countOf(folders), fnames = namesOf(folders).slice(0, 8);
+      const ns = countOf(r.shared != null ? r.shared : (r.discovered != null ? r.discovered : r.sharedWithMe));
+      const parts = [`연결됨${r.mine ? ' (내 OneDrive)' : ''}: ${(shareFolderInfo && shareFolderInfo.path) || '밑폴더'}`];
+      if (nf != null) parts.push(`과제 폴더 ${nf}개${fnames.length ? ` (${fnames.join(', ')}${nf > fnames.length ? ' …' : ''})` : ''}`);
+      else if (countOf(r.files) != null) parts.push(`파일 ${countOf(r.files)}건`);
+      if (ns != null) parts.push(`나와 공유에서 찾은 과제 폴더 ${ns}개`);
+      if (nf == null && ns == null && r.message) parts.push(String(r.message));
+      parts.push(r.exists === false ? '폴더가 아직 없습니다 — 지금 동기화하면 만듭니다' : '동기화 가능');
+      setShareProbe(parts.join(' · '), 'on');
+    } else {
+      renderShareFolder();
+      setShareProbe(shareFail(r, '연결 실패'), 'err', r && r.kind === 'auth' ? loginUrl() : '');
     }
-    else if (r && r.skipped === 'off') setStatus('plusSyncStatus', `동기화하려면 먼저 이것을 해 주세요: ${(r.missing || []).join(' · ') || '설정 확인'}`, true);
-    else if (r && r.kind === 'notebook') setStatus('plusSyncStatus', `${r.error} (노트북 불러오기 → 고르기 → 섹션 찾기 / 만들기)`, true);
-    else setStatus('plusSyncStatus', r ? `동기화 실패 (${r.kind || 'error'}): ${r.error || ''}${r.errors > 1 ? ` 외 ${r.errors - 1}건` : ''}` : '응답 없음', true);
-    showPlusState();
+  });
+  /* 주소 복사: 풀린 밑폴더의 viewUrl 을 이 페이지에서 복사(사용자 클릭 안이라 바로 됨). 아직 모르면 백그라운드 shareFolderCopy(폴더를 풀어 복사) → { ok, copied, url|viewUrl|folder } */
+  $('btnShareFolderCopy').addEventListener('click', async () => {
+    try {
+      let url = $('plusFolder').value.trim() === savedFolder && shareFolderInfo ? shareFolderInfo.viewUrl : '';
+      if (!url) {
+        if (!(await ensureSaved('shareFolderStatus'))) return;
+        let r = null;
+        try { r = await chrome.runtime.sendMessage({ type: 'shareFolderCopy' }); } catch (e) { r = null; }
+        if (!r || !r.ok) { setStatus('shareFolderStatus', shareFail(r, '복사 실패'), true); return; }
+        url = String(r.url || r.viewUrl || (r.folder && r.folder.viewUrl) || '');
+        if (r.folder) { takeFolder(r.folder, Date.now()); renderShareFolder(); }
+        if (!url) { setStatus('shareFolderStatus', '밑폴더 주소를 복사했습니다 — KRS WORKSPACE 의 공유 폴더 설정이나 동료의 공유 폴더 주소 칸에 붙여 넣으면 됩니다'); return; }   // 백그라운드가 복사까지 한 경우
+      }
+      await navigator.clipboard.writeText(url);
+      setStatus('shareFolderStatus', `밑폴더 주소를 복사했습니다: ${url} — KRS WORKSPACE 의 공유 폴더 설정이나 동료의 공유 폴더 주소 칸에 붙여 넣으면 됩니다`);
+    } catch (e) { setStatus('shareFolderStatus', `복사하지 못했습니다: ${String((e && e.message) || e)}`, true); }
+  });
+  /* 조직 내 편집 링크: shareOrgLink { prjNo? } → { ok, url, copied } — prjNo 가 없으면 밑폴더, 있으면 그 과제 폴더. 백그라운드가 복사까지 했으면(copied) 그대로, 아니면 이 페이지에서. 결과는 사라지지 않는 줄에(주소를 읽어 쓸 수 있게) */
+  async function orgLink(prjNo, stayId, statusId) {
+    if (!(await ensureSaved(statusId))) return;
+    setStay(stayId, `${prjNo ? '과제 폴더' : '밑폴더'}의 조직 내 편집 링크를 만드는 중…`, 'run');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage(Object.assign({ type: 'shareOrgLink' }, prjNo ? { prjNo } : {})); } catch (e) { r = null; }
+    if (!r || !r.ok || !r.url) { setStay(stayId, shareFail(r, '링크 만들기 실패'), 'err', r && r.kind === 'auth' ? loginUrl() : ''); return; }
+    const copied = !!r.copied || await copyText(r.url);
+    const what = prjNo ? `과제 ${prjNo} 폴더` : '밑폴더';
+    setStay(stayId, `${what}의 조직 내 편집 링크를 ${copied ? '복사했습니다' : '만들었습니다 (복사는 못 함 — 직접 복사하세요)'}: ${r.url} — 회사 계정으로 로그인한 사람은 누구나 열고 편집할 수 있고, 받은 사람이 한 번 열면 "나와 공유" 에 들어와 자동으로 찾아집니다`, copied ? 'on' : 'err');
   }
-  $('btnPlusSyncNow').addEventListener('click', () => plusSyncNow(false));
-  $('btnPlusCreateAll').addEventListener('click', () => plusSyncNow(true));
-  /* 마지막 동기화 결과 + 과제별 페이지 목록(열기 링크는 OneNote 웹) */
-  async function showPlusState() {
-    let st = null, pages = {}, pl = projectList, sec = null;
-    try { const l = await chrome.storage.local.get(['planSyncState', 'plusPlanPages', 'projectList', 'plusSection']); st = l.planSyncState || null; pages = l.plusPlanPages || {}; pl = pl || l.projectList || null; sec = l.plusSection || null; } catch (e) {}
-    if (sec && sec.id && !$('plusSectionStatus').textContent) $('plusSectionStatus').textContent = `현재 섹션: ${sec.label}`;
+  $('btnShareOrgLink').addEventListener('click', () => orgLink('', 'shareProbeState', 'shareFolderStatus'));
+  /* 참여연구원에게 공유 결과 → 글 (shareFolderPeople 응답 또는 pages[prj].share): "공유 n명(이름) · 이름 겹침 n(이름: 후보…) · 못 찾음 n(이름)" — 이메일은 title 에만 */
+  function shareResultText(s) {
+    s = (s && typeof s === 'object') ? (s.share && typeof s.share === 'object' && !Array.isArray(s.share) ? s.share : s) : null;
+    if (!s) return '';
+    const shared = listOf(s.shared), amb = listOf(s.ambiguous), nf = listOf(s.notFound);
+    const nm = (x) => (x && typeof x === 'object' ? String(x.name || x.DisplayText || '') : String(x || ''));
+    const parts = [];
+    if (shared.length) parts.push(`공유 ${shared.length}명 (${shared.map(nm).filter(Boolean).join(', ')})`);
+    if (amb.length) parts.push(`이름 겹침 ${amb.length} (${amb.map((a) => `${nm(a)}${listOf(a && a.candidates).length ? `: ${listOf(a.candidates).slice(0, 3).join('/')}` : ''}`).join(', ')})`);
+    if (nf.length) parts.push(`못 찾음 ${nf.length} (${nf.map(nm).filter(Boolean).join(', ')})`);
+    if (s.error) parts.push(`오류: ${String(s.error)}`);
+    return parts.join(' · ') || (s.at || s.ok ? '공유할 사람 없음' : '');
+  }
+  function shareResultHtml(s) {
+    s = (s && typeof s === 'object') ? (s.share && typeof s.share === 'object' && !Array.isArray(s.share) ? s.share : s) : null;
+    if (!s) return '';
+    const shared = listOf(s.shared), amb = listOf(s.ambiguous), nf = listOf(s.notFound);
+    const nm = (x) => (x && typeof x === 'object' ? String(x.name || x.DisplayText || '') : String(x || ''));
+    const parts = [];
+    if (shared.length) parts.push(`<span class="ok" title="${F.esc(shared.map((x) => (x && x.email) ? `${nm(x)} <${x.email}>` : nm(x)).join(', '))}">공유 ${shared.length}명</span> (${F.esc(shared.map(nm).filter(Boolean).join(', '))})`);
+    if (amb.length) parts.push(`<span class="warn" title="같은 이름이 여럿 — OneDrive 에서 직접 고르세요">이름 겹침 ${amb.length}</span> (${F.esc(amb.map((a) => `${nm(a)}${listOf(a && a.candidates).length ? `: ${listOf(a.candidates).slice(0, 3).join('/')}` : ''}`).join(', '))})`);
+    if (nf.length) parts.push(`<span class="warn" title="SharePoint 사람 찾기에 없는 이름 — OneDrive 에서 직접 공유하세요">못 찾음 ${nf.length}</span> (${F.esc(nf.map(nm).filter(Boolean).join(', '))})`);
+    if (s.error) parts.push(`<span class="err">오류: ${F.esc(s.error)}</span>`);
+    return parts.join(' · ') || '<span class="muted">공유할 사람 없음</span>';
+  }
+  /* 참여연구원에게 공유: shareFolderPeople { prjNo, names?(없으면 rERP 참여인력 전부) } → { ok, shared, ambiguous, notFound, error? } — 결과는 표 아래 줄에, 표의 공유 칸은 shareState 가 갱신되면 따라온다 */
+  async function sharePeople(prjNo) {
+    if (!(await ensureSaved('plusSyncStatus'))) return;
+    setPagesStatus(`과제 ${prjNo} 폴더를 R&D ERP 참여인력에게 공유하는 중… (SharePoint 에서 사람을 찾습니다)`, 'run');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'shareFolderPeople', prjNo }); } catch (e) { r = null; }
+    if (!r || !r.ok) { setPagesStatus(shareFail(r, `과제 ${prjNo} 공유 실패`), 'err', r && r.kind === 'auth' ? loginUrl() : ''); return; }
+    const txt = shareResultText(r);
+    const bad = listOf((r.share || r).ambiguous).length || listOf((r.share || r).notFound).length;
+    setPagesStatus(`과제 ${prjNo} 폴더 공유 — ${txt || '결과 없음'}${bad ? ' · 겹침·못 찾음은 폴더 이름을 눌러 OneDrive 에서 직접 공유하세요' : ''}`, bad ? 'err' : 'on');
+    showShareState();
+  }
+  /* 폴더 이름 바꾸기(선택): shareRename { prjNo, name } — 폴더 이름은 표시용이라 바꿔도 과제는 파일 안의 과제번호로 알아본다 */
+  async function renameFolder(prjNo, cur) {
+    const name = prompt(`과제 ${prjNo} 폴더의 새 이름 (파일 이름에 못 쓰는 글자는 빠짐 · 60자):`, cur || '');
+    if (name == null) return;
+    const nm = name.trim();
+    if (!nm || nm === cur) return;
+    if (!(await ensureSaved('plusSyncStatus'))) return;
+    setPagesStatus(`과제 ${prjNo} 폴더 이름을 "${nm}" 으로 바꾸는 중…`, 'run');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'shareRename', prjNo, name: nm }); } catch (e) { r = null; }
+    if (!r || !r.ok) { setPagesStatus(shareFail(r, `이름 바꾸기 실패`), 'err', r && r.kind === 'auth' ? loginUrl() : ''); return; }
+    const done = String(r.name || r.folder || nm);   // 백그라운드가 다듬은 이름(KRX_PRJDOC.folderNameFor — 못 쓰는 글자 제거 · 60자)
+    if (r.unchanged) { setPagesStatus(`과제 ${prjNo} 폴더 이름이 이미 "${done}" 입니다`, 'on'); return; }
+    setPagesStatus(`과제 ${prjNo} 폴더 이름을 "${done}" 으로 바꿨습니다 — 다음 동기화부터 새 이름으로 보입니다`, 'on');
+    showShareState();
+  }
+  $('plusPages').addEventListener('click', (ev) => {   // 표의 단추: 참여연구원에게 공유 · 링크 복사 · 이름 바꾸기
+    const b = ev.target.closest('[data-share-act]');
+    if (!b) return;
+    ev.preventDefault();
+    const prjNo = String(b.dataset.prj || ''), act = b.dataset.shareAct;
+    if (!prjNo) return;
+    if (act === 'people') sharePeople(prjNo);
+    else if (act === 'link') orgLink(prjNo, 'plusPagesStatus', 'plusSyncStatus');
+    else if (act === 'rename') renameFolder(prjNo, String((sharePagesCache[prjNo] || {}).folder || b.dataset.name || ''));
+  });
+  /* 지금 동기화: 칸의 값(폴더 · 항목)으로 맞추도록 먼저 저장 → planSync manual → 결과 state { ok, count, files, written, pulled, errors, error?, kind?, pages, base } · 꺼져 있으면 { skipped:'off', missing:[…] } */
+  async function plusSyncNow() {
+    try { await S.save(read()); savedFolder = $('plusFolder').value.trim(); } catch (e) { setStatus('plusSyncStatus', `설정 저장 실패: ${e.message || e}`, true); return; }
+    setStatus('plusSyncStatus', '공유 폴더의 과제 파일과 맞추는 중…');
+    let r = null;
+    try { r = await chrome.runtime.sendMessage({ type: 'planSync', reason: 'manual' }); } catch (e) { r = null; }
+    if (r && r.ok) setStatus('plusSyncStatus', `동기화했습니다${r.ms ? ` (${r.ms} ms)` : ''}: 과제 ${F.num(r.count) || Object.keys(r.pages || {}).length}건${countOf(r.files) != null ? ` · 파일 ${countOf(r.files)}개` : ''} · 씀 ${F.num(r.written)}건 · 받음 ${F.num(r.pulled)}건${r.errors ? ` · 오류 ${r.errors}건 (아래 표)` : ''}`, !!r.errors);
+    else if (r && r.skipped === 'off') setStatus('plusSyncStatus', `동기화하려면 먼저 이것을 해 주세요: ${(r.missing || []).join(' · ') || '공유 (Plus) 체크'}`, true);
+    else if (r && r.skipped) setStatus('plusSyncStatus', `건너뜀 (${r.skipped})`, true);
+    else setStatus('plusSyncStatus', r ? `${shareFail(r, '동기화 실패')}${r.errors > 1 ? ` 외 ${r.errors - 1}건` : ''}` : '응답 없음', true);
+    showShareState();
+  }
+  $('btnPlusSyncNow').addEventListener('click', plusSyncNow);
+  /* 마지막 동기화 결과(storage.local.shareState) + 과제별 표(과제번호 · 과제명 · 폴더(열기 · 주인) · 연차 파일 수(현재 연차 열기) · 동기화 시각 · 파일 수정(누가) · 공유 결과 + 단추 · 상태). 밑폴더는 shareState.base(v1 folder), 없으면 shareFolder 캐시로 */
+  async function showShareState() {
+    let st = null, sf = null, pl = projectList;
+    try {
+      const l = await chrome.storage.local.get(['shareState', 'shareFolder', 'projectList']);
+      st = l.shareState || null; sf = l.shareFolder || null; pl = pl || l.projectList || null;
+    } catch (e) {}
+    if (baseOf(st)) takeFolder(baseOf(st), st.at || 1); else if (sf && !shareFolderInfo) takeFolder(sf, 1);
     const names = {}; for (const p of (pl && pl.projects) || []) if (p && p.prjNo) names[p.prjNo] = p.prjNm || '';
-    const el = $('plusSyncState');
-    const items = Object.values((st && st.pages) || {}).reduce((x, p) => x + (F.num(p && p.count) || 0), 0);   // 과제별 마지막 결과의 항목 수 합 (과제 하나만 돌린 뒤에도 전체가 보이게)
-    el.textContent = !st ? '' : st.ok
-      ? `마지막 동기화 ${F.fmtClock(st.at)} (${st.reason || ''}): 과제 ${Object.keys(st.pages || {}).length}건 · 항목 ${items}건`
-      : `마지막 시도 ${F.fmtClock(st.at)} (${st.reason || ''}) 실패: ${st.error || st.kind || ''}${st.errors > 1 ? ` 외 ${st.errors - 1}건` : ''}`;
-    const rows = Object.entries(Object.assign({}, pages, (st && st.pages) || {})).map(([prjNo, p]) => {
-      const c = Object.assign({}, pages[prjNo] || {}, p || {});
-      const link = c.webUrl ? `<a href="${F.esc(c.webUrl)}" target="_blank" rel="noopener">열기</a>` : '';
-      const flags = [c.created && '만듦', c.pulled && '가져옴', c.pushed && '씀', c.noPage && '페이지 없음 · 책임자 생성 대기', c.error && `<span class="err">실패: ${F.esc(c.error)}</span>`].filter(Boolean).join(' · ');
-      return `<tr><td class="no">${F.esc(prjNo)}</td><td class="nm">${F.esc(names[prjNo] || '')}</td><td>${F.esc(c.title || '')}</td><td>${link}</td><td>${c.at ? F.fmtClock(c.at) : ''}</td><td>${flags}</td></tr>`;
+    const pages = (st && st.pages && typeof st.pages === 'object') ? st.pages : {};
+    sharePagesCache = pages;
+    const list = Object.values(pages).filter((c) => c && typeof c === 'object');
+    const nOwner = list.filter((c) => c.owner).length, nNoFolder = list.filter((c) => c.noFolder).length;
+    let line = '';
+    if (st && st.at) {
+      const when = `${F.fmtClock(st.at)}${st.reason ? ` (${F.esc(st.reason)})` : ''}`;
+      line = st.ok
+        ? `마지막 동기화 ${when} — 과제 ${F.num(st.count) || Object.keys(pages).length}건${countOf(st.files) != null ? ` · 파일 ${countOf(st.files)}개` : ''} · 씀 ${F.num(st.written)}건 · 받음 ${F.num(st.pulled)}건${nOwner ? ` · 공유받은 폴더 ${nOwner}개` : ''}${nNoFolder ? ` · <span class="warn">폴더 없음 ${nNoFolder}건</span>` : ''}${st.errors ? ` · <span class="err">오류 ${st.errors}건</span>` : ''}`
+        : `<span class="err">마지막 동기화 ${when} 실패 — ${F.esc(shareErrText(st))}${st.errors > 1 ? ` 외 ${st.errors - 1}건` : ''}</span>${st.kind === 'auth' ? ` · <a href="${F.esc(loginUrl())}" target="_blank" rel="noopener">OneDrive 열기</a>` : ''}`;
+    } else line = $('plusEnabled').checked ? '아직 동기화하지 않았습니다 — 패널·팝업을 열거나 지금 동기화를 누르면 시작됩니다' : '';
+    $('plusSyncState').innerHTML = line;
+    const COUNT_LABEL = { plan: '예상 비용', research: '연구내용', staff: '참여연구원 계획', budget: '예산 줄', changes: '변경이력' };
+    const rows = Object.entries(pages).sort(([a], [b]) => a.localeCompare(b)).map(([key, c]) => {
+      c = (c && typeof c === 'object') ? c : {};
+      const prjNo = String(c.prjNo || key), folder = String(c.folder || '');
+      // 폴더: 이름(보기 주소로 열기) + 남의 폴더면 주인 칩. 폴더가 없으면 까닭(noFolder — 책임자가 만들거나 공유받기를 기다림)
+      const folderCell = folder
+        ? `${c.folderUrl ? `<a href="${F.esc(c.folderUrl)}" target="_blank" rel="noopener" title="SharePoint 에서 이 과제 폴더를 엽니다 — 여기서 공유 › 사람을 넣을 수도 있습니다">${F.esc(folder)}</a>` : F.esc(folder)}${c.owner ? `<span class="share-owner" title="다른 사람의 OneDrive 에 있는 폴더 — 나와 공유에서 찾음">주인 ${F.esc(c.owner)}</span>` : ''}`
+        : c.noFolder ? '<span class="warn" title="내가 과제 책임자가 아니고 이 과제의 자료도 아직 없어 폴더를 만들지 않았습니다 — 책임자가 만들어 공유하면 다음 동기화 때 나와 공유에서 찾습니다">폴더 없음 — 책임자가 만들거나 공유받으면 연결</span>'
+        : (c.webUrl ? `<a href="${F.esc(c.webUrl)}" target="_blank" rel="noopener">파일</a>` : '<span class="muted">—</span>');
+      const years = listOf(c.years).map((n) => F.num(n)).filter((n) => n > 0).sort((a, b) => a - b);
+      const yearsCell = years.length
+        ? `${years.length}개 <span class="muted">(${years.map((n) => `${n}차년도`).join(' · ')})</span>${c.webUrl ? ` · <a href="${F.esc(c.webUrl)}" target="_blank" rel="noopener" title="현재 연차 파일을 SharePoint 에서 엽니다">현재 연차 열기</a>` : ''}`
+        : (c.webUrl ? `<a href="${F.esc(c.webUrl)}" target="_blank" rel="noopener" title="SharePoint 에서 파일을 엽니다">파일 열기</a>` : '');
+      const who = c.remoteAt ? `${F.fmtClock(c.remoteAt)}${c.remoteBy ? ` · ${F.esc(c.remoteBy)}` : ''}` : '';
+      const counts = (c.counts && typeof c.counts === 'object') ? Object.entries(c.counts).filter(([k, v]) => COUNT_LABEL[k] && F.num(v) > 0).map(([k, v]) => `${COUNT_LABEL[k]} ${F.num(v)}`) : [];
+      const flags = [c.created && '폴더·파일 만듦', c.pushed && '씀', c.pulled && '받음',
+        c.error && (c.kind === 'locked' ? `<span class="warn">건너뜀 — ${F.esc(c.error)}</span>` : c.kind === 'parse' ? `<span class="warn">파일 건너뜀 — ${F.esc(c.error)}</span>` : `<span class="err">실패${c.kind ? ` (${F.esc(c.kind)})` : ''}: ${F.esc(c.error)}</span>`)].filter(Boolean).join(' · ') || (c.noFolder ? '대기' : '변화 없음');
+      const stateCell = `${flags}${counts.length ? `<div class="muted">${F.esc(counts.join(' · '))}</div>` : ''}`;
+      // 공유: 자동 공유 결과(share) + 단추 — 내 폴더면 참여연구원에게 공유 · 링크 복사 · 이름 바꾸기, 남의 폴더면 링크 복사만
+      const acts = folder && !c.noFolder
+        ? (c.owner
+          ? `<button type="button" class="btn" data-share-act="link" data-prj="${F.esc(prjNo)}" title="이 과제 폴더의 조직 내 편집 링크를 만들어 복사합니다">링크 복사</button>`
+          : `<button type="button" class="btn" data-share-act="people" data-prj="${F.esc(prjNo)}" title="R&D ERP 참여인력(이 과제의 참여연구원)에게 이 폴더를 편집 권한으로 공유합니다 — 이미 공유된 사람은 그대로">참여연구원에게 공유</button><button type="button" class="btn" data-share-act="link" data-prj="${F.esc(prjNo)}" title="이 과제 폴더의 조직 내 편집 링크를 만들어 복사합니다 — 자동 공유가 안 된 사람에게 보내면 한 번 열기만 해도 나와 공유에 들어옵니다">링크 복사</button><button type="button" class="btn" data-share-act="rename" data-prj="${F.esc(prjNo)}" data-name="${F.esc(folder)}" title="폴더 이름을 바꿉니다 — 이름은 표시용이라 과제는 파일 안의 과제번호로 알아봅니다">이름 바꾸기</button>`)
+        : '';
+      const shareCell = `${c.share ? `<div class="share-res">${shareResultHtml(c.share)}</div>` : (c.owner ? '<div class="share-res muted">공유받은 폴더</div>' : '')}${acts ? `<div class="share-acts">${acts}</div>` : ''}`;
+      return `<tr${c.noFolder ? ' class="share-nofolder"' : ''}><td class="no">${F.esc(prjNo)}</td><td class="nm">${F.esc(c.title || names[prjNo] || '')}</td><td class="tag folder">${folderCell}</td><td class="tag">${yearsCell}</td><td class="tag">${c.at ? F.fmtClock(c.at) : ''}</td><td class="tag">${who}</td><td class="tag share">${shareCell}</td><td class="tag">${stateCell}</td></tr>`;
     });
-    $('plusPages').innerHTML = rows.length ? `<table class="list"><thead><tr><th>과제번호</th><th>과제명</th><th>페이지</th><th></th><th>동기화</th><th>상태</th></tr></thead><tbody>${rows.join('')}</tbody></table>` : '';
+    $('plusPages').innerHTML = rows.length ? `<div class="prj-list share-files"><table class="prj-table"><thead><tr><th>과제번호</th><th>과제명</th><th>폴더</th><th>연차 파일</th><th>동기화</th><th>파일 수정 (누가)</th><th>공유</th><th>상태</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '';
+    renderShareFolder();
   }
-  showPlusState();
-  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.planSyncState || ch.plusPlanPages || ch.projectList || ch.plusSection)) showPlusState(); }); } catch (e) {}
+  showShareState();
+  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && (ch.shareState || ch.shareFolder || ch.projectList)) showShareState(); }); } catch (e) {}
 
   /* ---------- 급여·연구수당 (HR System) ---------- */
   /* "P3=22" 줄 → { P3: 22 }. 비율이 숫자가 아니면 그 줄은 무시 (비운 직급은 기본값 유지) */
@@ -1367,6 +1571,7 @@
   await initDescFold();
   fill(await S.load());
   probeLlm(true).catch(() => {});   // LLM(Help 서버) 연결 상태 → LLM 설정 탭 칩·기능 구역 켜기 (기다리지 않음)
+  await loadApiKey();   // Claude API 키(storage.local) · 마지막 확인 결과 — 오래됐으면 조용히 다시 확인
   await loadRcmsCred();
   await loadFetchSites();
   if (self.KRX_FETCH_CHAT) await KRX_FETCH_CHAT.init({ base: helpBase, sites: () => fetchList, docsMap: kindDocsNow, onHowto: applyHowto });   // 사이트 만들기 채팅 (options/fetch-chat.js)

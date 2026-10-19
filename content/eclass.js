@@ -138,7 +138,7 @@
   try { state.partPlans = await KRX_PART.load(); } catch (e) {}   // 예비 참여율(참여 계획) (lib/part.js)
   try { state.prep = await KRX_PREP.load(); } catch (e) {}        // 청구 준비: 거래별 청구종류·첨부 파일 (lib/prep.js)
   try { state.research = await KRX_RESEARCH.load(); } catch (e) {}   // 연구개발계획서(연구내용) 참조 — 패널의 연구내용 탭 (lib/research.js, render.js researchSection)
-  try { state.staffPlans = await KRX_STAFF.load(); } catch (e) {}   // 사업비 변경: 과제별 참여연구원 참여율·지급액 계획 (lib/staff.js, lib/staff-ui.js — 0.8.7)
+  try { state.staffPlans = await KRX_STAFF.load(); } catch (e) {}   // 사업비 관리 화면(제목 줄 아이콘): 과제마다 연차별 예산·참여연구원 계획 (lib/staff.js, lib/staff-ui.js — 0.8.7)
   const anchors = Array.from(document.querySelectorAll('a[href]'));
   const link = anchors.find((x) => /rnd\.krs\.co\.kr/i.test(x.href));
   state.rndUrl = link ? link.href : null;
@@ -159,7 +159,7 @@
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 드래그 앤 드롭·지우기, 청구서 작성) 처리
   KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
-  KRX_STAFF_UI.bind(host, state, draw);   // 사업비 변경 구역: 기간·예산, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
+  KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
 
   /* 확장이 새로고침/업데이트되면 이 스크립트는 확장과 연결이 끊긴다(Extension context invalidated). 예외 대신 안내 표시 */
   const alive = () => { try { return !!(chrome.runtime && chrome.runtime.id); } catch (e) { return false; } };

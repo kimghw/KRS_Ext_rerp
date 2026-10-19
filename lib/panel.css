@@ -212,12 +212,7 @@ a.krext-chip:hover { filter: brightness(.94); }
 .krext-prj-proj { display: block; font-size: 10.5px; font-weight: 600; color: #6b5cc4; line-height: 1.2; white-space: nowrap; }
 /* 표 머리글 "비목" 옆 아이콘 (눈: 과제 단위 감추기/보이기, 저장: CSV) 과 수량 −/＋ 버튼 */
 .krext-plan-ico { display: inline-flex; gap: 2px; margin-left: 6px; vertical-align: middle; position: relative; }
-a.krext-ico-btn { text-decoration: none; }   /* 원노트에서 열기(↗) 링크도 아이콘 버튼처럼 */
-/* 원노트에서 가져오기: 동료가 보낸 페이지 링크를 붙여 넣는 칸 (비목 머리글 아이콘 옆) */
-.krext-plan-import { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-weight: 400; }
-.krext-plan-import input { width: 280px; height: 22px; padding: 2px 6px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #222; font-family: inherit; font-size: 12px; line-height: 1.2; margin: 0; }
-.krext-plan-import button { height: 22px; padding: 0 7px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #1f4e9c; font: inherit; font-size: 12px; cursor: pointer; }
-.krext-plan-import button:hover { background: #eef3fa; }
+a.krext-ico-btn { text-decoration: none; }   /* 공유 파일 열기(↗) 링크도 아이콘 버튼처럼 (공유 (Plus) — 2026-10-18 부터 SharePoint 폴더의 과제별 JSON. 옛 원노트 가져오기 칸 .krext-plan-import 는 없앴다) */
 .krext-ico-btn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 18px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #6b5cc4; cursor: pointer; }
 .krext-ico-btn:hover { background: #e6e0fa; border-color: #d9d2f2; }
 .krext-ico-btn.krext-ico-off { color: #8a919c; }
@@ -511,10 +506,7 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-rs-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .krext-rs-foot .krext-dim { flex: 1; min-width: 0; font-size: 11px; }
 
-/* 사업비 변경 구역 (0.8.7, lib/staff-ui.js) — 기간·예산·단추 줄, 사람 표(월급여·계상인건비·참여율 칸은 표 안에서 바로 적는다), 달마다의 지급 줄, rERP 등록 줄, 알림 줄 */
-.krext-st-bar { margin: 2px 0 4px; }
-.krext-st-bar input[type="month"] { height: 24px; padding: 2px 6px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; font-family: inherit; font-size: 12px; }
-.krext-st-bar input[data-stp="budget"] { width: 76px; text-align: right; font-variant-numeric: tabular-nums; }
+/* 사업비 관리 화면의 참여인력 표 (0.8.7, lib/staff-ui.js) — 단추 줄, 사람 표(월급여·계상인건비·참여율 칸은 표 안에서 바로 적는다), 달마다의 지급 줄, rERP 등록 줄, 알림 줄 */
 .krext-st-acts { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
 .krext-st-status { margin: 0 0 4px; }
 .krext-st-table { margin-top: 4px; }
@@ -545,4 +537,99 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-st-warn li.krext-st-error { color: #d7263d; font-weight: 600; }
 .krext-st-warn li.krext-st-error::before { background: #d7263d; }
 .krext-st-msg { margin-top: 6px; }
-.krext-st-amt { width: 118px; white-space: nowrap; font-size: 12px; }   /* 계획 합 / 예산 — 두 수가 한 줄에 */
+/* 제목 줄의 사업비 관리 아이콘(켜짐 색 — lib/staff-ui.js 화면이 열려 있을 때)과 그 화면의 제목 줄 */
+.krext-btn.krext-on { background: #fff; color: #1f4e9c; border-color: #fff; }
+.krext-panel.krext-inline .krext-btn.krext-on { background: #245fbd; color: #fff; border-color: #245fbd; }
+.krext-page-title { font-size: 14px; }
+.krext-page-back { margin-left: auto; }
+/* 사업비 관리 화면 — kr_ext_workspace R&D 탭과 같은 꼴 (0.8.7, lib/staff-ui.js): 과제 칩 → 과제 카드(연차 칩 · 기간 줄) → 예산 카드(비목 줄 격자 · 막대) → 참여인력 카드 */
+.krext-ws-projs { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 10px; }
+.krext-ws-proj { min-height: 28px; max-width: 170px; padding: 3px 11px; border: 1px solid #d5dde8; border-radius: 9px; background: #fff; color: #222; font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-proj:hover { background: #edf3ff; border-color: #245fbd; }
+.krext-ws-proj.krext-on { background: #245fbd; border-color: #245fbd; color: #fff; }
+.krext-ws-card { margin-bottom: 10px; padding: 0 14px; border: 1px solid #e3eaf3; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.krext-ws-head { padding: 12px 14px; border-color: #c9d8ee; }
+.krext-ws-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.krext-ws-title > svg { flex: none; width: 15px; height: 15px; color: #607089; }
+.krext-ws-name { flex: 0 1 auto; min-width: 0; max-width: 100%; font-size: 15px; font-weight: 700; color: #245fbd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-edit { flex: none; border: 0; background: transparent; color: #93a4ba; cursor: pointer; font-size: 12px; padding: 0 3px; line-height: 20px; }
+.krext-ws-edit:hover { color: #245fbd; }
+.krext-ws-meta { font-size: 11.5px; color: #6b7480; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-links { margin-left: auto; display: inline-flex; gap: 10px; font-size: 12px; white-space: nowrap; }
+.krext-ws-links a { display: inline-flex; align-items: center; gap: 3px; }
+.krext-ws-alias { margin-top: 6px; }
+.krext-ws-alias input { width: 140px; }
+.krext-ws-years { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.krext-ws-year { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 30px; padding: 3px 8px; border: 1px solid #d5dde8; border-radius: 9px; background: #fff; color: #222; font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.krext-ws-year small { padding: 0 5px; border-radius: 6px; background: #edf3ff; color: #245fbd; font-size: 10px; font-weight: 700; }
+.krext-ws-year .krext-badge { min-width: 0; padding: 0 5px; line-height: 15px; font-size: 10px; background: #dfe5ee; color: #586982; }
+.krext-ws-year:hover { background: #edf3ff; border-color: #245fbd; }
+.krext-ws-year.krext-on { background: #245fbd; border-color: #245fbd; color: #fff; }
+.krext-ws-year.krext-on small, .krext-ws-year.krext-on .krext-badge { background: rgba(255,255,255,.22); color: #fff; }
+.krext-ws-year.krext-ws-add { flex: 0 0 auto; border-style: dashed; color: #245fbd; font-weight: 500; }
+.krext-ws-note { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; font-size: 12px; color: #6b7480; }
+.krext-ws-note b { color: #222; }
+.krext-ws-note input[type="month"] { height: 24px; padding: 2px 6px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; font-family: inherit; font-size: 12px; }
+.krext-ws-cur { color: #245fbd; }
+.krext-ws-cardhead { display: flex; align-items: center; gap: 9px; min-height: 42px; color: #6b7480; font-size: 13.5px; cursor: pointer; user-select: none; }
+.krext-ws-cardhead > svg { flex: none; width: 15px; height: 15px; }
+.krext-ws-cardhead > span:first-of-type { color: #222; font-weight: 600; }
+.krext-ws-state { margin-left: auto; min-width: 0; font-size: 12px; color: #8a919c; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-state.krext-red { color: #d7263d; }
+.krext-ws-chev { flex: none; width: 6px; height: 6px; margin: 0 3px; border-right: 1.4px solid #93a4ba; border-bottom: 1.4px solid #93a4ba; transform: rotate(45deg); transition: transform .15s; }
+.krext-ws-chev.krext-closed { transform: rotate(-45deg); }
+.krext-ws-body { padding: 0 0 14px; }
+.krext-ws-tools { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: -2px 0 4px; }
+.krext-ws-inc { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-right: auto; font-size: 11px; color: #6b7480; }
+.krext-ws-inc > span { color: #8a919c; }
+.krext-ws-inc label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.krext-ws-inc input { width: auto; margin: 0; }
+.krext-ws-inc input[data-stinc="unbilled"] { accent-color: #7c5cd6; }
+.krext-ws-inc input[data-stinc="plan"] { accent-color: #e08a1e; }
+.krext-ws-bhead, .krext-ws-brow, .krext-ws-bsum { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr) 22px; gap: 4px; align-items: center; }
+.krext-ws-bhead { padding: 2px 0 4px; border-bottom: 1px solid #e3eaf3; font-size: 11px; color: #607089; }
+.krext-ws-bhead span:nth-child(n+2) { text-align: right; }
+.krext-ws-brow { position: relative; padding: 3px 0 6px; }
+.krext-ws-brow input, .krext-ws-cell { box-sizing: border-box; width: 100%; min-height: 28px; padding: 4px 8px; border: 1px solid #d5dde8; border-radius: 8px; background: #fff; color: #222; font-family: inherit; font-size: 12.5px; }
+.krext-ws-brow input:focus { outline: none; border-color: #4d8fe6; box-shadow: 0 0 0 2px rgba(77,143,230,.2); }
+.krext-ws-cell { display: flex; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-brow input[data-stb="plan"], .krext-ws-num { text-align: right; justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.krext-ws-used { background: #f4f7fb; color: #6b7480; }
+.krext-ws-left { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-left.krext-over { color: #d7263d; font-weight: 600; }
+.krext-ws-bdel { border: 0; background: transparent; color: #93a4ba; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+.krext-ws-bdel:hover { color: #d7263d; }
+.krext-ws-bars { position: absolute; left: 0; right: 0; bottom: 1px; height: 3px; pointer-events: none; }
+.krext-ws-bar { position: absolute; top: 0; height: 100%; max-width: 100%; border-radius: 1px; background: #245fbd; opacity: .7; }
+.krext-ws-bar.plan { background: #e08a1e; }
+.krext-ws-bar.unbilled { background: #7c5cd6; }
+.krext-ws-bar.over { background: #d7263d; opacity: .9; }
+.krext-ws-bnote { margin: -3px 0 5px; padding-left: 8px; font-size: 11px; color: #6b7480; }
+.krext-ws-bnote.krext-red { color: #d7263d; }
+.krext-ws-extra { color: #6b7480; font-size: 12px; }
+.krext-ws-extra .krext-ws-cell { border-color: transparent; background: transparent; }
+.krext-ws-bsum { margin-top: 4px; padding: 6px 0 5px; border-top: 1px solid #e3eaf3; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.krext-ws-bsum span:nth-child(n+2) { text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-bact { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; font-size: 11px; }
+.krext-ws-erpline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #edf1f6; font-size: 11.5px; color: #6b7480; }
+.krext-ws-erpline a { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.krext-ws .krext-st-acts { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
+.krext-ws .krext-st-status { margin: 0 0 4px; }
+.krext-ws .krext-st-table { margin-top: 2px; }
+/* 과제 카드의 공유 줄 (0.8.7 v2, lib/staff-ui.js shareLine — 공유 (Plus) 켜짐): 과제 폴더 이름 · 폴더 열기 · 참여연구원에게 공유 · 링크 복사 · 주소 복사 · 결과 */
+.krext-ws-share { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid #edf1f6; font-size: 12px; color: #6b7480; }
+.krext-ws-share-k { color: #8a919c; }
+.krext-ws-share-f { color: #222; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.krext-ws-share a { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.krext-ws-share .krext-ico-btn { color: #6b7480; }
+.krext-ws-share-r { flex: 1 1 100%; min-width: 0; font-size: 11.5px; color: #4b5563; overflow-wrap: anywhere; }
+.krext-ws-share-r.krext-err { color: #d7263d; }
+/* 변경이력 카드 (lib/staff-ui.js changesCard — 기본 접힘): 날짜 · 구분 · 항목 · 변경(전 → 후) · 사유 · 누가 */
+.krext-ws-changes { font-size: 12px; }
+.krext-ws-changes th { font-size: 11px; color: #607089; background: transparent; border-bottom: 1px solid #e3eaf3; white-space: nowrap; }
+.krext-ws-changes td { padding: 4px 6px; border-bottom: 1px solid #edf1f6; vertical-align: top; overflow-wrap: anywhere; }
+.krext-ws-changes td.krext-mono { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.krext-ws-kind { display: inline-block; padding: 0 6px; border-radius: 6px; background: #edf3ff; color: #245fbd; font-size: 11px; font-weight: 600; line-height: 17px; white-space: nowrap; }
+.krext-ws-diff b { color: #222; font-weight: 600; }
+.krext-ws-by { white-space: nowrap; }
+.krext-ws-by small { padding: 0 4px; border-radius: 5px; background: #eef1f5; color: #6b7480; font-size: 10px; }

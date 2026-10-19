@@ -17,12 +17,12 @@
   .toolbar { flex: none; display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid #e1e6ee; background: #f7f9fc; }
   .toolbar a, .toolbar button { flex: 1 1 auto; white-space: nowrap; text-align: center; padding: 6px 4px; border: 1px solid #c9d1dc; border-radius: 6px; background: #fff; color: #1f4e9c; text-decoration: none; font: inherit; cursor: pointer; }
   .toolbar a:hover, .toolbar button:hover { background: #eef3fa; }
-  /* 확장 Plus 켜기 + 원노트 섹션 고르기 (설정 페이지의 같은 항목과 같은 값) */
+  /* 공유 (Plus) 켜기 + 마지막 동기화 상태 한 줄 (설정 페이지 › 공유 (Plus) 탭의 같은 항목과 같은 값, popup.js) */
   .plusbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid #e1e6ee; background: #fbfbfe; font-size: 12px; color: #2b2b46; }
   .plusbar label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
-  .plusbar select { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 2px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; }
   .plusbar .plus-status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #5b6470; }
   .plusbar .plus-status.err { color: #b3261e; }
+  .plusbar .plus-status a { color: #1f4e9c; }   /* 로그인 필요 때 "OneDrive 열기" */
   /* Help Chat: 한 줄 입력 + 한 줄 상태(누르면 로그 펼침). 이 PC 의 Help 서버(help-server/server.js)가 Claude Code CLI 로 확장 코드를 고친다 (popup/help.js) */
   .helpbar { flex: none; padding: 6px 10px; border-top: 1px solid #e1e6ee; background: #f7f9fc; font-size: 12px; color: #2b2b46; }
   .helpbar form { display: flex; gap: 6px; margin: 0; }
@@ -62,9 +62,8 @@
   </div>
   <div class="help-lines" id="helpLines" hidden></div>
 </div>
-<div class="plusbar" title="확장 Plus: 이 PC 의 OneNote MCP 서버(KR_MS365_mcp)를 통해 예상 비용을 과제별 원노트 페이지와 동기화합니다. 켜면 RERP 섹션을 찾아(없으면 고른 노트북에 만들어) 바로 시작됩니다 (섹션 이름·MCP 주소·연결 확인은 설정 페이지)">
-  <label><input type="checkbox" id="plusOn"> 원노트 동기화 (Plus)</label>
-  <select id="plusNotebook" hidden></select>
+<div class="plusbar" title="공유 (Plus): 과제마다 OneDrive(SharePoint) 폴더 하나(내 OneDrive 문서/업무/shared 아래 약칭 → Job Id → 과제번호)에 연차별 파일(과제 정보 · 예산 · 참여연구원 계획 · 연구내용 · 변경이력)과 예상비용.json 을 두고 참여연구원과 맞춥니다 — 이 브라우저가 SharePoint 에 로그인돼 있으면 됩니다(서버·앱 등록 없음). 폴더를 만들 때 참여연구원에게 자동 공유되고, 공유받은 사람은 켜 두기만 하면 '나와 공유'에서 저절로 찾습니다. 켜면 바로 한 번 맞추고 그 뒤로는 패널을 열 때·항목을 바꿀 때 저절로 (밑폴더 주소·연결 확인·참여연구원 공유·과제별 표는 설정 페이지 › 공유 (Plus))">
+  <label><input type="checkbox" id="plusOn"> 공유 (Plus)</label>
   <span id="plusStatus" class="plus-status"></span>
 </div>
 <div class="toolbar">
@@ -84,8 +83,8 @@
 <script src="../lib/fetch-sites.js"></script>
 <script src="../lib/prep.js"></script>
 <script src="../lib/research.js"></script>
-<script src="../lib/staff.js"></script><!-- 사업비 변경: 참여연구원 참여율·지급액 계산 (0.8.7) -->
-<script src="../lib/staff-ui.js"></script><!-- 사업비 변경 구역 그리기·입력 처리 -->
+<script src="../lib/staff.js"></script><!-- 사업비: 과제마다 연차별 참여연구원 참여율·지급액 계산 (0.8.7) -->
+<script src="../lib/staff-ui.js"></script><!-- 제목 줄 사업비 관리 화면 그리기·입력 처리 -->
 <script src="../lib/render.js"></script>
 <script src="capture.js"></script>
 <script src="popup.js"></script>
