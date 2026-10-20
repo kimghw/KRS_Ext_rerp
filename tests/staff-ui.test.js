@@ -138,7 +138,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
   const [moon, kim] = plan.people.map((x) => x.id);
   const total = () => S.staffTotal(st.staffPlans[K1], st.staffPlans[K1].basis);
   const who = (id) => st.staffPlans[K1].people.find((x) => x.id === id);
-  const quickOf = (html) => { const i = html.indexOf('<div class="krext-st-quick">'); return i < 0 ? '' : html.slice(i, html.indexOf('</td></tr>', i)); };
+  const quickOf = (html) => { const i = html.indexOf('<div class="krext-st-quick">'); if (i < 0) return ''; const ends = ['<div class="krext-plan-form">', '</td></tr>'].map((t) => html.indexOf(t, i)).filter((k) => k > 0); return html.slice(i, Math.min(...ends)); };   // ✎ 폼은 증감 줄 뒤에 적용일·반영 줄
   withStaffActions(st, ({ click, change, input }) => {
     click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
     let html = U.section(d, {}, st, '', TAB), quick = quickOf(html);
@@ -148,17 +148,17 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     assert.ok(quick.includes(`data-act="st-nudge" data-dir="-1" data-kind="scale" data-id="${kim}"`) && quick.includes('data-dir="1"') && quick.indexOf('st-nudge') > quick.lastIndexOf('data-step="50"') && quick.indexOf('st-step-fit') > quick.lastIndexOf('st-nudge'), '+50% 오른쪽에 −1% · +1%, 그 오른쪽에 예산에 맞추기');
     assert.ok(quick.includes('기준 <b>4,650</b>천원 · 11~12월 (2개월) · 나머지 3,225천원') && quick.includes('<span class="krext-st-step-pv" data-default="칸을 누르거나 기준에서 끌어') && quick.includes('class="krext-st-step krext-st-step-fit krext-st-fit-over" data-act="st-fit"') && quick.includes('>예산에 맞추기<small>초과금 1,425</small></button>'), '맨 오른쪽 예산에 맞추기 · 읽기 줄');
     // 폼 한 줄 — 반영·취소가 값 칸 바로 뒤, 지급 완료 안내는 그 뒤(2026-10-19 "반영/취소는 적용일, 종료일, 참여율 이거랑 1줄로")
-    const form = html.slice(html.indexOf('<tr class="krext-st-form"'), html.indexOf('<div class="krext-st-quick">'));
+    // ✎ 폼 — 머리글(이름) 없이 증감 줄 → 자동 계산 → 적용일·반영 줄(2026-10-20 "성명은 중복이라 … 빼도", "적용일/반영예산 메뉴를 아래에")
+    const row = html.slice(html.indexOf('<tr class="krext-st-form"'), html.indexOf('</td></tr>', html.indexOf('<tr class="krext-st-form"')));
+    assert.ok(!row.includes('krext-st-editor-head') && !row.includes('참여 계획 조정') && row.indexOf('<div class="krext-st-quick">') < row.indexOf('<div class="krext-plan-form">') && row.indexOf('data-act="st-even"') < row.indexOf('data-stf="from"'), '✎ 폼은 머리글 없이 증감 줄이 먼저');
+    const form = row.slice(row.indexOf('<div class="krext-plan-form">'));
     const pos = (t) => form.indexOf(t);
     assert.ok(pos('data-stf="value"') < pos('data-act="st-apply"') && pos('data-act="st-apply"') < pos('data-act="st-cancel"') && !form.includes('krext-st-form-hint'), '값 → 반영 → 취소(지급 완료가 없으니 안내 없음)');
     assert.ok(form.includes('data-id="' + kim + '">반영</button>'), '고른 것이 없으면 반영');
-    // 예산에 맞추기를 고름 — 아직 적용 안 됨, 반영 단추에 "예산", 읽기 줄 "반영을 누르면"
+    // 예산에 맞추기 — 누르면 바로 반영(2026-10-20 "균등하게, 예산맞추기, max를 넣으면 바로 반영해줘. 반영 예산 따로 넣지 말고"). 미리보기는 단추의 data-preview(올리면 읽기 줄)
+    assert.ok(quick.includes('data-preview="예산에 맞추기 — 초과금 1,425천원 줄임: 11~12월 4,650 → 3,225천원 (기준의 −31%)') && !quick.includes('aria-pressed="false">예산에 맞추기'), quick);
     click('st-fit', { id: kim });
-    assert.deepStrictEqual([st.staffDraft.step, total()], [{ kind: 'fit', v: 1 }, 31425000], '고르기만 — 계획 그대로');
-    html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
-    assert.ok(html.includes('>반영 예산</button>') && quick.includes('krext-st-fit-over krext-st-step-on" data-act="st-fit"') && quick.includes('aria-pressed="true">예산에 맞추기') && quick.includes('<span class="krext-st-step-pv krext-st-step-pending" data-default="반영을 누르면 — 예산에 맞추기 — 초과금 1,425천원 줄임') && quick.includes('<b>반영</b>을 누르면 — 예산에 맞추기 — 초과금 1,425천원 줄임: 11~12월 4,650 → 3,225천원 (기준의 −31%)'), quick);
-    click('st-apply', { id: kim });
-    assert.strictEqual(total(), 30000000, st.staffError || '반영을 누르면 초과금만큼 줄여 합 = 예산');
+    assert.strictEqual(total(), 30000000, st.staffError || '누르면 바로 초과금만큼 줄여 합 = 예산');
     assert.strictEqual(S.monthlyText(who(kim).plan), '4~10월 2,328 · 11월 1,615 · 12월 1,610', '11·12월에서 712.5천원씩(앞달 올림) — 11월 2,328 · 12월 2,322 의 차이는 그대로');
     assert.ok(st.staffMsg && st.staffMsg.text.includes('김거화 — 예산 맞춤') && st.staffMsg.text.includes('초과금 1,425천원 줄임') && st.staffMsg.text.includes('예산과 같음'), st.staffMsg && st.staffMsg.text);
     assert.ok(U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(예산 맞춤\)$/.test(c.after)), '변경이력 한 줄');
@@ -166,12 +166,8 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     // 균등 — 예산에 맞추기 오른쪽. 11~12월(1,615 · 1,610)의 합 3,225 ÷ 2 = 1,612.5 → 달마다 1,613 — 합은 3,226 이 돼 초과금 1천원
     click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
     html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
-    assert.ok(quick.includes('data-act="st-even"') && quick.indexOf('st-even') > quick.indexOf('st-fit') && quick.includes('>균등<small>매월 같게</small></button>'), '예산에 맞추기 오른쪽에 균등');
-    click('st-even', { id: kim });
-    assert.deepStrictEqual(st.staffDraft.step, { kind: 'even', v: 1 });
-    html = U.section(d, {}, st, '', TAB);
-    assert.ok(html.includes('>반영 균등</button>') && html.includes('균등 — 11~12월 월 1,613천원씩 (합 3,225 → 3,226천원, +1천원)') && html.includes('초과금 1천원'), '반영 단추 "반영 균등" · 미리보기(합의 차와 예산 대비)');
-    click('st-apply', { id: kim });
+    assert.ok(quick.includes('data-act="st-even"') && quick.indexOf('st-even') > quick.indexOf('st-fit') && quick.includes('>균등<small>매월 같게</small></button>') && quick.includes('data-preview="균등 — 11~12월 월 1,613천원씩 (합 3,225 → 3,226천원, +1천원)') && quick.includes('초과금 1천원'), '예산에 맞추기 오른쪽에 균등 · 미리보기(합의 차와 예산 대비)');
+    click('st-even', { id: kim });   // 바로 반영
     assert.deepStrictEqual([total(), S.monthlyText(who(kim).plan)], [30001000, '4~10월 2,328 · 11~12월 1,613'], st.staffError || '달마다 같은 금액 — 합은 1천원 늘어남');
     assert.ok(st.staffMsg && st.staffMsg.text.includes('김거화 — 균등') && st.staffMsg.text.includes('월 1,613천원씩(합 3,225 → 3,226천원)') && U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(균등\)$/.test(c.after)), st.staffMsg && st.staffMsg.text);
     st.staffPlans[K1].people = st.staffPlans[K1].people.map((x) => (x.id === kim ? Object.assign({}, x, { plan: x.plan.map((m) => (m.ym === '2026-11' ? Object.assign({}, m, { amt: 1615000 }) : m.ym === '2026-12' ? Object.assign({}, m, { amt: 1610000 }) : m)) }) : x));   // 뒤 검사는 11월 1,615 · 12월 1,610 기준이라 되돌림
@@ -179,11 +175,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
     html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
     assert.ok(quick.indexOf('data-act="st-fit"') < quick.indexOf('data-act="st-max"') && quick.indexOf('data-act="st-max"') < quick.indexOf('data-act="st-even"') && quick.includes(`data-act="st-max" data-id="${kim}" data-v="19.01"`) && quick.includes('>MAX<small>참여율 19.01%</small></button>') && quick.includes('data-preview="MAX — 참여율 19.01% (예산 나머지 3,225천원 기준): 11~12월 월 1,612천원씩 · 월평균'), quick);
-    click('st-max', { id: kim, v: '19.01' });
-    assert.deepStrictEqual(st.staffDraft.step, { kind: 'max', v: 19.01 }, '고르기만');
-    html = U.section(d, {}, st, '', TAB);
-    assert.ok(html.includes('>반영 MAX 19.01%</button>') && html.includes('<b>반영</b>을 누르면 — MAX — 참여율 19.01%'), '반영 단추 "반영 MAX 19.01%" · 읽기 줄');
-    click('st-apply', { id: kim });
+    click('st-max', { id: kim, v: '19.01' });   // 바로 반영
     assert.deepStrictEqual([total(), S.monthlyText(who(kim).plan)], [29999000, '4~10월 2,328 · 11~12월 1,612'], st.staffError || 'MAX 를 반영하면 월급여 × 19.01% 씩 — 예산 아래');
     assert.ok(st.staffMsg && st.staffMsg.text.includes('김거화 — MAX 참여율') && st.staffMsg.text.includes('MAX 참여율 19.01%') && U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(MAX 참여율\)$/.test(c.after)), st.staffMsg && st.staffMsg.text);
     st.staffPlans[K1].people = st.staffPlans[K1].people.map((x) => (x.id === kim ? Object.assign({}, x, { plan: x.plan.map((m) => (m.ym === '2026-11' ? Object.assign({}, m, { amt: 1615000 }) : m.ym === '2026-12' ? Object.assign({}, m, { amt: 1610000 }) : m)) }) : x));   // 되돌림
@@ -192,7 +184,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     click('st-edit', { id: moon }); input('from', '2026-12-01'); input('to', '2026-12-31');
     html = U.section(d, {}, st, '', TAB);
     assert.ok(html.includes('>예산에 맞추기<small>부족금 1,000</small></button>') && !html.includes('krext-st-fit-over'));
-    click('st-fit', { id: moon }); click('st-apply', { id: moon });
+    click('st-fit', { id: moon });
     assert.deepStrictEqual([total(), who(moon).plan[8].amt], [31000000, 2159000], '12월 1,159 + 1,000');
     assert.ok(!quickOf(U.section(d, {}, st, '', TAB)), '폼이 닫히면 증감 줄도 없음');
     // 칸을 누르면 고르기 — +20% 고른 뒤 +1% 두 번 → +22%, 반영 단추 "반영 +22%"; 반영하면 1,610 × 1.22
@@ -239,7 +231,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
   st2.staffPlans[K1].budgetPay = 31425000;
   const even = quickOf(U.section(d, {}, st2, '', TAB));
   assert.ok(even.includes('<button type="button" class="krext-st-step krext-st-step-fit" disabled title="인건비 합이 이미 예산과 같습니다">예산에 맞추기<small>예산과 같음</small></button>') && !even.includes('data-act="st-fit"') && even.includes('기준 <b>1,159</b>천원 · 12월 (1개월) · 나머지 1,159천원'), even);
-  assert.ok(even.includes('data-act="st-even"') && even.includes('aria-pressed="false">균등<small>매월 같게</small></button>'), '예산과 같아도 균등은 켜짐');
+  assert.ok(even.includes('data-act="st-even"') && even.includes('>균등<small>매월 같게</small></button>'), '예산과 같아도 균등은 켜짐');
   // 고른 것이 지금 날짜로는 안 되면(날짜를 지급 없는 달로 옮김) 읽기 줄에 그 말
   st2.staffDraft.step = { kind: 'scale', v: 10 }; st2.staffPlans[K1].people = staff.people.map((x, i) => (i ? x : S.applyChange(x, 'rerp', { from: '2026-12', mode: 'exclude' }, S.ymRange('2026-04', '2026-12'))));
   assert.ok(quickOf(U.section(d, {}, st2, '', TAB)).includes('+10% 은(는) 지금 날짜로 반영할 수 없습니다'));
