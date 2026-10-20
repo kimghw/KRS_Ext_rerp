@@ -124,6 +124,9 @@ test('isThis — 비었거나 "이 과제" 또는 별칭·과제번호·과제�
     responses: [{ id: '3', name: '문창재', title: '이 과제', from: '2026-11', to: '2027-03', rate: 25, monthly: 5823000, allowance: 1200000, at: 5 }, { id: '4', name: '문창재', title: '선박 과제', from: '2026-10', rate: 80, at: 4 }, { id: '5', name: '홍길동', title: '', from: '2026-11', rate: 10, note: '참고로 길게 적은 비고 글', at: 3 }], applied: { 5: 9 } });
   assert.deepStrictEqual(C.pending(req, CTX).map((r) => r.id), ['3'], '이 과제 줄 가운데 미반영만(4 는 다른 과제, 5 는 반영됨)');
   assert.deepStrictEqual(C.responseStats(req), { 문창재: { n: 2, at: 5 }, 홍길동: { n: 1, at: 3 } });
+  assert.deepStrictEqual([C.lastResponse(req, '문창재').id, C.lastResponse(req, '문 창재').id, C.lastResponse(req, '김거화')], ['3', '3', null], '마지막 응답(최신 먼저) — 공백 무시, 없으면 null');
+  assert.deepStrictEqual(C.responseBits(req.responses[0], CTX), ['이 과제', '2026-11~2027-03', '25%', '월급여 5,823천원', '남은 연구수당 1,200천원'], '응답 조각 — 사람 표의 응답 칸');
+  assert.deepStrictEqual(C.responseBits({ title: '', note: 'x' }, CTX), ['이 과제', '기간 없음', '참여율 없음', '"x"']);
   assert.strictEqual(C.summary(req, CTX), '공유 1/3명 · 응답 2명 (3건) · 미반영 1건');
   assert.strictEqual(C.summary({ people: [], responses: [] }, CTX), '사람 없음 · 응답 0명');
   assert.strictEqual(C.summary(null), '');
@@ -177,6 +180,21 @@ test('eClass 직원검색 → 직원 카드(membersOf: copyToClipboard 아이디
   assert.strictEqual(C.pickMember(m, '문창재'), null);
   assert.strictEqual(C.pickMember(null, '이은주'), null);
   assert.strictEqual(C.ECLASS_MEMBERS, 'https://eclass.krs.co.kr/eClassVer4/searchmember/MemberList?searchOption=NAME&searchText=');
+});
+
+test('needsPoll — 팀즈로 보낸 지 14일 안인데 회신이 없는 사람이 있으면(채팅방 보내기는 이메일 있는 사람 모두) 자동 갱신마다 다시 읽는다; 목록 없음·모두 회신·14일 지남·실패 1시간 안은 쉼 (2026-10-20 "이거 보내면 결과를 이 웹으로")', () => {
+  const D = 86400000, now = 100 * D;
+  const base = { prjNo: CTX.prjNo, year: 1, listId: 'L', people: [{ name: '문창재', email: 'a@krs.co.kr', sentAt: now - D }, { name: '홍길동', email: 'h@krs.co.kr' }], responses: [] };
+  const mk = (patch) => C.normalizeRequest(Object.assign({}, base, patch));
+  assert.strictEqual(C.needsPoll(mk({}), now), true, '문창재에게 보냈고 회신 없음');
+  assert.strictEqual(C.needsPoll(mk({ responses: [{ id: '1', name: '문창재', at: now }] }), now), false, '보낸 사람이 모두 회신(홍길동은 보낸 적 없음)');
+  assert.strictEqual(C.needsPoll(mk({ listId: '' }), now), false, '목록 없음');
+  assert.strictEqual(C.needsPoll(mk({ people: [{ name: '문창재', email: 'a@krs.co.kr', sentAt: now - 15 * D }] }), now), false, '14일 지남');
+  assert.strictEqual(C.needsPoll(mk({ people: [{ name: '홍길동', email: 'h@krs.co.kr' }], sentChatAt: now - D }), now), true, '채팅방에 보낸 요청 — 이메일 있는 사람 모두');
+  assert.strictEqual(C.needsPoll(mk({ people: [{ name: '홍길동', email: '' }], sentChatAt: now - D }), now), false, '채팅방에 보냈어도 이메일 없는 사람은 세지 않음');
+  assert.strictEqual(C.needsPoll(mk({ fetchError: '401', fetchedAt: now - 1800000 }), now), false, '못 읽은 지 1시간 안이면 쉼');
+  assert.strictEqual(C.needsPoll(mk({ fetchError: '401', fetchedAt: now - 2 * 3600000 }), now), true, '1시간 지나면 다시');
+  assert.strictEqual(C.needsPoll(null, now), false);
 });
 
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

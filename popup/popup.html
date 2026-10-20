@@ -57,52 +57,118 @@
   html.krext-only body { max-width: 1640px; }
   html.krext-only .krext-row { display: flex; flex: 1 1 auto; min-height: 0; }
   html.krext-only .krext-row > .krext-panel.krext-popup { flex: 1 1 auto; min-width: 0; }
-  html.krext-only .staff-chat { display: flex; flex-direction: column; flex: 0 0 400px; min-height: 0; border-left: 1px solid #dfe6ee; background: #fff; color: #22324b; font-size: 14px; }
+  html.krext-only .staff-chat { display: flex; flex-direction: column; flex: 0 0 400px; min-width: 0; min-height: 0; border-left: 1px solid #dfe6ee; background: #fff; color: #273b55; font-size: 14px; }
   html.krext-only .staff-chat[hidden] { display: none; }
-  .staff-chat .sc-head { flex: none; display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 10px 16px; border-bottom: 1px solid #e7edf4; }
-  .staff-chat .sc-head strong { font-size: 15px; white-space: nowrap; }
-  .staff-chat .sc-status { flex: 1; min-width: 0; font-size: 12px; color: #65758b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .staff-chat .sc-status.ok { color: #1b6e3c; }
-  .staff-chat .sc-status.err { color: #b3261e; }
-  .staff-chat button { flex: none; font: inherit; font-size: 12px; padding: 4px 9px; border: 1px solid #c9d1dc; border-radius: 6px; background: #fff; color: #1f4e9c; cursor: pointer; white-space: nowrap; }
-  .staff-chat button:hover:not(:disabled) { background: #eef3fa; }
-  .staff-chat button:disabled { color: #9aa3af; cursor: default; }
-  .staff-chat .sc-log { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: #f7f9fc; }
-  .staff-chat .sc-empty { color: #65758b; font-size: 13px; line-height: 1.6; }
-  .staff-chat .sc-msg { max-width: 92%; padding: 8px 12px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-  .staff-chat .sc-msg.user { align-self: flex-end; background: #2563c4; color: #fff; border-bottom-right-radius: 4px; }
-  .staff-chat .sc-msg.user .sc-time { color: #c9dbf7; }
-  .staff-chat .sc-msg.bot { align-self: flex-start; background: #fff; border: 1px solid #e1e7ef; border-bottom-left-radius: 4px; }
-  .staff-chat .sc-msg.bot.err { border-color: #f1c4c4; background: #fff6f6; color: #8f1f1f; }
-  .staff-chat .sc-msg.sc-wait { color: #65758b; }
-  .staff-chat .sc-ops { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: #3f5572; }
-  .staff-chat .sc-ops li { position: relative; padding: 3px 0 3px 18px; }
-  .staff-chat .sc-ops li::before { content: '✔'; position: absolute; left: 0; color: #1b6e3c; }
-  .staff-chat .sc-ops li.bad::before { content: '✖'; color: #b3261e; }
-  .staff-chat .sc-ops li small { display: block; color: #65758b; font-size: 11.5px; }
-  .staff-chat .sc-time { margin-top: 3px; font-size: 11px; color: #9aa3af; }
-  .staff-chat .sc-form { flex: none; display: flex; gap: 8px; margin: 0; padding: 10px 16px 6px; border-top: 1px solid #e7edf4; }
-  .staff-chat .sc-form textarea { flex: 1; min-width: 0; resize: none; font: inherit; font-size: 14px; line-height: 1.45; padding: 8px 10px; border: 1px solid #c9d1dc; border-radius: 8px; background: #fff; }
-  .staff-chat .sc-form textarea:disabled { background: #eef1f6; }
-  .staff-chat .sc-form button { align-self: flex-end; padding: 8px 12px; font-size: 13px; }
-  .staff-chat .sc-hint { flex: none; padding: 0 16px 10px; font-size: 11.5px; line-height: 1.5; color: #65758b; }
+  .staff-chat * { box-sizing: border-box; }
+  .staff-chat .sc-head { flex: none; display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 16px; border-bottom: 1px solid #e8edf4; background: #fff; }
+  .staff-chat .sc-heading { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .staff-chat .sc-heading > div { min-width: 0; }
+  .staff-chat .sc-mark { display: flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 36px; border: 1px solid #dbe6f8; border-radius: 11px; background: #eef4ff; color: #3768b5; }
+  .staff-chat .sc-mark svg { width: 20px; height: 20px; }
+  .staff-chat .sc-head strong { display: block; font-size: 15px; letter-spacing: -.3px; white-space: nowrap; }
+  .staff-chat .sc-status { display: block; min-width: 0; margin-top: 4px; font-size: 11px; line-height: 1.3; color: #68798f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .staff-chat .sc-status::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #94a3b8; vertical-align: 1px; }
+  .staff-chat .sc-status.ok { color: #247057; }
+  .staff-chat .sc-status.ok::before { background: #34a67c; }
+  .staff-chat .sc-status.err { color: #996b29; }
+  .staff-chat .sc-status.err::before { background: #d4a052; }
+  .staff-chat .sc-status.pending::before { background: #6891d0; animation: sc-pulse 1.4s ease-in-out infinite; }
+  .staff-chat .sc-tools { display: flex; align-items: center; flex: none; gap: 4px; }
+  .staff-chat button { flex: none; min-height: 30px; font: inherit; font-size: 11px; padding: 4px 8px; border: 1px solid #dce4ef; border-radius: 7px; background: #fff; color: #49678e; cursor: pointer; white-space: nowrap; }
+  .staff-chat button:hover:not(:disabled) { border-color: #bed0e8; background: #f0f5fd; color: #285da9; }
+  .staff-chat button:disabled { color: #8290a3; border-color: #e5eaf1; background: #f8fafc; cursor: default; }
+  .staff-chat .sc-close { display: inline-flex; align-items: center; justify-content: center; width: 28px; min-height: 28px; padding: 0; border-color: transparent; background: transparent; color: #75859a; }
+  .staff-chat .sc-close svg { width: 16px; height: 16px; }
+  .staff-chat button:focus-visible, .staff-chat summary:focus-visible { outline: 2px solid #4b84d4; outline-offset: 3px; }
+  .staff-chat .sc-connection { flex: none; padding: 12px 16px 0; background: #fbfcfe; }
+  .staff-chat .sc-connection[hidden] { display: none; }
+  .staff-chat .sc-connect-card { display: flex; gap: 10px; padding: 11px 12px; border: 1px solid #eadfc9; border-radius: 9px; background: #fffbf3; }
+  .staff-chat .sc-connect-icon { display: inline-flex; flex: none; width: 18px; height: 18px; margin-top: 1px; color: #a47a38; }
+  .staff-chat .sc-connect-icon svg { width: 100%; height: 100%; }
+  .staff-chat .sc-connect-copy strong { font-size: 12px; font-weight: 600; color: #7c5c2c; }
+  .staff-chat .sc-connect-copy p { margin: 4px 0 0; color: #88704e; font-size: 11.5px; line-height: 1.65; }
+  .staff-chat .sc-connect-card.checking { border-color: #dbe6f6; background: #f2f7fe; }
+  .staff-chat .sc-connect-card.checking .sc-connect-copy strong, .staff-chat .sc-connect-card.checking .sc-connect-icon { color: #4c71a6; }
+  .staff-chat .sc-log { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 22px 18px; background: #fbfcfe; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  .staff-chat .sc-empty { margin: auto 0; padding: 16px 0; color: #65758b; font-size: 13px; line-height: 1.65; }
+  .staff-chat .sc-empty-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-bottom: 18px; border: 1px solid #dce7f9; border-radius: 16px; background: #edf3ff; color: #517bc0; box-shadow: 0 4px 12px rgb(51 94 160 / 6%); }
+  .staff-chat .sc-empty-icon svg { width: 26px; height: 26px; }
+  .staff-chat .sc-empty h2 { margin: 0; color: #243a57; font-size: 20px; font-weight: 700; letter-spacing: -.6px; line-height: 1.4; }
+  .staff-chat .sc-empty > p { margin: 9px 0 20px; font-size: 12px; line-height: 1.8; }
+  .staff-chat .sc-examples { display: flex; flex-direction: column; gap: 8px; }
+  .staff-chat button.sc-example { position: relative; width: 100%; min-width: 0; padding: 12px 34px 12px 13px; border-color: #e0e7f1; border-radius: 10px; background: #fff; text-align: left; white-space: normal; box-shadow: 0 1px 3px rgb(30 50 80 / 3%); }
+  .staff-chat .sc-example small { display: block; margin-bottom: 4px; color: #4b73aa; font-size: 10px; font-weight: 600; }
+  .staff-chat .sc-example span { display: block; color: #53667e; font-size: 12px; line-height: 1.5; }
+  .staff-chat .sc-example svg { position: absolute; right: 12px; top: 50%; width: 14px; height: 14px; margin-top: -7px; color: #91a6c1; }
+  .staff-chat button.sc-example:disabled { background: #fff; box-shadow: none; }
+  .staff-chat button.sc-example:disabled small, .staff-chat button.sc-example:disabled span { color: #76859a; }
+  .staff-chat .sc-example-note { display: block; margin-top: 12px; color: #718096; font-size: 10px; }
+  .staff-chat .sc-msg { max-width: 94%; padding: 11px 13px; border-radius: 13px; font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .staff-chat .sc-msg.user { align-self: flex-end; background: #2f66bd; color: #fff; border-bottom-right-radius: 4px; }
+  .staff-chat .sc-msg.user .sc-time { color: #d7e4f9; text-align: right; }
+  .staff-chat .sc-msg.bot { align-self: flex-start; background: #fff; border: 1px solid #e1e7ef; border-bottom-left-radius: 4px; box-shadow: 0 2px 4px rgb(35 59 89 / 3%); }
+  .staff-chat .sc-msg.bot.err { border-color: #efd4d7; background: #fff8f8; color: #a33c48; }
+  .staff-chat .sc-msg.sc-wait { color: #65758b; font-size: 12px; }
+  .staff-chat .sc-wait-dots { display: inline-flex; align-items: center; gap: 3px; margin-right: 8px; }
+  .staff-chat .sc-wait-dots i { width: 4px; height: 4px; border-radius: 50%; background: #7895bc; animation: sc-pulse 1.2s ease-in-out infinite; }
+  .staff-chat .sc-wait-dots i:nth-child(2) { animation-delay: .15s; }
+  .staff-chat .sc-wait-dots i:nth-child(3) { animation-delay: .3s; }
+  @keyframes sc-pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .staff-chat .sc-status.pending::before, .staff-chat .sc-wait-dots i { animation: none; } }
+  .staff-chat .sc-ops { margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid #e9eef4; list-style: none; font-size: 12px; color: #3f5572; white-space: normal; }
+  .staff-chat .sc-ops li { position: relative; padding: 4px 0 4px 18px; }
+  .staff-chat .sc-ops li::before { content: '✓'; position: absolute; left: 0; color: #25835d; font-weight: 700; }
+  .staff-chat .sc-ops li.bad::before { content: '×'; color: #bd4b58; }
+  .staff-chat .sc-ops li small { display: block; margin-top: 2px; color: #68798f; font-size: 11px; line-height: 1.6; }
+  .staff-chat .sc-time { margin-top: 8px; font-size: 10px; line-height: 1.5; color: #718096; white-space: normal; }
+  .staff-chat .sc-compose { flex: none; padding: 14px 16px 12px; border-top: 1px solid #e7edf4; background: #fff; }
+  .staff-chat .sc-form { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 11px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; box-shadow: 0 2px 6px rgb(30 50 80 / 4%); }
+  .staff-chat .sc-form:focus-within { border-color: #709bdc; box-shadow: 0 0 0 3px #edf3fd; }
+  .staff-chat .sc-form:has(textarea:disabled) { border-color: #e1e7ef; background: #f7f9fc; box-shadow: none; }
+  .staff-chat .sc-form textarea { display: block; width: 100%; min-width: 0; min-height: 58px; max-height: 140px; resize: vertical; padding: 0; border: 0; outline: none; background: transparent; color: #2c415c; font: inherit; font-size: 13px; line-height: 1.65; }
+  .staff-chat .sc-form textarea::placeholder { color: #7b8aa0; }
+  .staff-chat .sc-form textarea:disabled { color: #7b8aa0; resize: none; }
+  .staff-chat .sc-compose-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .staff-chat .sc-keyhint { color: #718096; font-size: 10px; line-height: 1.5; }
+  .staff-chat .sc-form button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; padding: 4px 9px; border-color: #2f66bd; background: #2f66bd; color: #fff; font-size: 12px; font-weight: 600; }
+  .staff-chat .sc-form button svg { width: 14px; height: 14px; }
+  .staff-chat .sc-form button:hover:not(:disabled) { border-color: #2457a6; background: #2457a6; color: #fff; }
+  .staff-chat .sc-form button:disabled { border-color: #e1e7ef; background: #e9eef5; color: #8391a4; }
+  .staff-chat .sc-footer { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 9px; }
+  .staff-chat .sc-hint { flex: 1; margin: 0; color: #65758b; font-size: 10.5px; line-height: 1.6; }
+  .staff-chat .sc-help { font-size: 10.5px; color: #61758f; }
+  .staff-chat .sc-help > summary { cursor: pointer; white-space: nowrap; }
+  .staff-chat .sc-help[open] { flex-basis: 100%; }
+  .staff-chat .sc-help p { max-height: 120px; overflow: auto; margin: 7px 0 0; padding: 9px 10px; border-radius: 7px; background: #f5f8fc; color: #62738b; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
   html.krext-only .krext-st-agent { margin-left: 8px; cursor: pointer; }   /* 제목 줄 [에이전트] — 눌리면 파랑 (lib/staff-ui.js focusTitle, popup.js st-agent → KRX_STAFF_CHAT.toggle) */
   html.krext-only .krext-st-agent[aria-pressed="true"] { background: #2563c4; border-color: #2563c4; color: #fff; }
   html.krext-only .krext-st-agent[aria-pressed="true"]:hover { background: #1f56ad; }
   @media (max-width: 1180px) {   /* 좁은 창: 채팅을 본문 아래에 */
     html.krext-only .krext-row { flex-direction: column; }
-    html.krext-only .staff-chat { flex: 0 0 auto; max-height: 46vh; border-left: 0; border-top: 1px solid #dfe6ee; }
+    html.krext-only .staff-chat { flex: 0 0 56vh; height: 56vh; max-height: 620px; border-left: 0; border-top: 1px solid #dfe6ee; }
+    .staff-chat .sc-log { padding: 14px 18px; }
+    .staff-chat .sc-empty { padding: 6px 0; }
+    .staff-chat .sc-empty-icon { display: none; }
+    .staff-chat .sc-empty h2 { font-size: 18px; }
+    .staff-chat .sc-compose { padding-top: 10px; }
+    .staff-chat .sc-form textarea { min-height: 42px; }
   }
 </style>
 </head>
 <body>
 <div class="krext-row" id="krextRow"><!-- 참여연구원 변경 탭(html.krext-only)에서만 본문과 변경 도우미 채팅을 나란히 — 그 밖에는 display:contents -->
 <div id="krext-panel" class="krext-panel krext-popup"></div>
-<aside id="staffChat" class="staff-chat" hidden aria-label="참여연구원 변경 도우미" title="변경 도우미: 보고 있는 과제·연차의 참여연구원 계획을 글로 바꿔 달라고 하면 이 PC 의 Help 서버(node help-server/server.js)가 Claude 로 작업 목록을 만들고 이 탭이 표와 같은 길로 반영합니다 — LLM(Help 서버)이 연결돼 있을 때만. R&D ERP 에는 쓰지 않습니다 (popup/staff-chat.js)">
-  <div class="sc-head"><strong>변경 도우미</strong><span id="scStatus" class="sc-status" role="status"></span><button type="button" id="scProbe" title="Help 서버(LLM) 연결을 다시 확인합니다">연결 확인</button><button type="button" id="scNew" title="대화 기록을 지웁니다 (계획은 그대로)">새 대화</button></div>
-  <div id="scLog" class="sc-log" aria-live="polite"></div>
-  <form id="scForm" class="sc-form"><textarea id="scText" rows="2" maxlength="2000" spellcheck="false" aria-label="변경 도우미에게 보낼 요청"></textarea><button type="submit" id="scSend" title="보내기 (Enter)">보내기</button></form>
-  <div class="sc-hint" id="scHint"></div>
+<aside id="staffChat" class="staff-chat" hidden aria-label="참여연구원 변경 도우미">
+  <div class="sc-head">
+    <div class="sc-heading"><span class="sc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5v5A2.5 2.5 0 0 1 17.5 19H9l-5 3V6.5A2.5 2.5 0 0 1 6.5 4H12M16 2l1.5 4.5L22 8l-4.5 1.5L16 14l-1.5-4.5L10 8l4.5-1.5Z"/></svg></span><div><strong>변경 도우미</strong><span id="scStatus" class="sc-status" role="status"></span></div></div>
+    <div class="sc-tools"><button type="button" id="scProbe" title="도우미 연결을 다시 확인합니다">연결 확인</button><button type="button" id="scNew" title="대화 기록을 지웁니다 (계획은 그대로)">새 대화</button><button type="button" id="scClose" class="sc-close" aria-label="변경 도우미 닫기" title="도우미 닫기"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></div>
+  </div>
+  <div id="scConnection" class="sc-connection" hidden></div>
+  <div id="scLog" class="sc-log" role="log" aria-label="변경 도우미 대화" aria-live="polite" aria-relevant="additions text"></div>
+  <div class="sc-compose">
+    <form id="scForm" class="sc-form"><textarea id="scText" rows="2" maxlength="2000" spellcheck="false" aria-label="변경 도우미에게 보낼 요청" aria-describedby="scHint"></textarea><div class="sc-compose-actions"><span class="sc-keyhint">Enter 전송 · Shift+Enter 줄바꿈</span><button type="submit" id="scSend" title="보내기 (Enter)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5"/></svg>보내기</button></div></form>
+    <div class="sc-footer"><div class="sc-hint" id="scHint"></div><details class="sc-help"><summary><span id="scHelpLabel">이용 안내</span></summary><p id="scHelpText"></p></details></div>
+  </div>
 </aside>
 </div>
 <div class="helpbar" id="helpbar" title="Help Chat: 확장이 기대와 다르게 동작하거나 고치고 싶은 점을 한 줄로 보내면, 이 PC 의 Help 서버(node help-server/server.js)가 Claude Code CLI(Opus 5.5)로 확장 코드를 고칩니다. 이 창을 닫아도 계속되고, 끝나면 '적용'으로 확장을 다시 불러옵니다 (커밋은 하지 않음)">

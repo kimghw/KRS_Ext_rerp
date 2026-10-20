@@ -592,7 +592,7 @@ chrome.action.onClicked.addListener((tab) => {
   try { if (chrome.sidePanel && chrome.sidePanel.open && tab && tab.windowId != null) chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {}); } catch (e) {}   // await 없이 먼저 — 제스처가 살아 있을 때
   applySidePanel();
 });
-chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); shareSync('alarm').catch(() => {}); } });   // 자동 갱신 때 공유 (Plus) 도 (켜져 있을 때만 실제 동작)
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); shareSync('alarm').catch(() => {}); collectPoll().catch(() => {}); } });   // 자동 갱신 때 공유 (Plus) 도 (켜져 있을 때만 실제 동작)
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if ((area === 'sync' || area === 'local') && changes.settings) {
@@ -1133,7 +1133,7 @@ async function shareRename(msg) {
  * 내 OneDrive(personal 사이트 — 밑폴더 설정과 상관없이 늘 내 사이트: 응답자에게 개별 공유하므로)에 응답 **목록**(SharePoint List, KRX_SP writer.createList — 칸은 KRX_COLLECT.FIELDS, 응답자는 자기 항목만)을 만들고 참여연구원에게 **편집** 공유한다(writer.sharePeople — 폴더 공유와 같은 길, 피커에 이메일을 넘김).
  * 이름 → 이메일은 탭에서 적은 것 → eClass 직원검색(collectEclass — KRX_COLLECT.membersOf · pickMember, <아이디>@krs.co.kr; 동명이인은 ambiguous + 후보 → 탭의 선택 상자; 2026-10-20 사용자 "eclass 에서 조회 해서 메일 갖어오면 되는데" · "@krs.co.kr 이것만 해주고 동명 2인이면 선택할 수 있게") → 캐시(storage.local.peopleEmails — 찾은 것 · 탭에서 적은 것)로 푼다. 둘 다 없으면 notFound(외부 참여자는 이메일 칸에 직접). SharePoint 사람 찾기(KRX_SP.findPeople)는 같은 한글 이름의 gmail 게스트 계정을 고른 일로 더는 쓰지 않는다. 팀즈 딥 링크(users=이메일 · message=글)는 탭(lib/staff-ui.js collectSection)이 만들어 여니 여기는 네트워크 없는 일이 없다.
  * collectCreate(msg = { prjNo, year, no?(같은 과제·연차의 몇 번째 요청 — 저장 키 "과제번호@연차#no", 기본 1; 모든 collect* 가 받음), names[], ask?['Rate'|'Monthly'|'Allowance'], alias?, prjNm?, from?, to?, title? }) → { ok, req, existed, warnings } | { ok:false, kind, message, error } — 이미 요청이 있으면 같은 제목의 목록을 다시 쓰고(createList 가 existed) 새 이름만 더해 공유. ask 는 탭에서 고른 칸(KRX_COLLECT.askOf — 없으면 이전 요청의 것, 기본 참여율·월급여).
- * collectShare(msg = { prjNo, year, people?:[{ name, email }] }) → 이메일을 다시 풀거나 탭에서 적은 이메일로 공유(공유된 사람은 건너뜀) → { ok, req }. collectFetch(msg = { prjNo, year }) → 목록 항목(KRX_SP.listItems) → req.responses(KRX_COLLECT.responsesOfItems) → { ok, req, count }.
+ * collectShare(msg = { prjNo, year, people?:[{ name, email }] }) → 이메일을 다시 풀거나 탭에서 적은 이메일로 공유(공유된 사람은 건너뜀) → { ok, req }. collectFetch(msg = { prjNo, year }) → 목록 항목(KRX_SP.listItems) → req.responses(KRX_COLLECT.responsesOfItems) → { ok, req, count }. collectPoll() — 자동 갱신(onAlarm)마다 KRX_COLLECT.needsPoll 인 요청(보낸 지 14일 안 · 회신 없는 사람이 있음 · 못 읽은 지 1시간이 지남)을 차례로 collectFetch — 탭은 storage.onChanged 로 다시 그린다(2026-10-20 사용자 "이거 보내면 결과를 이 웹으로 갖어오게 해줘").
  * collectRemove(msg = { prjNo, year, recycle }) → 요청을 지우고(recycle 이면 목록도 재활용통) → { ok, removed, recycled, warning? }. 저장은 storage.local.staffCollect["과제번호@연차"](KRX_COLLECT.put — 그 키만). 응답(월급여 등)은 이 브라우저에만 남는다. 쿠키·다이제스트는 어디에도 남기지 않는다 */
 const collectFieldNames = (req) => KRX_COLLECT.fieldsOf(req && req.ask).map((f) => f.name);   // 그 요청이 만든 칸만 — 없는 칸을 $select 하면 400
 const collectYear = (msg) => (Number(msg && msg.year) >= 1 ? Math.floor(Number(msg.year)) : 1);
@@ -1305,6 +1305,10 @@ async function collectFetch(msg) {
     await KRX_COLLECT.put(prjNo, year, req, no);
     return { ok: true, req, count: req.responses.length };
   } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
+}
+/* 자동 갱신(onAlarm — 설정의 갱신 주기, 기본 10분)마다: 팀즈로 보낸 뒤 회신이 없는 요청(KRX_COLLECT.needsPoll)의 응답을 차례로 읽어 저장한다 — 탭은 storage.onChanged 로 다시 그린다. 실패는 req.fetchError 에만 */
+async function collectPoll() {
+  for (const req of Object.values(await KRX_COLLECT.load())) if (KRX_COLLECT.needsPoll(req)) await collectFetch({ prjNo: req.prjNo, year: req.year, no: req.no }).catch(() => {});
 }
 /* [요청 지우기] — 요청을 지우고 recycle 이면 목록도 재활용통으로(응답은 거기 남는다). 목록을 못 지워도 요청은 지운다(warning) */
 async function collectRemove(msg) {

@@ -144,6 +144,27 @@ test('균등(evenRange) — 적용일~종료일을 달마다 같은 금액(합 �
   assert.throws(() => S.evenRange(S.applyChange(a, 'plan', { from: '2026-12', mode: 'exclude' }, months), 'plan', { from: '2026-12-01', to: '2026-12-31' }, months), /지급이 없어/);
   assert.throws(() => S.evenRange(a, 'plan', { from: '2026-05-01', to: '2026-12-31' }, months, { lock: '2026-08' }), /지급이 끝난 달/);
 });
+test('MAX(maxRate) — 적용일~종료일에 넣을 수 있는 최대 참여율(0.01% 내림): 예산 나머지를 실제 넣어 본 합이 넘지 않는 가장 큰 값과 100% 규칙(100 − 다른 과제 합의 최대) 가운데 작은 것; 예산이 없으면 100% 규칙만; 나머지가 없으면 0; 월급여 없음 · 잠긴 달은 오류', () => {
+  const months = S.ymRange('2026-04', '2026-12');
+  const a = S.normalizePerson({ name: 'A', manual: 8480000, plan: months.map((ym) => ({ ym, amt: 2328000 })) });
+  const others = 10479000, total = S.personStats(a, 'plan').total;
+  const budgetPay = others + total - 2 * 2328000 + 3225000;   // 11~12월을 비우면 나머지 3,225천원
+  const range = { from: '2026-11-01', to: '2026-12-31' };
+  const m = S.maxRate(a, 'plan', range, months, { budgetPay, others });
+  assert.deepStrictEqual([m.rate, m.byBudget, m.by100, m.left, m.limit], [19.01, 19.01, 100, 3225000, 8480000], '3,225,000 ÷ (8,480,000 × 2) = 19.015…% → 19.01% (19.02% 는 1,613천원 × 2 로 넘침)');
+  const put = S.applyChange(a, 'plan', Object.assign({ mode: 'rate', value: m.rate }, range), months);
+  assert.deepStrictEqual(put.plan.filter((x) => x.ym >= '2026-11').map((x) => x.amt), [1612000, 1612000], 'MAX 로 넣으면 round천원(월급여 × 19.01%) 씩 — 합 3,224천원 ≤ 나머지');
+  assert.ok(S.personStats(S.applyChange(a, 'plan', Object.assign({ mode: 'rate', value: m.rate + 0.01 }, range), months), 'plan').total + others > budgetPay, '0.01% 더 올리면 예산을 넘는다');
+  assert.deepStrictEqual(S.maxRate(a, 'plan', range, months, { budgetPay, others, others100: [{ ym: '2026-12', rate: 85 }, { ym: '2026-11', rate: 50 }] }).rate, 15, '100% 규칙 — 다른 과제 합이 가장 큰 달(12월 85%) 기준 15% 가 예산 기준 19.01% 보다 작으면 그것');
+  assert.deepStrictEqual([S.maxRate(a, 'plan', range, months, { others100: [{ ym: '2026-11', rate: 70.5 }] }).rate, S.maxRate(a, 'plan', range, months).byBudget], [29.5, null], '예산이 없으면 100% 규칙만(byBudget null)');
+  assert.deepStrictEqual([S.maxRate(a, 'plan', range, months, { budgetPay: others + total - 2 * 2328000, others }).rate, S.maxRate(a, 'plan', range, months, { budgetPay: 0, others }).byBudget], [0, 0], '나머지가 0 이하면 0');
+  const half = S.maxRate(a, 'plan', { from: '2026-11-16', to: '2026-12-31' }, months, { budgetPay, others });   // 일부 달 — 날 수 비율까지 실제 넣어 본 합으로
+  const inside = (r) => S.personStats(S.applyChange(a, 'plan', { from: '2026-11-16', to: '2026-12-31', mode: 'rate', value: r }, months), 'plan').total;
+  assert.ok(half.rate === 16.2 && inside(half.rate) + others <= budgetPay && inside(half.rate + 0.01) + others > budgetPay, `일부 달(11/16~): 11/1~15 의 지급은 남으니 나머지 2,061천원 ÷ (8,480천원 × 1.5) → ${half.rate}% — 넘지 않는 가장 큰 값`);
+  assert.throws(() => S.maxRate(S.normalizePerson({ name: 'B' }), 'plan', range, months, { budgetPay, others }), /월급여가 없어/);
+  assert.throws(() => S.maxRate(a, 'plan', range, months, { budgetPay, others, lock: '2026-11' }), /지급이 끝난 달/);
+  assert.strictEqual(S.normalizePerson({ name: 'C', allowance: '20000000' }).allowance, 20000000, '남은 연구수당(응답의 참고 값)은 사람에 그대로');
+});
 test('나머지 · 예산에 맞추기 — shareLeft(그 기간의 나머지 · 개월), fitBudget: 고른 달의 지급을 초과금만큼 줄이거나 부족금만큼 늘려 합 = 예산(달마다 고르게 — 달 사이 차이는 그대로, 0 아래는 0 에서 멈춤, 달 중간은 날 수 비율), 이미 같음·0 으로도 넘음·예산 없음은 오류', () => {
   const months = S.ymRange('2026-04', '2026-12');
   const a = S.normalizePerson({ name: 'A', manual: 5823000, plan: months.map((ym) => ({ ym, amt: 1165000 })) });

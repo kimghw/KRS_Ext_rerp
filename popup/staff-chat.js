@@ -10,6 +10,7 @@
   const KEY = 'staffChat', DRAFT = 'staffChatDraft', DEFAULT_URL = 'http://127.0.0.1:8106', MAX_TURNS = 60, HISTORY = 8, ASK_MS = 180000;
   const $ = (id) => document.getElementById(id);
   const box = $('staffChat'), logEl = $('scLog'), form = $('scForm'), input = $('scText'), btnSend = $('scSend'), btnNew = $('scNew'), btnProbe = $('scProbe'), statusEl = $('scStatus'), hintEl = $('scHint');
+  const connectionEl = $('scConnection'), helpEl = $('scHelpText'), helpLabel = $('scHelpLabel'), btnClose = $('scClose');
   if (!box || !form || !input || !logEl) return;
   let H = null, base = DEFAULT_URL, llm = null, turns = [], busy = false, probing = false, avail = false /* 참여연구원 변경 탭(only=staff)인가 */, open = false /* [에이전트] 로 열었나 */;
 
@@ -18,6 +19,7 @@
   const connected = () => !!(llm && llm.ok && llm.url === base && llm.staff);
   const opTextOf = (op) => { try { return self.KRX_STAFF_CHAT_CORE ? KRX_STAFF_CHAT_CORE.opText(op) : String(op && op.op || ''); } catch (e) { return String(op && op.op || ''); } };
   const save = () => { try { chrome.storage.local.set({ [KEY]: { turns: turns.slice(-MAX_TURNS), open } }); } catch (e) {} };
+  const saveDraft = () => { try { chrome.storage.local.set({ [DRAFT]: input.value }); } catch (e) {} };
   /* 보이기 — 이 탭에서 쓸 수 있고(avail) [에이전트] 로 열었을 때(open)만. 단추의 눌림 표시는 state.staffChatOpen 으로(바뀌었을 때만 다시 그림) */
   function paint() {
     box.hidden = !(avail && open);
@@ -37,15 +39,31 @@
 
   /* 연결 상태 한 줄 · 안내 글 */
   function statusOf() {
-    if (probing && !llm) return { text: '연결 확인 중…', cls: '' };
-    if (!llm || !llm.ok) return { text: 'LLM 연결 안 됨', cls: 'err' };
-    if (!llm.staff) return { text: 'Help 서버가 이전 버전', cls: 'err' };
-    return { text: `연결됨 · ${llm.staff}`, cls: 'ok' };
+    if (probing) return { text: '연결 확인 중', cls: 'pending' };
+    if (!llm || !llm.ok || llm.url !== base) return { text: '연결 필요', cls: 'err' };
+    if (!llm.staff) return { text: '업데이트 필요', cls: 'err' };
+    return { text: '연결됨', cls: 'ok' };
   }
-  function hintOf() {
+  function helpOf() {
     if (connected()) return '요청마다 이 과제·연차 계획의 요약(이름·월급여·월별 지급)과 최근 대화가 Help 서버를 거쳐 Claude 로 갑니다. 반영된 변경은 표와 변경이력에 바로 남고, 되돌리려면 표에서 고치거나 다시 요청하세요. R&D ERP 에는 쓰지 않습니다.';
-    if (llm && llm.ok && !llm.staff) return 'Help 서버가 참여연구원 변경 도우미가 생기기 전 버전입니다 — 서버를 끄고 다시 node help-server/server.js 를 실행한 뒤 [연결 확인].';
+    if (llm && llm.ok && llm.url === base && !llm.staff) return 'Help 서버가 참여연구원 변경 도우미가 생기기 전 버전입니다 — 서버를 끄고 다시 node help-server/server.js 를 실행한 뒤 [연결 확인].';
     return `LLM(Help 서버)이 연결돼 있을 때만 쓸 수 있습니다 — 이 PC 에서 node help-server/server.js 를 실행한 뒤 [연결 확인] (${base}). 준비물은 CLAUDE.md.`;
+  }
+  function connectionNotice() {
+    const oldServer = llm && llm.ok && llm.url === base && !llm.staff;
+    const title = probing ? '도우미 연결을 확인하고 있어요' : oldServer ? '도우미를 업데이트해 주세요' : '도우미 연결이 필요해요';
+    const text = probing ? '잠시만 기다려 주세요.' : oldServer ? '아래 연결 방법에서 업데이트 안내를 확인해 주세요.' : '상단에서 연결을 확인해 주세요. 연결 방법은 아래에서 볼 수 있어요.';
+    return `<div class="sc-connect-card${probing ? ' checking' : ''}"><span class="sc-connect-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4m6-4v4M7 7h10v4a5 5 0 0 1-10 0V7Zm5 9v5"/></svg></span><div class="sc-connect-copy"><strong>${title}</strong><p>${text}</p></div></div>`;
+  }
+  function emptyState() {
+    const examples = [
+      ['참여율 조정', '문창재 11월부터 참여율을 25%로 바꿔줘'],
+      ['참여 기간 변경', '김거화 10~12월 참여를 제외해줘'],
+      ['연구원 추가', '홍길동을 참여연구원으로 추가해줘. 7월부터 20%, 월급여 6,000']
+    ];
+    const disabled = !connected() || busy;
+    const cards = examples.map(([label, text]) => `<button type="button" class="sc-example" data-sc-example="${esc(text)}"${disabled ? ' disabled' : ''} title="${disabled ? '도우미 연결 후 사용할 수 있어요' : '입력란에 예시 넣기'}"><small>${label}</small><span>${esc(text)}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>`).join('');
+    return `<div class="sc-empty"><div class="sc-empty-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m16 5 2.7 7.3L26 15l-7.3 2.7L16 25l-2.7-7.3L6 15l7.3-2.7L16 5Zm10-1v5m-2.5-2.5h5M7 23v5m-2.5-2.5h5"/></svg></div><h2>어떤 계획을 바꿀까요?</h2><p>이 과제의 참여연구원 계획을 글로 요청하세요.<br>누구를, 언제부터, 얼마나 바꿀지 알려 주세요.</p><div class="sc-examples">${cards}</div><small class="sc-example-note">예시를 선택하고 내 계획에 맞게 수정하세요.</small></div>`;
   }
   function bubble(t) {
     if (t.role === 'user') return `<div class="sc-msg user">${esc(t.text)}<div class="sc-time">${hhmm(t.at)}</div></div>`;
@@ -59,12 +77,16 @@
     statusEl.title = llm ? (llm.ok ? `${llm.url}${llm.model ? ` · Help Chat ${llm.model}` : ''}${llm.cli ? ` · claude ${llm.cli}` : ''}` : llm.error || '') : '';
     const on = connected();
     input.disabled = !on || busy; btnSend.disabled = !on || busy; btnNew.disabled = busy || !turns.length; btnProbe.disabled = probing;
-    input.placeholder = busy ? '처리 중…' : on ? '예) 문창재 11월부터 25%로 · 김거화 12월 제외 · 홍길동 참여 추가, 7월부터 20%, 월급여 6,000 — Enter 로 보내기, Shift+Enter 줄 바꿈' : 'LLM 연결 안 됨';
-    hintEl.textContent = hintOf();
+    input.placeholder = busy ? '계획을 변경하고 있어요…' : on ? '변경할 내용을 입력하세요' : '연결 후 요청할 수 있어요';
+    hintEl.textContent = busy ? '요청을 처리하고 있어요. 잠시만 기다려 주세요.' : on ? '요청한 변경은 현재 계획에 반영됩니다.' : '연결 후 예시를 선택해 시작할 수 있어요.';
+    if (helpEl) helpEl.textContent = helpOf();
+    if (helpLabel) helpLabel.textContent = on ? '반영 안내' : '연결 방법';
+    if (connectionEl) { connectionEl.hidden = on && !probing; connectionEl.innerHTML = connectionNotice(); }
     const stick = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 12;
-    logEl.innerHTML = (turns.length ? turns.map(bubble).join('') : '<div class="sc-empty">보고 있는 과제·연차의 참여연구원 계획을 글로 바꿔 달라고 하세요. 예) "문창재 11월부터 25%로", "김거화 10~12월 제외하고 부족금은 문창재에게", "홍길동 참여연구원으로 추가, 7월부터 20%, 월급여 6,000", "rERP 현재로 초기화". 누구·언제·얼마가 빠지면 되묻습니다.</div>')
-      + (busy ? '<div class="sc-msg bot sc-wait">⏳ 생각하는 중…</div>' : '');
-    if (stick || busy) logEl.scrollTop = logEl.scrollHeight;
+    logEl.innerHTML = (turns.length ? turns.map(bubble).join('') : emptyState())
+      + (busy ? '<div class="sc-msg bot sc-wait"><span class="sc-wait-dots" aria-hidden="true"><i></i><i></i><i></i></span>계획을 확인하고 있어요…</div>' : '');
+    if (!turns.length) logEl.scrollTop = 0;
+    else if (stick || busy) logEl.scrollTop = logEl.scrollHeight;
   }
 
   async function send() {
@@ -100,9 +122,16 @@
 
   form.addEventListener('submit', (ev) => { ev.preventDefault(); send(); });
   input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); send(); } });
-  input.addEventListener('input', () => { try { chrome.storage.local.set({ [DRAFT]: input.value }); } catch (e) {} });
+  input.addEventListener('input', saveDraft);
+  logEl.addEventListener('click', (ev) => {
+    const button = ev.target.closest && ev.target.closest('[data-sc-example]');
+    if (!button || !connected() || busy) return;
+    input.value = button.getAttribute('data-sc-example') || '';
+    saveDraft(); input.focus();
+  });
   btnNew.addEventListener('click', () => { if (busy) return; turns = []; save(); render(); if (connected()) input.focus(); });
   btnProbe.addEventListener('click', () => probe(true));
+  if (btnClose) btnClose.addEventListener('click', () => { saveDraft(); toggle(false); });
   try {
     chrome.storage.onChanged.addListener((ch, area) => {
       if (area !== 'local') return;
