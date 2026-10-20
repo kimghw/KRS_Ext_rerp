@@ -164,9 +164,9 @@ function fakeSp(o) {
       if (tail.startsWith('?$select=Id,Title,DefaultNewFormUrl')) return json(listInfo(l));
       if (tail === '' && isMerge) { if (!digestOk) return deny(); const b = body(); if (b.ReadSecurity != null) l.readSecurity = b.ReadSecurity; if (b.WriteSecurity != null) l.writeSecurity = b.WriteSecurity; return json({}, 204); }
       if (tail.startsWith('/fields?')) return json({ value: l.fields.map((f) => ({ InternalName: f.InternalName })) });
-      if (tail === '/fields/addfield') { if (m !== 'POST' || !digestOk) return deny(); const b = body(); const pr = b && b.parameters; if (!pr || !pr.__metadata || pr.__metadata.type !== 'SP.FieldCreationInformation') return json({}, 400); if (l.fields.some((f) => f.InternalName === pr.Title)) return json({ 'odata.error': { message: { value: 'duplicate' } } }, 400); l.fields.push({ InternalName: pr.Title, Title: pr.Title, Description: '', DefaultValue: null, kind: pr.FieldTypeKind, required: !!pr.Required }); return json({ InternalName: pr.Title, Title: pr.Title }); }
+      if (tail === '/fields/addfield') { if (m !== 'POST' || !digestOk) return deny(); const b = body(); const pr = b && b.parameters; if (!pr || !pr.__metadata || pr.__metadata.type !== 'SP.FieldCreationInformation') return json({}, 400); if (l.fields.some((f) => f.InternalName === pr.Title)) return json({ 'odata.error': { message: { value: 'duplicate' } } }, 400); l.fields.push({ InternalName: pr.Title, Title: pr.Title, Description: '', DefaultValue: null, kind: pr.FieldTypeKind, required: !!pr.Required, choices: pr.Choices && Array.isArray(pr.Choices.results) ? pr.Choices.results.slice() : null }); return json({ InternalName: pr.Title, Title: pr.Title }); }
       let fx;
-      if ((fx = new RegExp(`^/fields/getbyinternalnameortitle\\('${LIT}'\\)$`).exec(tail))) { if (!isMerge || !digestOk) return deny(); const f = l.fields.find((y) => y.InternalName === dec(fx[1])); if (!f) return json({}, 404); const b = body(); if (b.Title != null) f.Title = b.Title; if (b.Description != null) f.Description = b.Description; if (b.DefaultValue != null) f.DefaultValue = b.DefaultValue; return json({}, 204); }
+      if ((fx = new RegExp(`^/fields/getbyinternalnameortitle\\('${LIT}'\\)$`).exec(tail))) { if (!isMerge || !digestOk) return deny(); const f = l.fields.find((y) => y.InternalName === dec(fx[1])); if (!f) return json({}, 404); const b = body(); if (b.Title != null) f.Title = b.Title; if (b.Description != null) f.Description = b.Description; if (b.DefaultValue != null) f.DefaultValue = b.DefaultValue; if (b.Choices && Array.isArray(b.Choices.results)) f.choices = b.Choices.results.slice(); if (b.FillInChoice != null) f.fillIn = b.FillInChoice; if (b.EditFormat != null) f.editFormat = b.EditFormat; return json({}, 204); }
       if ((fx = new RegExp(`^/DefaultView/ViewFields/addViewField\\('${LIT}'\\)$`).exec(tail))) { if (m !== 'POST' || !digestOk) return deny(); l.viewFields.push(dec(fx[1])); return json({}, 200); }
       if (tail.startsWith('/items?')) { st.itemUrls.push(u); return json({ value: l.items }); }
       if (tail === '/recycle()') { if (m !== 'POST' || !digestOk) return deny(); delete st.lists[id]; return json('recycle-guid'); }
@@ -329,6 +329,8 @@ const SEARCH = {
   'LEE Jaehoon': [{ title: 'LEE Jaehoon', email: 'jhlee81@krs.co.kr' }, { title: 'LEE Jaehoon2', email: 'jhlee2@krs.co.kr' }],
   '없는사람': [],
   '메일없음': [{ title: 'NO Mail', email: '' }],
+  '이은주': [{ title: 'LEE Eunjoo', email: 'ejlee@krs.co.kr' }, { title: '이은주', email: 'eunjoo00417@gmail.com', login: 'i:0#.f|membership|eunjoo00417_gmail.com#ext#@krclass.onmicrosoft.com' }],   // 2026-10-20 실측 — 조직 사용자 + 같은 한글 이름의 게스트
+  '외부인': [{ title: '외부인', email: 'guest@gmail.com', login: 'i:0#.f|membership|guest_gmail.com#ext#@krclass.onmicrosoft.com' }],
 };
 
 (async () => {
@@ -1258,6 +1260,9 @@ await test('findPeople: 사이트 search REST(People 결과 원본 sourceid · q
   assert.deepStrictEqual(calls(F), ['GET search(문창재)', 'GET search(김철수)', 'GET search(kim2@krs.co.kr)', 'GET search(LEE Jaehoon)', 'GET search(없는사람)', 'GET search(메일없음)']);
   assert.strictEqual(F.st.searchUrls[0], `${ORIGIN}/personal/kimghw_krs_co_kr/_api/search/query?querytext='${encodeURIComponent('문창재')}'&sourceid='b09a7990-05ea-4af9-81ef-edfab16c4e31'&selectproperties='PreferredName,WorkEmail,AccountName'&rowlimit=10`);
   assert.strictEqual(SP.PEOPLE_SOURCE, 'b09a7990-05ea-4af9-81ef-edfab16c4e31');
+  const g = await SP.findPeople(cfg, ['이은주', '외부인'], { fetch: F.fetch });
+  assert.deepStrictEqual(g.found.map((x) => [x.name, x.email]), [['이은주', 'ejlee@krs.co.kr'], ['외부인', 'guest@gmail.com']], '게스트(#ext#)는 조직 사용자가 있으면 빼고(이름이 꼭 같아도), 게스트뿐이면 그 사람');
+  assert.deepStrictEqual([g.ambiguous, g.notFound], [[], []]);
   const from = F.st.calls.length;
   assert.deepStrictEqual(await SP.findPeople(cfg, [], { fetch: F.fetch }), { found: [], ambiguous: [], notFound: [] });
   assert.deepStrictEqual(await SP.findPeople(cfg, [' ', null], { fetch: F.fetch }), { found: [], ambiguous: [], notFound: [] });
@@ -1318,7 +1323,7 @@ await test('describe: kind 있는 오류 · kind 없는 Error(error) · 문자�
 
 /* ----- 참여연구원 자료 요청(0.8.9) — 목록 ----- */
 const LIST_T = 'KR 참여현황 SSCB 1차년도';
-const LIST_FIELDS = [{ name: 'PeriodFrom', title: '시작(YYYY-MM)', kind: 2, desc: '시작' }, { name: 'Rate', title: '참여율(%)', kind: 9, desc: '%' }, { name: 'Note', title: '비고', kind: 3, desc: '' }];
+const LIST_FIELDS = [{ name: 'PeriodFrom', title: '시작 달', kind: 2, desc: '시작' }, { name: 'PeriodTo', title: '끝 달', kind: 6, desc: '끝', choices: ['2026-11', '2026-12'] }, { name: 'Rate', title: '참여율(%)', kind: 9, desc: '%' }, { name: 'Note', title: '비고', kind: 3, desc: '' }];
 const TITLE_F = { title: '항목', desc: '이 과제면 그대로', defaultValue: '이 과제' };
 await test('writer.createList: 같은 제목이 없으면 POST lists(SP.List · 100 · verbose 본문) → 칸마다 addfield(영문 내부 이름) · MERGE 표시 이름·설명 · 기본 보기에 더함 → 제목 칸 MERGE(항목 · 기본값 "이 과제") → 목록 보안(자기 항목만) → 정보(절대 주소 · 디코딩한 경로); 다시 부르면 existed 로 빠진 칸만; 빈 제목은 badurl', async () => {
   const F = fakeSp(); const C = fakeChrome(F.fetch);
@@ -1329,21 +1334,23 @@ await test('writer.createList: 같은 제목이 없으면 POST lists(SP.List · 
   assert.strictEqual(r.url, `${ORIGIN}/personal/kimghw_krs_co_kr/Lists/${encodeURIComponent(LIST_T)}`);
   assert.strictEqual(r.newFormUrl, `${r.url}/NewForm.aspx`); assert.strictEqual(r.viewUrl, `${r.url}/AllItems.aspx`);
   const l = F.st.lists[r.id];
-  assert.deepStrictEqual(l.fields.map((f) => [f.InternalName, f.Title, f.kind]), [['Title', '항목', 2], ['PeriodFrom', '시작(YYYY-MM)', 2], ['Rate', '참여율(%)', 9], ['Note', '비고', 3]], '내부 이름은 영문, 표시 이름은 한글');
-  assert.deepStrictEqual([l.fields[0].DefaultValue, l.fields[0].Description, l.fields[2].Description, l.description], ['이 과제', '이 과제면 그대로', '%', '설명']);
-  assert.deepStrictEqual(l.viewFields, ['LinkTitle', 'PeriodFrom', 'Rate', 'Note']);
+  assert.deepStrictEqual(l.fields.map((f) => [f.InternalName, f.Title, f.kind]), [['Title', '항목', 2], ['PeriodFrom', '시작 달', 2], ['PeriodTo', '끝 달', 6], ['Rate', '참여율(%)', 9], ['Note', '비고', 3]], '내부 이름은 영문, 표시 이름은 한글');
+  assert.deepStrictEqual([l.fields[0].DefaultValue, l.fields[0].Description, l.fields[3].Description, l.description], ['이 과제', '이 과제면 그대로', '%', '설명']);
+  assert.deepStrictEqual([l.fields[2].choices, l.fields[2].fillIn, l.fields[2].editFormat, l.fields[1].choices, l.fields[1].fillIn], [['2026-11', '2026-12'], true, 0, null, undefined], '선택 칸(kind 6)은 만들 때 Choices, MERGE 로 직접 입력 허용·드롭다운; 글 칸은 그대로');
+  assert.deepStrictEqual(l.viewFields, ['LinkTitle', 'PeriodFrom', 'PeriodTo', 'Rate', 'Note', 'Author'], '기본 보기에 칸들 + 작성자(2026-10-20 "이거 누가 작성했는지도 모르네")');
   assert.deepStrictEqual([l.readSecurity, l.writeSecurity], [2, 2], '응답자는 자기 항목만');
   const cb = F.st.listBodies[0]; assert.strictEqual(cb.headers['Content-Type'], 'application/json;odata=verbose'); assert.strictEqual(cb.body.BaseTemplate, 100); assert.ok(cb.headers['X-RequestDigest']);
   const seq = calls(F).filter((c) => /\blists?\b|list[(#]/.test(c));
   assert.ok(seq[0] === `GET list(${LIST_T})` && seq[1] === 'POST lists' && seq.includes('POST list#001/fields/addfield') && seq[seq.length - 1] === 'GET list#001?', seq.join(' | '));
   // 다시(지난번에 만들다 끊김 · 다이제스트 거부 뒤) — 있는 목록에 빠진 칸만
-  l.fields.splice(2, 1);   // Rate 가 빠진 상태로
+  l.fields.splice(3, 1);   // Rate 가 빠진 상태로
   const n0 = F.st.calls.length;
   const r2 = await w.createList({ title: LIST_T, fields: LIST_FIELDS, titleField: TITLE_F });
   assert.strictEqual(r2.existed, true); assert.strictEqual(r2.id, r.id); assert.strictEqual(r2.newFormUrl, r.newFormUrl);
   const seq2 = calls(F, n0);
   assert.ok(!seq2.includes('POST lists') && seq2.filter((c) => c.endsWith('/fields/addfield')).length === 1 && seq2.includes('GET list#001/fields?'), seq2.join(' | '));
-  assert.deepStrictEqual(l.fields.map((f) => f.InternalName), ['Title', 'PeriodFrom', 'Note', 'Rate']);
+  assert.deepStrictEqual(l.fields.map((f) => f.InternalName), ['Title', 'PeriodFrom', 'PeriodTo', 'Note', 'Rate']);
+  assert.strictEqual(l.viewFields.filter((v) => v === 'Author').length, 1, '있던 목록에는 작성자를 다시 더하지 않음');
   await rejects(w.createList({ title: '' }), 'badurl');
   await w.close();
 });
@@ -1359,6 +1366,16 @@ await test('writer.createList: 다이제스트가 만료됐으면 403(security v
   await w.close();
   const w3 = await SP.openWriter(CFG, { chrome: fakeChrome(fakeSp({ deny403: true }).fetch) }).catch((e) => e);
   assert.strictEqual(w3.kind, 'auth', '로그인이 풀린 사이트에서는 작업 창부터 auth');
+});
+
+await test('listInfo: 목록 정보(Id 로 — 경로 · 폼 주소 · 제목, 빈칸 둘인 경로 그대로) · 없는 목록 404 → notfound · Id 모양 아니면 badurl', async () => {
+  const ID = '11111111-2222-3333-4444-000000000019';
+  const F = fakeSp({ lists: [{ id: ID, title: 'KR 참여현황 SSCB 2차년도', path: '/personal/kimghw_krs_co_kr/Lists/KR  SSCB 2' }] });
+  const got = await SP.listInfo(`${ORIGIN}/personal/kimghw_krs_co_kr/`, ID, { fetch: F.fetch });
+  assert.deepStrictEqual(got, { id: ID, title: 'KR 참여현황 SSCB 2차년도', path: '/personal/kimghw_krs_co_kr/Lists/KR  SSCB 2', newFormUrl: '/personal/kimghw_krs_co_kr/Lists/KR  SSCB 2/NewForm.aspx', viewUrl: '/personal/kimghw_krs_co_kr/Lists/KR  SSCB 2/AllItems.aspx' });
+  assert.ok(F.st.calls.some(([m, c]) => m === 'GET' && c === `list#${ID.slice(-3)}?`), '확장 출처 GET 한 번');
+  await rejects(SP.listInfo(`${ORIGIN}/personal/kimghw_krs_co_kr`, '11111111-2222-3333-4444-000000000008', { fetch: F.fetch }), 'notfound', /목록이 없습니다/);
+  await rejects(SP.listInfo(`${ORIGIN}/personal/kimghw_krs_co_kr`, 'nope', { fetch: F.fetch }), 'badurl');
 });
 
 await test('listItems: 목록 항목(Author 펼침 · $select 에 영문 칸만 · Modified desc · top 500) · 없는 목록 404 → notfound · 403 → auth · Id·사이트 주소 모양 아니면 badurl', async () => {

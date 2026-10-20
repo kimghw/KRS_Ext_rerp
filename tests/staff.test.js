@@ -125,6 +125,25 @@ test('나머지의 %(처음 이름 부족금의 %) — applyShare: 예산에서 
   assert.deepStrictEqual(S.resolveRange(me, { from: '2026-10', to: '' }, months), { fromD: '2026-10-01', endD: '2026-12-31', range: ['2026-10', '2026-11', '2026-12'] });
   assert.deepStrictEqual(S.resolveRange(me, { from: '2026-10-15', to: '2026-11-20' }, months), { fromD: '2026-10-15', endD: '2026-11-20', range: ['2026-10', '2026-11'] });
 });
+test('균등(evenRange) — 적용일~종료일을 달마다 같은 금액(합 ÷ 개월 천원 반올림 — 2026-10-20 "매월 동일 금액 … 균등" · "균등이 안되는데": 마지막 달 잔액 꼴이 아님, 합은 천원 단위로 달라질 수 있음), 달 중간은 날 수 비율, 지급 없음·잠긴 달은 오류', () => {
+  const months = S.ymRange('2026-04', '2026-12');
+  const a = S.normalizePerson({ name: 'A', manual: 5823000, plan: months.map((ym) => ({ ym, amt: 1165000 })) });
+  const a2 = S.applyChange(a, 'plan', { from: '2026-12', mode: 'amt', value: 500000 }, months);
+  const r = S.evenRange(a2, 'plan', { from: '2026-11-01', to: '2026-12-31' }, months);
+  assert.deepStrictEqual([r.before, r.after, r.per, S.monthlyText(r.person.plan)], [1665000, 1666000, 833000, '4~10월 1,165 · 11~12월 833'], '1,665 ÷ 2 = 832.5 → 833 씩 — 합은 1천원 늘어남');
+  assert.strictEqual(S.personStats(r.person, 'plan').total, S.personStats(a2, 'plan').total + 1000);
+  // 실측(2026-10-20 2차년도 김거화 17,929천원 · 12달): 앞달 올림 꼴은 1~11월 1,495 · 12월 1,484 가 돼 "균등이 안되는데" — 같은 금액 1,494 씩(합 17,928)
+  const y2 = S.ymRange('2027-01', '2027-12');
+  const kim = S.normalizePerson({ name: 'K', manual: 8480000, plan: y2.map((ym, i) => ({ ym, amt: i < 11 ? 1494000 : 1495000 })) });
+  const kr = S.evenRange(kim, 'plan', { from: '2027-01-01', to: '2027-12-31' }, y2);
+  assert.deepStrictEqual([kr.per, kr.after, S.monthlyText(kr.person.plan)], [1494000, 17928000, '1~12월 1,494']);
+  const part = S.evenRange(a2, 'plan', { from: '2026-11-16', to: '2026-12-31' }, months);
+  assert.deepStrictEqual([part.before, part.after, part.per, S.monthlyText(part.person.plan)], [1083000, 1083000, 722000, '4~10월 1,165 · 11.1~11.15 583 · 11.16~11.30 361 · 12월 722'], '11.16~ 조각(583)+12월(500) = 1,083 ÷ 1.5 → 월 722, 반달 361');
+  const gap = S.normalizePerson({ name: 'G', manual: 5000000, plan: S.ymRange('2026-04', '2026-10').map((ym) => ({ ym, amt: 1000000 })) });
+  assert.strictEqual(S.monthlyText(S.evenRange(gap, 'plan', { from: '2026-10-01', to: '2026-12-31' }, months).person.plan), '4~9월 1,000 · 10~12월 333', '지급이 없던 달도 그 기간이면 받는다 — 1,000 ÷ 3 → 333 씩(합 999)');
+  assert.throws(() => S.evenRange(S.applyChange(a, 'plan', { from: '2026-12', mode: 'exclude' }, months), 'plan', { from: '2026-12-01', to: '2026-12-31' }, months), /지급이 없어/);
+  assert.throws(() => S.evenRange(a, 'plan', { from: '2026-05-01', to: '2026-12-31' }, months, { lock: '2026-08' }), /지급이 끝난 달/);
+});
 test('나머지 · 예산에 맞추기 — shareLeft(그 기간의 나머지 · 개월), fitBudget: 고른 달의 지급을 초과금만큼 줄이거나 부족금만큼 늘려 합 = 예산(달마다 고르게 — 달 사이 차이는 그대로, 0 아래는 0 에서 멈춤, 달 중간은 날 수 비율), 이미 같음·0 으로도 넘음·예산 없음은 오류', () => {
   const months = S.ymRange('2026-04', '2026-12');
   const a = S.normalizePerson({ name: 'A', manual: 5823000, plan: months.map((ym) => ({ ym, amt: 1165000 })) });

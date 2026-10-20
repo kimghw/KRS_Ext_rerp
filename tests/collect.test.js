@@ -12,23 +12,41 @@ const test = (name, fn) => { try { fn(); n++; console.log('ok  ', name); } catch
 const CTX = { alias: 'SSCB', prjNo: '2026-0063-01', prjNm: 'MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발' };
 const FORM = 'https://krclass-my.sharepoint.com/personal/kimghw_krs_co_kr/Lists/KR%20%EC%B0%B8%EC%97%AC%ED%98%84%ED%99%A9%20SSCB%201%EC%B0%A8%EB%85%84%EB%8F%84/NewForm.aspx';
 
-test('목록 제목·칸·설명 — 별칭 → 과제명 앞부분 → 과제번호, 못 쓰는 글자 제거, 80자; 칸은 영문 내부 이름 + 한글 표시 이름, 제목 칸 기본값 "이 과제"', () => {
+test('목록 제목·칸·설명 — 별칭 → 과제명 앞부분 → 과제번호, 못 쓰는 글자 제거, 80자; 칸은 영문 내부 이름 + 한글 표시 이름, 제목 칸 기본값은 과제 제목(titleFieldFor), 기간이 있으면 시작·끝 달은 선택 칸(kind 6 + choices)', () => {
   assert.strictEqual(C.listTitleFor({ alias: 'SSCB', year: 1 }), 'KR 참여현황 SSCB 1차년도');
   assert.strictEqual(C.listTitleFor({ prjNm: 'MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발', year: 2 }), 'KR 참여현황 MW급 10kV 고전압 직류 시스템용 2차년도');
   assert.strictEqual(C.listTitleFor({ prjNo: '2026-0063-01' }), 'KR 참여현황 2026-0063-01 1차년도');
   assert.strictEqual(C.listTitleFor({ alias: 'A/B: "C"? #1 & 2', year: 3 }), 'KR 참여현황 AB C 1 2 3차년도');
   assert.ok(C.listTitleFor({ alias: '가'.repeat(100), year: 1 }).length <= 80);
   const fields = C.fieldsOf();
-  assert.deepStrictEqual(fields.map((f) => [f.name, f.kind]), [['PeriodFrom', 2], ['PeriodTo', 2], ['Rate', 9], ['Monthly', 9], ['Note', 3]]);
-  assert.ok(fields.every((f) => /^[A-Za-z]+$/.test(f.name) && /[가-힣]/.test(f.title)));
+  assert.deepStrictEqual(fields.map((f) => [f.name, f.kind]), [['PeriodFrom', 2], ['PeriodTo', 2], ['Rate', 9], ['Monthly', 9], ['Note', 3]], '안 고르면 기본(참여율·월급여) — 0.8.9 처음 모양');
+  assert.ok(fields.every((f) => /^[A-Za-z]+$/.test(f.name) && /[가-힣]/.test(f.title) && !('ask' in f)));
   fields[0].name = 'X'; assert.strictEqual(C.FIELDS[0].name, 'PeriodFrom', '사본');
-  assert.deepStrictEqual([C.TITLE_FIELD.title, C.TITLE_FIELD.defaultValue], ['항목', '이 과제']);
+  assert.deepStrictEqual(C.ASK.map((f) => [f.name, f.ask]), [['Rate', '참여율'], ['Monthly', '월급여'], ['Allowance', '남은 연구수당']], '고르는 칸');
+  assert.deepStrictEqual(C.fieldsOf(['Allowance']).map((f) => f.name), ['PeriodFrom', 'PeriodTo', 'Allowance', 'Note'], '고른 칸만 — 항목·시작·끝·비고는 늘');
+  assert.deepStrictEqual([C.askOf(['Monthly', 'x', 'Monthly', 'Rate']), C.askOf('Allowance,Rate'), C.askOf([]), C.askOf(null)], [['Monthly', 'Rate'], ['Allowance', 'Rate'], ['Rate', 'Monthly'], ['Rate', 'Monthly']], 'askOf — 모르는 이름·중복 버림, 비면 기본');
+  assert.deepStrictEqual(C.askLabels(['Allowance', 'Rate']), ['남은 연구수당', '참여율']);
+  assert.deepStrictEqual([C.titleFieldFor({ prjNm: 'MW급 과제', alias: 'SSCB' }).defaultValue, C.titleFieldFor({ alias: 'SSCB' }).defaultValue, C.titleFieldFor({ prjNo: '2026-0063-01' }).defaultValue, C.titleFieldFor({}).defaultValue, C.titleFieldFor({ prjNm: 'MW급 과제' }).title], ['MW급 과제', 'SSCB', '2026-0063-01', '이 과제', '항목'], '항목 기본값 = 과제 제목 → 별칭 → 과제번호 → "이 과제"(2026-10-20 "항목은 이 과제가 아니고 과제 제목을 넣고")');
+  assert.ok(C.titleFieldFor({ prjNm: 'MW급 과제' }).desc.includes('"MW급 과제" 그대로 두고'));
+  const withPeriod = C.fieldsOf(['Rate'], { from: '2026-11', to: '2027-03' });
+  assert.deepStrictEqual(withPeriod.map((f) => [f.name, f.kind, f.choices ? f.choices.length : 0]), [['PeriodFrom', 6, 5], ['PeriodTo', 6, 5], ['Rate', 9, 0], ['Note', 3, 0]], '기간이 있으면 시작·끝 달은 선택 칸(kind 6) — 연차 기간의 달들(2026-10-20 "달력이 아니라 해당 년도·월 리스트에서")');
+  assert.deepStrictEqual(withPeriod[0].choices, ['2026-11', '2026-12', '2027-01', '2027-02', '2027-03']);
+  assert.ok(withPeriod[0].desc.startsWith('참여 시작 달 — 목록에서 고르세요') && withPeriod[1].title === '끝 달');
+  assert.deepStrictEqual([C.ymRange('2027-03', '2026-11'), C.ymRange('', '2026-12'), C.ymRange('2026-01', '2030-01').length, C.ymRange('2026-05', '2026-05')], [[], [], 36, ['2026-05']], 'ymRange — 거꾸로·빈 값은 [], 최대 36달, 한 달');
+  assert.deepStrictEqual(C.fieldsOf(['Rate'], { from: 'x', to: '' }).map((f) => f.kind), [2, 2, 9, 3], '기간을 못 읽으면 글 칸 그대로');
   assert.ok(C.listDescription({ label: 'SSCB', year: 1 }).startsWith('SSCB 1차년도 참여연구원'));
 });
 
-test('기본 글 · messageOf · Teams 딥 링크 — users 는 이메일(여럿이면 그룹 + topicName), message 는 URL 인코딩, 이메일이 없으면 빈 값', () => {
+test('기본 글(템플릿 자리표) · messageOf · Teams 딥 링크 — users 는 이메일(여럿이면 그룹 + topicName), message 는 URL 인코딩, 이메일이 없으면 빈 값', () => {
   const msg = C.defaultMessage({ alias: 'SSCB', prjNm: 'MW급', year: 1, from: '2026-04', to: '2026-12', formUrl: FORM, who: '김거화' });
-  assert.ok(msg.startsWith('[SSCB — MW급] 1차년도 참여연구원 자료 요청') && msg.includes('기간 2026-04 ~ 2026-12의') && msg.includes(`양식: ${FORM}`) && msg.endsWith('— 김거화'), msg);
+  assert.strictEqual(msg, `[SSCB — MW급] 1차년도 참여연구원 자료 요청\n\n기간 2026-04 ~ 2026-12의 참여 기간(시작·끝 달) · 참여율(%) · 월급여(천원)를 아래 양식에 적어 주세요.\n다른 과제에 참여 중이면 그 과제 이름으로 한 줄씩 더 적어 주시면 참여율 합(100%)을 같이 봅니다.\n\n양식: ${FORM}`, '기본 템플릿 — 빈 줄로 문단');
+  const tpl = '{과제명} {연차}차 {기간} {시작}~{끝}\n{별칭}/{과제번호}\n\n\n\n{항목} {양식} {보낸사람} {모름}  ';
+  assert.strictEqual(C.defaultMessage({ template: tpl, prjNm: 'MW급', alias: 'SSCB', prjNo: 'P1', year: 2, from: '2026-04', to: '2026-12', formUrl: FORM, who: '김거화', ask: ['Rate'] }), `MW급 2차 2026-04 ~ 2026-12 2026-04~2026-12\nSSCB/P1\n\n참여 기간(시작·끝 달) · 참여율(%) ${FORM} 김거화 {모름}`, '설정 템플릿 — 모르는 자리표는 그대로, 빈 줄 셋 이상은 둘, 끝 공백 제거');
+  assert.ok(C.defaultMessage({ template: '  ', prjNo: 'P1' }).startsWith('[P1] 1차년도') && C.defaultMessage({ prjNo: 'P1' }).includes('기간 1차년도의'), '빈 템플릿은 기본 · 기간을 모르면 n차년도');
+  assert.deepStrictEqual(C.PLACEHOLDERS, ['과제', '별칭', '과제명', '과제번호', '연차', '기간', '시작', '끝', '항목', '양식', '보낸사람']);
+  assert.ok(C.PLACEHOLDERS.every((k) => C.TEMPLATE.includes(`{${k}}`) || ['별칭', '과제명', '과제번호', '시작', '끝', '보낸사람'].includes(k)), '기본 템플릿의 자리표는 모두 목록에');
+  assert.ok(C.defaultMessage({ alias: 'SSCB', year: 1, ask: ['Allowance'] }).includes('참여 기간(시작·끝 달) · 남은 연구수당(천원)를 아래'), '고른 칸만 말함');
+  assert.ok(C.messageOf({ formUrl: FORM, ask: ['Monthly'] }, { alias: 'SSCB' }).includes('참여 기간(시작·끝 달) · 월급여(천원)를'), 'messageOf 는 요청의 ask 를 씀');
   assert.strictEqual(C.messageOf({ message: '내 글', formUrl: FORM }, {}), '내 글');
   assert.ok(C.messageOf({ message: '', formUrl: FORM, year: 2 }, { alias: 'SSCB' }).includes('2차년도') && C.messageOf({ formUrl: FORM }, {}).includes(FORM));
   const one = C.teamsLink(['CJMoon@krs.co.kr'], '양식: https://x/y?z=1&w=2');
@@ -37,6 +55,10 @@ test('기본 글 · messageOf · Teams 딥 링크 — users 는 이메일(여럿
   assert.strictEqual(grp, 'https://teams.microsoft.com/l/chat/0/0?users=a%40krs.co.kr%2Cb%40krs.co.kr&topicName=SSCB%20%EC%9E%90%EB%A3%8C%20%EC%9A%94%EC%B2%AD&message=%EA%B8%80');
   assert.ok(!C.teamsLink(['a@krs.co.kr'], '글', '제목').includes('topicName'), '혼자면 topicName 없음');
   assert.strictEqual(C.teamsLink([], '글'), ''); assert.strictEqual(C.teamsLink(['nope'], '글'), '');
+  assert.strictEqual(C.chatIdOf('https://teams.microsoft.com/l/message/19:87062d12353c42558f52ebe1fae3714f@thread.v2/1760000000000?context=%7B%22contextType%22%3A%22chat%22%7D'), '19:87062d12353c42558f52ebe1fae3714f@thread.v2', '메시지 링크 복사에서 채팅 ID');
+  assert.strictEqual(C.chatIdOf('https://teams.microsoft.com/l/chat/19%3A8824239d-ed13-4a38-8c93-cb9ea07095f6_b59a7137-6c5d-4a4e-8a37-64b665152e5d%40unq.gbl.spaces/conversations'), '19:8824239d-ed13-4a38-8c93-cb9ea07095f6_b59a7137-6c5d-4a4e-8a37-64b665152e5d@unq.gbl.spaces', '인코딩된 1:1 채팅 ID');
+  assert.strictEqual(C.chatIdOf(' 19:abc@thread.v2 '), '19:abc@thread.v2'); assert.strictEqual(C.chatIdOf('nope'), ''); assert.strictEqual(C.chatIdOf(''), '');
+  assert.strictEqual(C.chatLink('19:abc@thread.v2', '글 a&b'), 'https://teams.microsoft.com/l/chat/19%3Aabc%40thread.v2/conversations?message=%EA%B8%80%20a%26b', '기존 채팅방 딥 링크'); assert.strictEqual(C.chatLink('nope', '글'), '');
   assert.strictEqual(C.teamsLink('a@krs.co.kr', ''), 'https://teams.microsoft.com/l/chat/0/0?users=a%40krs.co.kr');
 });
 
@@ -49,7 +71,7 @@ test('ymOf · email — 달 모양 여러 가지, 이메일 모양', () => {
 test('responsesOfItems — Author 이메일로 사람(한글 이름) 맞춤, 없으면 표시 이름이 같은 이름, 없으면 표시 이름; 달 모양 정리 · 월급여 천원 → 원(원으로 적은 큰 값은 그대로) · 참여율 범위 · 최신 먼저 · Id 없는 줄 뺌', () => {
   const req = { people: [{ name: '문창재', email: 'cjmoon@krs.co.kr', title: 'MOON Changjae' }, { name: '김거화', email: '', title: '' }] };
   const items = [
-    { Id: 3, Title: '이 과제', PeriodFrom: '2026.11', PeriodTo: '202703', Rate: '25', Monthly: '5,823', Note: ' 11월부터 ', Created: '2026-10-20T01:00:00Z', Modified: '2026-10-20T02:00:00Z', Author: { Title: 'MOON Changjae', EMail: 'CJMoon@krs.co.kr' } },
+    { Id: 3, Title: '이 과제', PeriodFrom: '2026.11', PeriodTo: '202703', Rate: '25', Monthly: '5,823', Allowance: '1,200', Note: ' 11월부터 ', Created: '2026-10-20T01:00:00Z', Modified: '2026-10-20T02:00:00Z', Author: { Title: 'MOON Changjae', EMail: 'CJMoon@krs.co.kr' } },
     { Id: 4, Title: '선박 과제', PeriodFrom: '2026-10', PeriodTo: '', Rate: 80, Monthly: null, Note: null, Modified: '2026-10-20T03:00:00Z', Author: { Title: 'KIM Geohwa', EMail: 'kimghw@krs.co.kr' } },
     { Id: 5, Title: '', PeriodFrom: '', PeriodTo: '', Rate: 120, Monthly: 6000000, Note: '', Modified: '2026-10-19T03:00:00Z', Author: { Title: '김거화', EMail: '' } },
     { Title: 'Id 없음', Author: {} },
@@ -58,9 +80,9 @@ test('responsesOfItems — Author 이메일로 사람(한글 이름) 맞춤, 없
   const out = C.responsesOfItems(items, req, ['이몽룡']);
   assert.deepStrictEqual(out.map((r) => r.id), ['4', '3', '5', '6'], '최신 먼저(Modified), 못 읽는 시각은 0');
   const r3 = out.find((r) => r.id === '3');
-  assert.deepStrictEqual([r3.name, r3.by, r3.email, r3.title, r3.from, r3.to, r3.rate, r3.monthly, r3.note, r3.at], ['문창재', 'MOON Changjae', 'cjmoon@krs.co.kr', '이 과제', '2026-11', '2027-03', 25, 5823000, '11월부터', Date.parse('2026-10-20T02:00:00Z')]);
+  assert.deepStrictEqual([r3.name, r3.by, r3.email, r3.title, r3.from, r3.to, r3.rate, r3.monthly, r3.allowance, r3.note, r3.at], ['문창재', 'MOON Changjae', 'cjmoon@krs.co.kr', '이 과제', '2026-11', '2027-03', 25, 5823000, 1200000, '11월부터', Date.parse('2026-10-20T02:00:00Z')], '남은 연구수당도 천원 → 원');
   const r4 = out.find((r) => r.id === '4');
-  assert.deepStrictEqual([r4.name, r4.from, r4.to, r4.rate, r4.monthly], ['KIM Geohwa', '2026-10', '2026-10', 80, null], '이메일·이름으로 못 맞추면 표시 이름, 끝 달이 비면 시작 달');
+  assert.deepStrictEqual([r4.name, r4.from, r4.to, r4.rate, r4.monthly, r4.allowance], ['KIM Geohwa', '2026-10', '2026-10', 80, null, null], '이메일·이름으로 못 맞추면 표시 이름, 끝 달이 비면 시작 달, 안 물은 칸은 null');
   const r5 = out.find((r) => r.id === '5');
   assert.deepStrictEqual([r5.name, r5.rate, r5.monthly, r5.from], ['김거화', null, 6000000, ''], '표시 이름이 사람 이름과 같음 · 100 넘는 참여율은 버림 · 100만 넘는 월급여는 원 그대로');
   assert.deepStrictEqual([out.find((r) => r.id === '6').rate, out.find((r) => r.id === '6').at], [null, 0]);
@@ -68,16 +90,25 @@ test('responsesOfItems — Author 이메일로 사람(한글 이름) 맞춤, 없
 });
 
 test('normalizeRequest · normalizeAll — 키에서 과제·연차, 사람은 이름마다 하나(공백 무시) · 40명, 응답은 id 마다 하나 · 차례, applied 시각, 글 길이, 모르는 상태는 빈 값', () => {
-  const raw = { title: 'T', listId: 'L', site: 'https://s', path: '/p', listUrl: 'https://l', formUrl: 'https://f', createdAt: '2026-10-20T00:00:00Z', by: '김거화', message: '  글  ',
+  const raw = { title: 'T', listId: 'L', site: 'https://s', path: ' /personal/x/Lists/KR  SSCB 2 ', chat: ' 19:x@thread.v2 ', listUrl: 'https://l', formUrl: 'https://f', createdAt: '2026-10-20T00:00:00Z', by: '김거화', message: '  글  ',
     people: [{ name: '문창재', email: 'A@krs.co.kr', status: 'shared', sharedAt: 5 }, { name: '문 창재', email: 'b@krs.co.kr' }, { name: '', email: 'c@krs.co.kr' }, { name: '김거화', status: 'weird', candidates: ['a', ''] }],
     responses: [{ id: 3, name: '문창재', title: '이 과제', from: '2026-11', rate: 25, at: 5 }, { id: '3', name: '중복' }, { id: 4, rate: 80, at: 9 }, { name: 'id 없음' }], applied: { 3: 7, 9: 'bad', 4: '2026-10-20T00:00:00Z' } };
   const req = C.normalizeRequest(raw, '2026-0063-01@2');
   assert.deepStrictEqual([req.prjNo, req.year, req.title, req.createdAt, req.by, req.message], ['2026-0063-01', 2, 'T', Date.parse('2026-10-20T00:00:00Z'), '김거화', '글']);
+  assert.strictEqual(req.path, '/personal/x/Lists/KR  SSCB 2', '경로의 빈칸은 합치지 않는다(SharePoint 가 한글을 뗀 목록 경로 — 2026-10-20 실측, 합치면 공유가 0x80070002)');
+  assert.deepStrictEqual([req.chat, req.sentChatAt, req.people[0].sendError], ['19:x@thread.v2', 0, ''], '기존 채팅방 링크 · 보낸 시각 · 보내기 실패 칸');
+  assert.deepStrictEqual([req.ask, C.normalizeRequest(Object.assign({}, raw, { ask: ['Allowance', 'bad'] }), 'A@1').ask], [['Rate', 'Monthly'], ['Allowance']], '고른 칸 — 없던 요청은 기본(참여율·월급여)');
   assert.deepStrictEqual(req.people.map((p) => [p.name, p.email, p.status, p.sharedAt, p.candidates]), [['문창재', 'a@krs.co.kr', 'shared', 5, []], ['김거화', '', '', 0, ['a']]]);
   assert.deepStrictEqual(req.responses.map((r) => [r.id, r.name, r.rate, r.to]), [['4', '', 80, ''], ['3', '문창재', 25, '2026-11']]);
   assert.deepStrictEqual(req.applied, { 3: 7, 4: Date.parse('2026-10-20T00:00:00Z') });
   assert.strictEqual(C.normalizeRequest({ year: 1 }, ''), null, '키에 과제가 없고 prjNo 도 없으면 null');
   assert.strictEqual(C.normalizeRequest({ year: 1 }, 'x@2').prjNo, 'x', '키에서 과제번호');
+  assert.deepStrictEqual([C.planKey('A', 1), C.planKey('A', 1, 1), C.planKey('A', 2, 3)], ['A@1', 'A@1', 'A@2#3'], '같은 과제·연차의 추가 요청은 #no');
+  assert.deepStrictEqual([C.normalizeRequest({ prjNo: 'A' }, 'A@2#3').year, C.normalizeRequest({ prjNo: 'A' }, 'A@2#3').no, C.normalizeRequest({ prjNo: 'A', no: 2 }, 'A@1').no, req.no], [2, 3, 2, 1], '키의 #no 또는 raw.no, 없으면 1');
+  const multi = C.normalizeAll({ 'A@1': { prjNo: 'A', year: 1 }, 'A@1#2': { prjNo: 'A', year: 1 }, 'A@1#3': { prjNo: 'A', year: 1, no: 3 }, 'B@1': { prjNo: 'B', year: 1 } });
+  assert.deepStrictEqual(Object.keys(multi), ['A@1', 'A@1#2', 'A@1#3', 'B@1'], '요청 여럿이 한 키로 합쳐지지 않음');
+  assert.deepStrictEqual(C.requestsOf({ 'A@1#2': { prjNo: 'A', year: 1 }, 'B@1': { prjNo: 'B' }, 'A@1': { prjNo: 'A', year: 1 } }, 'A', 1).map((r) => r.no), [1, 2], 'requestsOf — 그 과제·연차만 no 차례');
+  assert.strictEqual(C.listTitleFor({ alias: 'SSCB', year: 1, no: 2 }), 'KR 참여현황 SSCB 1차년도 (2)', '추가 요청의 목록 제목');
   assert.strictEqual(C.normalizeRequest(null), null);
   const all = C.normalizeAll({ 'A@1': { prjNo: 'A', year: 1 }, bad: { year: 2 }, 'B@3': { prjNo: 'B', year: 9 } });
   assert.deepStrictEqual(Object.keys(all), ['A@1', 'bad@2', 'B@9'], '저장 키는 prjNo@year 로 다시(과제번호가 없으면 키에서)');
@@ -90,13 +121,13 @@ test('isThis — 비었거나 "이 과제" 또는 별칭·과제번호·과제�
   for (const t of ['선박 과제', '수소 엔진', 'MW', 'MW급']) assert.strictEqual(C.isThis(t, CTX), false, `isThis(${t}) — 두세 글자 조각은 다른 과제일 수 있어 이 과제로 보지 않음`);
   assert.strictEqual(C.isThis('', {}), true); assert.strictEqual(C.isThis('x', {}), false);
   const req = C.normalizeRequest({ prjNo: CTX.prjNo, year: 1, people: [{ name: '문창재', email: 'a@krs.co.kr', status: 'shared' }, { name: '김거화', status: 'notFound' }, { name: '홍길동', email: 'h@krs.co.kr' }],
-    responses: [{ id: '3', name: '문창재', title: '이 과제', from: '2026-11', to: '2027-03', rate: 25, monthly: 5823000, at: 5 }, { id: '4', name: '문창재', title: '선박 과제', from: '2026-10', rate: 80, at: 4 }, { id: '5', name: '홍길동', title: '', from: '2026-11', rate: 10, note: '참고로 길게 적은 비고 글', at: 3 }], applied: { 5: 9 } });
+    responses: [{ id: '3', name: '문창재', title: '이 과제', from: '2026-11', to: '2027-03', rate: 25, monthly: 5823000, allowance: 1200000, at: 5 }, { id: '4', name: '문창재', title: '선박 과제', from: '2026-10', rate: 80, at: 4 }, { id: '5', name: '홍길동', title: '', from: '2026-11', rate: 10, note: '참고로 길게 적은 비고 글', at: 3 }], applied: { 5: 9 } });
   assert.deepStrictEqual(C.pending(req, CTX).map((r) => r.id), ['3'], '이 과제 줄 가운데 미반영만(4 는 다른 과제, 5 는 반영됨)');
   assert.deepStrictEqual(C.responseStats(req), { 문창재: { n: 2, at: 5 }, 홍길동: { n: 1, at: 3 } });
   assert.strictEqual(C.summary(req, CTX), '공유 1/3명 · 응답 2명 (3건) · 미반영 1건');
   assert.strictEqual(C.summary({ people: [], responses: [] }, CTX), '사람 없음 · 응답 0명');
   assert.strictEqual(C.summary(null), '');
-  assert.strictEqual(C.responseText(req.responses[0], req, CTX), '문창재 — 이 과제 · 2026-11~2027-03 · 25% · 월급여 5,823천원 · 미반영');
+  assert.strictEqual(C.responseText(req.responses[0], req, CTX), '문창재 — 이 과제 · 2026-11~2027-03 · 25% · 월급여 5,823천원 · 남은 연구수당 1,200천원 · 미반영');
   assert.strictEqual(C.responseText(req.responses[1], req, CTX), '문창재 — 선박 과제 · 2026-10 · 80% · 100% 검사에 씀');
   assert.strictEqual(C.responseText(req.responses[2], req, CTX), '홍길동 — 이 과제 · 2026-11 · 10% · "참고로 길게 적은 비고 글" · 반영됨');
   assert.strictEqual(C.summaryLines(req, CTX).length, 3);
@@ -119,6 +150,33 @@ test('otherBook — 다른 과제 줄을 달마다 { ym, rate, label } 로(이�
   const warns = S.checks({ basis: 'rerp', people: [person] }, 'rerp', { others: S.mergeOthers(book, { people: [person] }) });
   const over = warns.find((w) => w.kind === 'over');
   assert.ok(over && over.text.includes('10월 참여율 합 100.01%') && over.text.includes('선박 과제(응답) 80.00%') && over.text.includes('외 2달'), over && over.text);
+});
+
+test('eClass 직원검색 → 직원 카드(membersOf: copyToClipboard 아이디 → 아이디@krs.co.kr · 한글/영문 이름 · 직급 · 부서; 아이디 없는 카드는 버림; 직원검색 페이지가 아니면 null) · 이름으로 고르기(pickMember: 꼭 같은 1명 · 동명이인 후보 · 없음 null)', () => {
+  const card = (id, ko, en, pos, dept, pic) => `<div class="item person_main"><div class="profile-card"><div class="image"><img src="/intra/intranet/member/pic/${pic == null ? id : pic}.gif" onerror="this.src='/intra/intranet/member/pic/00000.gif'" class="profile-pic tooltip-6" title="${id}" onclick="copyToClipboard('${id}')"></div>
+<div class="row search_info_main mt-3 mb-1"><div class="search_info_name"><h3 style="display:block;" class="Korean"> ${ko} </h3> <h3 style="display:none;" class="English"> ${en} </h3></div><h4 class="search_info_position Korean" style="display:block;">${pos}</h4><h4 class="search_info_position English" style="display:none;">Principal</h4></div>
+<div class="row search_info_sub"><div class="search_info_content" id="search_info_dept"><p style="display:block;" class="Korean clickable" onclick="openSearchDeptPage('HER')">${dept}<br></p><p style="display:none;" class="English clickable">Team &amp; Co<br></p></div></div></div></div>`;
+  const page = (cards) => `<html><body><div class="search_option">…</div><div class="item-list">${cards}</div></body></html>`;
+  const html = page(card('ejlee', '이은주', 'LEE Eunjoo', '선임', '디지털융합연구팀') + card('KimGHW', '김거화', 'KIM Geohwa', '수석', 'R&amp;D 기획팀') + card('ejlee2', '이은주', 'LEE Eunjoo2', '책임', '해양') + '<div class="item person_main"><h3 class="Korean">아이디없음</h3></div>');
+  const m = C.membersOf(html);
+  assert.deepStrictEqual(m, [
+    { id: 'ejlee', name: '이은주', title: 'LEE Eunjoo', position: '선임', dept: '디지털융합연구팀', email: 'ejlee@krs.co.kr' },
+    { id: 'kimghw', name: '김거화', title: 'KIM Geohwa', position: '수석', dept: 'R&D 기획팀', email: 'kimghw@krs.co.kr' },
+    { id: 'ejlee2', name: '이은주', title: 'LEE Eunjoo2', position: '책임', dept: '해양', email: 'ejlee2@krs.co.kr' },
+  ]);
+  assert.deepStrictEqual(C.membersOf(page('')), [], '직원검색 페이지인데 결과 없음 → []');
+  assert.strictEqual(C.membersOf('<html><body><form action="/eClassVer4/Account/Login">…</form></body></html>'), null, '로그인 화면 → null');
+  assert.strictEqual(C.membersOf(''), null);
+  const ent = C.membersOf(page(card('ejlee', '&#xC774;&#xC740;&#xC8FC;', 'LEE Eunjoo', '&#xCC45;&#xC784;', '&#xC790;&#xC728;&#xC6B4;&#xD56D;&#xC5F0;&#xAD6C;&#xD300;')));   // 실측 2026-10-20 — 한글은 숫자 엔티티로 온다
+  assert.deepStrictEqual(ent, [{ id: 'ejlee', name: '이은주', title: 'LEE Eunjoo', position: '책임', dept: '자율운항연구팀', email: 'ejlee@krs.co.kr' }], '&#x…; 엔티티를 푼다');
+  assert.deepStrictEqual(C.pickMember(ent, '이은주'), { email: 'ejlee@krs.co.kr', title: 'LEE Eunjoo', dept: '자율운항연구팀' });
+  assert.deepStrictEqual(C.membersOf(page(card('', '아이디빈칸', 'X', '', '', 'x'))), [{ id: 'x', name: '아이디빈칸', title: 'X', position: '', dept: '', email: 'x@krs.co.kr' }], 'copyToClipboard 가 비면 사진 파일 이름');
+  assert.deepStrictEqual(C.pickMember(m, '김 거화'), { email: 'kimghw@krs.co.kr', title: 'KIM Geohwa', dept: 'R&D 기획팀' }, '공백 무시');
+  assert.deepStrictEqual(C.pickMember(m, '이은주'), { candidates: ['이은주 (디지털융합연구팀 선임) <ejlee@krs.co.kr>', '이은주 (해양 책임) <ejlee2@krs.co.kr>'] }, '동명이인 — 부서 직급');
+  assert.deepStrictEqual(['이은주 (해양 책임) <ejlee2@krs.co.kr>', '김철수 <KIM@krs.co.kr>', '이영희 (연구)', ''].map((s) => [C.candidateEmail(s), C.candidateLabel(s)]), [['ejlee2@krs.co.kr', '이은주 (해양 책임)'], ['kim@krs.co.kr', '김철수'], ['', '이영희 (연구)'], ['', '']], '후보 글 → 이메일 · 라벨');
+  assert.strictEqual(C.pickMember(m, '문창재'), null);
+  assert.strictEqual(C.pickMember(null, '이은주'), null);
+  assert.strictEqual(C.ECLASS_MEMBERS, 'https://eclass.krs.co.kr/eClassVer4/searchmember/MemberList?searchOption=NAME&searchText=');
 });
 
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

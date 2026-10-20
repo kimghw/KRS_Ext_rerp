@@ -560,6 +560,7 @@ button.krext-st-step:hover:not(:disabled) { border-color: #9cbbe6; }
 .krext-st-step-fit.krext-st-fit-over.krext-st-step-on { background: #d9536a; border-color: #d9536a; color: #fff; }
 .krext-st-step-fit small { font-size: 10px; font-weight: 400; }
 .krext-st-step-fit.krext-st-fit-over { border-color: #e3a3ab; background: #fbeef0; color: #b43243; }
+.krext-st-step-even { grid-column: span 1; margin-left: 0; }
 .krext-st-step:disabled { opacity: .45; cursor: default; }
 .krext-st-step-read { display: flex; flex-wrap: wrap; gap: 2px 10px; min-height: 16px; }
 .krext-st-quick-k b { color: #1f4f8f; font-variant-numeric: tabular-nums; }
@@ -839,7 +840,7 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
   --ws-shadow: 0 3px 12px rgb(25 44 72 / 3%);
   margin-bottom: 0; font-size: 16px; line-height: 1.6;
 }
-/* 참여연구원 변경 탭은 위를 얇게 — 제목 줄(제목 · 별칭 · 과제 정보 링크) → 연차 칩 → 참여인력 카드(머리 한 줄에 요약 + 단추, rERP 상태 줄, 바로 표). 과제 카드·기간 칸·요약 세 칸은 없음(2026-10-19 사용자 "너무 공간을 많이 차지함 … 막상 중요한 참여연구원이 한참 아래에 있잖아") */
+/* 참여연구원 변경 탭은 위를 얇게 — 제목 줄(제목 · 별칭 · 과제 정보 링크) → 연차 칩 → 참여인력 카드(인원 + 단추, 얇은 계획·예산·차이 요약, rERP 상태 줄, 바로 표). 과제 카드·기간 칸·큰 요약 카드는 없음(2026-10-19 사용자 "너무 공간을 많이 차지함 … 막상 중요한 참여연구원이 한참 아래에 있잖아") */
 .krext-st-focus > .krext-sec-title { align-items: center; margin-bottom: 12px; gap: 6px 12px; }
 .krext-st-focus .krext-sub { font-size: 13px; }
 .krext-st-focus .krext-page-title { color: #172b45; font-size: 22px; font-weight: 700; letter-spacing: -.6px; line-height: 1.3; }
@@ -857,7 +858,7 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-ws-cardhead.krext-ws-pinned { flex-wrap: wrap; gap: 6px 12px; min-height: 0; margin-bottom: 10px; color: #637c9b; }
 .krext-st-focus .krext-ws-cardhead.krext-ws-pinned > svg { width: 18px; height: 18px; }
 .krext-st-focus .krext-ws-cardhead.krext-ws-pinned > span:first-of-type { font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
-.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { flex: 1 1 260px; margin-left: 0; color: #3f5572; font-size: 14px; text-align: left; white-space: normal; overflow: visible; font-variant-numeric: tabular-nums; }
+.krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { flex: 1 1 150px; margin-left: 0; color: #62738b; font-size: 13px; text-align: left; white-space: normal; overflow: visible; font-variant-numeric: tabular-nums; }
 .krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state.krext-red { color: #b43243; }
 .krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state.krext-st-short { color: #9d6819; }
 .krext-st-focus .krext-ws-body { padding-bottom: 0; }
@@ -874,17 +875,17 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-month-toggle { font-size: 14px; }
 .krext-st-focus .krext-ico-btn:hover, .krext-st-focus .krext-ico-btn.krext-on { border-color: #cfdef2; background: #edf4ff; color: #2563c4; }
 .krext-st-focus .krext-ws-table-scroll { border: 1px solid #e3e9f1; border-radius: 10px; background: #fff; }
-.krext-st-focus .krext-st-table { min-width: 860px; margin: 0; font-size: 16px; line-height: 1.5; }
+.krext-st-focus .krext-st-table { min-width: 860px; margin: 0; font-size: 14px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .krext-st-focus .krext-st-table th { padding: 12px 14px; background: #f5f8fc; border-bottom: 1px solid #e1e8f1; color: #62738b; font-size: 14px; font-weight: 600; }
 .krext-st-focus .krext-st-table td { padding: 5px 14px; border-bottom-color: #edf1f6; vertical-align: middle; }
 .krext-st-focus .krext-st-row { height: 56px; }   /* 사람 줄·달 격자를 약 30% 낮게 — 2026-10-19 사용자 "높이를 30%만 줄이면 좋겠어"(줄 86→60px · 달 격자 64→45px) */
 .krext-st-focus .krext-st-row:hover > td { background: #fcfdff; }
 .krext-st-focus .krext-st-table .krext-st-nm { min-width: 118px; color: #233c59; font-weight: 600; vertical-align: middle; }
-.krext-st-focus .krext-st-table .krext-st-in { width: 108px; height: 32px; padding: 4px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
+.krext-st-focus .krext-st-table .krext-st-in { width: 108px; height: 32px; padding: 4px 10px; border: 1px solid #dce4ee; border-radius: 6px; background: #fff; color: #233c59; font-size: 14px; font-variant-numeric: tabular-nums; }
 .krext-st-focus .krext-st-table .krext-st-rate { width: 100px; }
-.krext-st-focus .krext-st-table .krext-st-role { width: auto; min-width: 96px; height: 32px; padding: 4px 10px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font-size: 16px; }
-.krext-st-focus .krext-st-support-row input[type="text"] { height: 40px; padding: 6px 10px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #29415e; font-size: 16px; }
-.krext-st-focus .krext-st-sup { margin-top: 20px; padding-top: 16px; }
+.krext-st-focus .krext-st-table .krext-st-role { width: auto; min-width: 86px; height: 32px; padding: 4px 8px; border: 1px solid #dce4ee; border-radius: 6px; background: #fff; color: #29415e; font-size: 14px; }
+.krext-st-focus .krext-st-support-row input[type="text"] { height: 34px; padding: 6px 10px; border: 1px solid #e0e7ef; border-radius: 6px; background: #fff; color: #29415e; font-size: 14px; }
+.krext-st-focus .krext-st-sup { margin-top: 16px; padding: 12px 14px; border: 1px solid #e7edf4; border-radius: 10px; background: #f8fafc; }
 .krext-st-focus .krext-st-sup-head strong { font-size: 16px; }
 .krext-st-focus .krext-st-table.krext-st-sup-table { min-width: 0; }
 .krext-st-focus .krext-st-sup-table td { padding: 6px 8px 6px 0; }
@@ -898,7 +899,7 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-plan-acts { gap: 3px; margin-left: 0; }
 .krext-st-focus .krext-plan-acts button { min-width: 32px; min-height: 30px; border-radius: 6px; color: #65758b; font-size: 16px; }
 .krext-st-focus .krext-plan-acts button[data-act="st-drop"]:hover, .krext-st-focus .krext-ws-bdel:hover { color: #b43243; background: #fff0f1; }
-.krext-st-focus .krext-st-months td, .krext-st-focus .krext-st-erp td { padding: 0 14px 6px; font-size: 13px; }
+.krext-st-focus .krext-st-months td, .krext-st-focus .krext-st-erp td { padding: 0 14px 10px; font-size: 13px; border-bottom-color: #dfe7f0; }
 .krext-st-focus .krext-st-months .krext-st-mogrid { grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px 8px; }
 .krext-st-focus .krext-st-months .krext-st-mo i { font-size: 12px; line-height: 1.25; }
 .krext-st-focus .krext-st-months .krext-st-mo b { font-size: 14px; line-height: 1.25; }
@@ -936,7 +937,7 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-support-note { display: block; margin-top: 5px; color: #65758b; font-size: 13px; line-height: 1.5; white-space: normal; }
 .krext-st-focus .krext-st-support-ref { color: #65758b; font-size: 13px; }
 .krext-st-focus .krext-st-support-ref input[type="checkbox"], .krext-st-focus .krext-st-form .krext-plan-form input[type="checkbox"] { width: 17px; height: 17px; padding: 0; accent-color: #2563c4; }
-/* 자료 요청 구역(참여연구원 변경 탭의 행정지원 아래 — SharePoint 응답 목록 · 팀즈 딥 링크 · 응답 취합, lib/staff-ui.js collectSection · lib/collect.js, 0.8.9): 머리(자료 요청 · 단추 줄) · 양식 줄 · 사람 표(이메일 칸 · 공유 상태 · 응답 · 팀즈로 보내기) · 팀즈 글 · 응답 표(반영) */
+/* 자료 요청 구역(참여연구원 변경 탭의 행정지원 아래 — SharePoint 응답 목록 · 팀즈 · 응답 취합, lib/staff-ui.js collectSection · lib/collect.js): 머리(주요 단추) · 공유/응답/실패 요약 · 양식 줄 · 사람 표 · 응답 표(반영) · 접힌 메시지·채팅방 설정. 카드는 머리의 ▾/▸ 로 접음(.krext-st-co-closed — 머리·요약 한 줄·[지우기]만) */
 .krext-st-collect { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e3eaf3; font-size: 13px; }
 .krext-st-collect .krext-st-sup-head { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 4px; }
 .krext-st-collect .krext-st-sup-head strong { font-size: 16px; }
@@ -949,8 +950,8 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-co-table th { padding: 8px 10px; font-size: 13px; }
 .krext-st-focus .krext-st-co-table td { padding: 5px 10px; vertical-align: middle; }
 .krext-st-co-table .krext-st-nm small, .krext-st-co-table td small { display: block; font-size: 11.5px; font-weight: 400; line-height: 1.4; }
-.krext-st-focus .krext-st-co-row input[type="text"] { box-sizing: border-box; width: 100%; min-width: 180px; height: 32px; padding: 4px 8px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font: inherit; font-size: 14px; }
-.krext-st-focus .krext-st-co-row input[type="text"]:focus { background: #fff; border-color: #5d8fd8; outline: none; }
+.krext-st-focus .krext-st-co-row input[type="text"], .krext-st-focus .krext-st-co-row select[data-stco="email"] { box-sizing: border-box; width: 100%; min-width: 180px; height: 32px; padding: 4px 8px; border: 1px solid #e0e7ef; border-radius: 7px; background: #f7f9fc; color: #29415e; font: inherit; font-size: 14px; }
+.krext-st-focus .krext-st-co-row input[type="text"]:focus, .krext-st-focus .krext-st-co-row select[data-stco="email"]:focus { background: #fff; border-color: #5d8fd8; outline: none; }
 .krext-st-co-ok { color: #1b6e3c; font-weight: 600; }
 .krext-st-co-warn { color: #9d6819; }
 .krext-st-co-msg { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 0; }
@@ -964,14 +965,139 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-guide strong { color: #4a6484; font-size: 14px; font-weight: 600; }
 .krext-st-focus .krext-st-guide p { margin: 4px 0 0; }
 .krext-st-focus > .krext-st-sync { margin: 16px 2px 0; color: #5f7188; font-size: 13px; line-height: 1.7; }
-.krext-st-focus button:focus-visible, .krext-st-focus a:focus-visible, .krext-st-focus input:focus-visible, .krext-st-focus select:focus-visible { outline: 2px solid #4b84d4; outline-offset: 3px; }
+.krext-st-focus button:focus-visible, .krext-st-focus a:focus-visible, .krext-st-focus input:focus-visible, .krext-st-focus select:focus-visible, .krext-st-focus textarea:focus-visible, .krext-st-focus summary:focus-visible, .krext-st-focus [tabindex="0"]:focus-visible { outline: 2px solid #4b84d4; outline-offset: 3px; }
+
+/* 참여연구원 편집: 얇은 예산 요약 · 주 작업과 계획 관리 분리. 월 격자 높이는 유지한다. */
+.krext-st-focus .krext-st-budgetline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 22px; margin: 0 0 12px; padding: 9px 12px; border: 1px solid #e5ebf3; border-radius: 8px; background: #f6f8fc; color: #586b82; font-size: 12px; font-variant-numeric: tabular-nums; }
+.krext-st-budgetline > span { white-space: nowrap; }
+.krext-st-budgetline strong { margin-left: 6px; color: #243b55; font-size: 16px; font-weight: 700; }
+.krext-st-budgetline .krext-st-unit { margin-left: auto; color: #62738b; font-size: 11px; }
+.krext-st-budgetstate { padding: 2px 8px; border-radius: 5px; font-weight: 600; }
+.krext-st-budget-even { background: #e7f4ee; color: #216346; }
+.krext-st-budget-over { background: #fff0f1; color: #ad3041; }
+.krext-st-budget-short { background: #fff4dc; color: #8c5d16; }
+.krext-st-plan-menu { position: relative; font-size: 13px; font-weight: 500; }
+.krext-st-plan-menu > summary { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 4px 12px; border: 1px solid #dce4ed; border-radius: 7px; background: #fff; color: #4b627f; list-style: none; cursor: pointer; }
+.krext-st-plan-menu > summary::-webkit-details-marker { display: none; }
+.krext-st-plan-menu > summary::after { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+.krext-st-plan-menu[open] > summary { background: #edf4ff; border-color: #b8cce8; color: #245fbd; }
+.krext-st-plan-options { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; display: flex; flex-direction: column; gap: 4px; width: 210px; padding: 8px; border: 1px solid #dce4ed; border-radius: 10px; background: #fff; box-shadow: 0 8px 24px rgb(25 44 72 / 14%); }
+.krext-st-menu-label { padding: 4px 8px; font-size: 11px; color: #65758b; }
+.krext-st-focus .krext-st-plan-options .krext-plan-btn { justify-content: flex-start; border-color: transparent; font-size: 13px; }
+.krext-st-focus .krext-st-plan-options [data-act="st-clear"] { margin-top: 4px; border-top: 1px solid #edf1f6; color: #ad3041; }
+.krext-st-focus .krext-st-editable th small { color: #76859a; font-size: 11px; font-weight: 400; }
+.krext-st-focus .krext-st-table .krext-st-nm > b { font-size: 15px; }
+.krext-st-focus .krext-st-table input[readonly] { border-style: dashed; background: #f1f4f8; color: #64748b; cursor: default; }
+.krext-st-focus .krext-st-row:focus-within > td { background: #f8fbff; }
+.krext-st-focus .krext-st-sup-head { margin-bottom: 8px; }
+.krext-st-focus .krext-st-sup-table th { padding: 6px 10px; background: transparent; font-size: 12px; }
+.krext-st-focus .krext-st-sup-table .krext-st-support-row td { border-bottom: 0; }
+.krext-st-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* 자료 요청: 응답을 먼저 확인하고 메시지·채팅방 설정은 필요할 때 펼친다. */
+.krext-st-focus .krext-st-collects { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e3eaf3; }
+.krext-st-focus .krext-st-collects > .krext-st-collect { margin-top: 12px; padding: 18px 20px; border: 1px solid #dfe6ee; border-radius: 12px; background: #fff; box-shadow: 0 2px 6px rgb(30 50 80 / 4%); }
+.krext-st-focus .krext-st-co-head { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.krext-st-co-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.krext-st-co-heading .krext-sub { font-size: 12px; }
+.krext-st-co-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 0; padding: 10px 14px; border: 1px solid #e9eef4; border-radius: 8px; background: #f7f9fc; }
+.krext-st-co-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid #e1e8f1; border-radius: 5px; background: #fff; color: #52657d; font-size: 12px; white-space: nowrap; }
+.krext-st-co-badge b { color: #243b55; }
+.krext-st-co-badge.krext-st-co-stat { padding: 0; border: 0; background: transparent; }
+.krext-st-co-stat b { margin-left: 2px; color: #253b57; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.krext-st-co-stat + .krext-st-co-stat { padding-left: 14px; border-left: 1px solid #dce4ee; border-radius: 0; }
+.krext-st-co-progress { display: inline-block; width: 76px; height: 5px; margin-left: 6px; overflow: hidden; border-radius: 8px; background: #dfe7f1; }
+.krext-st-co-progress > i { display: block; height: 100%; border-radius: inherit; background: #3b73d5; }
+.krext-st-co-badge-warn { color: #8c5d16; border-color: #f1dfb8; background: #fff8e9; }
+.krext-st-co-badge.krext-st-co-connection { margin-left: auto; padding: 0; border: 0; background: transparent; color: #66758a; font-size: 11px; }
+.krext-st-co-badge.krext-st-co-ok { color: #247257; }
+.krext-st-co-connection::before { content: ''; width: 6px; height: 6px; margin-right: 2px; border-radius: 50%; background: #94a3b8; }
+.krext-st-co-connection.krext-st-co-ok::before { background: #2c9a74; }
+.krext-st-focus .krext-st-co-summary > .krext-plan-btn { min-height: 28px; padding: 2px 9px; background: #fff; font-size: 12px; }
+.krext-st-co-share-help { margin: 8px 0; color: #8c5d16; font-size: 12px; }
+.krext-st-focus .krext-st-co-line { margin: 0; padding: 14px 0; font-size: 12px; color: #62738b; }
+.krext-st-co-form { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.krext-st-co-form-info { flex: 1 1 280px; min-width: 0; }
+.krext-st-co-form-info > b { display: block; color: #42546b; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.krext-st-co-form-meta { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 3px; color: #64748b; font-size: 11px; }
+.krext-st-co-form-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-left: auto; white-space: nowrap; }
+.krext-st-co-form-links a, .krext-st-co-form-links .krext-st-co-copy { display: inline-flex; align-items: center; gap: 3px; padding: 3px 0; color: #42658f; font-size: 12px; text-decoration: none; }
+.krext-st-co-form-links a:hover, .krext-st-co-form-links .krext-st-co-copy:hover { color: #245fbd; text-decoration: underline; }
+.krext-st-focus .krext-st-table.krext-st-co-table { min-width: 720px; margin: 0; }
+.krext-st-co-table-scroll { margin-bottom: 10px; }
+.krext-st-focus .krext-st-co-table th { padding: 9px 14px; background: #f7f9fc; color: #65758b; font-size: 12px; font-weight: 500; }
+.krext-st-focus .krext-st-co-table td { padding: 11px 14px; border-bottom: 1px solid #edf1f6; font-size: 13px; }
+.krext-st-focus .krext-st-co-row:last-child td { border-bottom: 0; }
+.krext-st-focus .krext-st-co-row:hover td { background: #fbfcfe; }
+.krext-st-co-person { display: flex; align-items: center; gap: 10px; min-width: 126px; }
+.krext-st-co-avatar { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid #dbe6f5; border-radius: 10px; background: #edf3fc; color: #54729a; font-size: 13px; font-weight: 600; }
+.krext-st-co-row:nth-child(3n + 2) .krext-st-co-avatar { background: #eef5f3; border-color: #dfebe6; color: #588375; }
+.krext-st-co-row:nth-child(3n) .krext-st-co-avatar { background: #f2f0f8; border-color: #e6e0f0; color: #7a6899; }
+.krext-st-co-person-name { min-width: 0; }
+.krext-st-co-person-name > b { display: block; color: #263b54; font-size: 14px; font-weight: 600; }
+.krext-st-co-person-name > small { margin-top: 2px; color: #65758b; }
+.krext-st-focus .krext-st-co-row input[type="text"], .krext-st-focus .krext-st-co-row select[data-stco="email"] { height: 34px; border-color: transparent; border-radius: 6px; background: #f5f7fa; color: #435771; font-size: 13px; }
+.krext-st-focus .krext-st-co-row input[type="text"]:hover, .krext-st-focus .krext-st-co-row select[data-stco="email"]:hover { border-color: #d5dfec; background: #fff; }
+.krext-st-focus .krext-st-co-row input[type="text"]:focus, .krext-st-focus .krext-st-co-row select[data-stco="email"]:focus { border-color: #5d8fd8; background: #fff; }
+.krext-st-co-table .krext-st-act .krext-plan-btn + .krext-plan-btn { margin-left: 4px; }
+.krext-st-co-row .krext-st-co-ok, .krext-st-co-row .krext-err, .krext-st-co-row .krext-st-co-warn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.krext-st-co-row .krext-st-co-ok::before, .krext-st-co-row .krext-err::before, .krext-st-co-row .krext-st-co-warn::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.krext-st-co-row .krext-st-co-ok { background: #eaf6ef; color: #216346; }
+.krext-st-co-row .krext-err { background: #fff0f1; color: #ad3041; }
+.krext-st-co-row .krext-st-co-warn { background: #fff8e9; color: #8c5d16; }
+.krext-st-focus .krext-st-co-row .krext-plan-btn { min-height: 30px; padding: 3px 10px; font-size: 12px; }
+.krext-st-focus .krext-st-co-row [data-act="st-co-send"] { color: #2d60aa; border-color: #dbe6f6; background: #f0f5fd; }
+.krext-st-focus .krext-st-co-row [data-act="st-co-send"]:hover { border-color: #b5cbea; background: #e2ecfc; }
+.krext-st-focus .krext-st-co-row a.krext-st-teams { color: #68748d; border-color: transparent; background: transparent; }
+.krext-st-focus .krext-st-co-row a.krext-st-teams:hover { color: #4b53bc; background: #f4f4fd; }
+.krext-st-focus .krext-st-collect .krext-st-msg { margin: 0 0 12px; padding: 8px 11px; border-left: 3px solid #a7cdbf; border-radius: 4px; background: #f4f9f6; color: #507363; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.krext-st-focus .krext-st-collect .krext-st-msg.krext-err { border-left-color: #e5a4aa; background: #fff5f5; color: #a83e49; }
+.krext-st-co-utilities { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; margin-top: 14px; }
+.krext-st-co-details { flex: 0 1 auto; max-width: 100%; border: 1px solid #e1e8f1; border-radius: 8px; background: #fff; color: #52657d; }
+.krext-st-co-settings { flex: 1 1 360px; min-width: 0; }
+.krext-st-co-details > summary { padding: 9px 12px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; }
+.krext-st-co-details > summary:hover { background: #f6f8fc; }
+.krext-st-co-detail-hint { margin-left: 12px; font-size: 11px; font-weight: 400; color: #65758b; }
+.krext-st-co-details[open] > summary { background: #f6f8fc; border-bottom: 1px solid #e1e8f1; border-radius: 8px 8px 0 0; }
+.krext-st-co-settings-body { padding: 0 12px 12px; }
+.krext-st-co-settings-body.krext-st-co-acts { display: flex; padding-top: 12px; }
+.krext-st-co-settings-body > .krext-st-co-acts { margin-top: 10px; }
+.krext-st-co-settings-body input[type="text"] { min-width: 0; width: 100%; height: 34px; padding: 6px 8px; border: 1px solid #dbe5f0; border-radius: 6px; font: inherit; }
+.krext-st-co-settings-body textarea { max-width: none; }
+.krext-st-co-empty { padding: 12px 14px; border: 1px dashed #d6e1ef; border-radius: 8px; background: #f8fafd; }
+.krext-st-co-empty strong { color: #3f5572; font-weight: 500; }
+.krext-st-co-empty p { margin: 5px 0 0; font-size: 12px; }
+.krext-st-co-ask { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; font-size: 12px; }
+.krext-st-co-ask label { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid #dce4ee; border-radius: 7px; background: #fff; cursor: pointer; }
+.krext-st-co-ask label:has(input:checked) { border-color: #b9cff0; background: #edf4ff; color: #305c9b; }
+.krext-st-co-ask input { accent-color: #356bc4; }
+.krext-st-co-ask > .krext-dim { flex-basis: 100%; margin-top: 3px; }
+.krext-st-collects .krext-st-collect + .krext-st-collect { margin-top: 12px; }
+.krext-st-co-subhead { margin-top: 0; }
+.krext-st-co-subhead strong { font-size: 16px; color: #263b54; letter-spacing: -.3px; }
+.krext-st-co-request-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; background: #edf3ff; color: #5075b1; }
+.krext-st-co-request-icon svg { width: 20px; height: 20px; }
+.krext-st-focus .krext-st-co-toggle { width: 24px; height: 30px; min-height: 30px; margin-right: -5px; border-color: transparent; background: transparent; color: #7a8a9e; font-size: 14px; }
+.krext-st-focus .krext-st-co-toggle:hover { background: #f0f4f9; color: #3c638e; }
+.krext-st-focus .krext-st-co-toolbar .krext-plan-btn { min-height: 32px; padding: 4px 10px; font-size: 12px; }
+.krext-st-focus .krext-st-collect [data-act="st-co-remove"] { margin-left: 5px; padding-right: 6px; padding-left: 10px; border-color: transparent; border-left-color: #e3e8f0; border-radius: 0; background: transparent; color: #6c7a8d; font-size: 12px; }
+.krext-st-focus .krext-st-collect [data-act="st-co-remove"]:hover, .krext-st-focus .krext-st-collect [data-act="st-co-remove"].krext-red { border-color: #edc6cb; border-radius: 6px; background: #fff2f3; color: #b43749; }
+.krext-st-focus .krext-st-co-closed .krext-st-co-subhead { margin-bottom: 0; }
+.krext-st-co-closed .krext-st-co-heading .krext-sub { margin-left: 8px; }
+.krext-st-co-copy { height: auto; padding: 0; border: 0; background: none; font: inherit; color: #1a5fb4; text-decoration: underline; cursor: pointer; }   /* 양식 줄의 [링크 복사] — 글 속 링크처럼 */
 
 @media (max-width: 760px) {
   html.krext-only .krext-head { padding: 12px 20px; }
   html.krext-only .krext-panel .krext-body:has(> .krext-st-focus) { padding: 24px 20px; }
   html.krext-only .krext-foot { padding: 16px 20px; }
   .krext-st-focus .krext-ws-card { padding: 14px 16px 16px; }
-  .krext-st-focus .krext-st-months .krext-st-mogrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .krext-st-focus .krext-st-table:not(.krext-st-editable) .krext-st-months .krext-st-mogrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .krext-st-focus .krext-ws-tools { flex-wrap: wrap; }
+  .krext-st-focus .krext-st-pickhint { flex: 1 1 200px; white-space: normal; font-size: 12px; }
+  .krext-st-focus .krext-st-budgetline { gap: 6px 14px; }
+  .krext-st-focus .krext-st-collects > .krext-st-collect { padding: 14px; }
+  .krext-st-co-subhead > .krext-st-co-acts { flex-basis: 100%; margin-left: 0; }
+  .krext-st-co-form-links { margin-left: 0; }
+  .krext-st-co-closed .krext-st-co-subhead > .krext-st-co-acts { flex-basis: auto; margin-left: auto; }
 }
 @media (max-width: 520px) {
   html.krext-only .krext-head { min-height: 56px; padding: 12px 16px; gap: 8px; }
@@ -983,13 +1109,25 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
   .krext-st-focus .krext-st-focus-prj { max-width: 100%; font-size: 15px; }
   .krext-st-focus .krext-ws-focus-link { margin-left: 0; }
   .krext-st-focus .krext-ws-card { padding: 12px 14px 14px; margin-bottom: 12px; }
-  .krext-st-focus .krext-ws-years { gap: 5px; }
-  .krext-st-focus .krext-ws-year { flex: 1 1 40%; padding: 5px 8px; }
-  .krext-st-focus .krext-ws-year.krext-ws-add { flex-grow: 1; }
+  .krext-st-focus .krext-ws-years { flex-wrap: nowrap; gap: 5px; overflow-x: auto; }
+  .krext-st-focus .krext-ws-year { flex: 0 0 auto; padding: 5px 10px; }
+  .krext-st-focus .krext-ws-year.krext-ws-add { flex-grow: 0; }
   .krext-st-focus .krext-ws-cardhead.krext-ws-pinned .krext-ws-state { flex-basis: 100%; }
   .krext-st-focus .krext-st-acts { gap: 6px; margin-left: 0; }
   .krext-st-focus .krext-plan-btn { padding: 4px 9px; }
   .krext-st-focus .krext-ws-tools { flex-wrap: wrap; }
   .krext-st-focus .krext-ws-tools .krext-st-status { flex-basis: calc(100% - 115px); line-height: 1.6; }
   .krext-st-focus .krext-st-guide { padding: 13px 15px; }
+  .krext-st-focus .krext-st-sup { padding: 10px; }
+  .krext-st-focus .krext-st-budgetline .krext-st-unit { margin-left: 0; }
+  .krext-st-co-detail-hint { display: block; margin: 3px 0 0 14px; }
+  .krext-st-co-heading .krext-sub { flex-basis: 100%; }
+  .krext-st-co-toolbar { margin-left: 0; }
+  .krext-st-focus .krext-st-collects > .krext-st-collect { padding: 12px; border-radius: 10px; }
+  .krext-st-co-summary { gap: 10px 12px; padding: 10px; }
+  .krext-st-co-progress { width: 48px; }
+  .krext-st-co-badge.krext-st-co-connection { margin-left: 0; }
+  .krext-st-focus .krext-st-co-summary > .krext-plan-btn { margin-left: auto; }
+  .krext-st-co-stat + .krext-st-co-stat { padding-left: 0; border-left: 0; }
+  .krext-st-co-closed .krext-st-co-heading .krext-sub { margin-left: 0; }
 }

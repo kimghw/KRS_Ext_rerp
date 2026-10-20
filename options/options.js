@@ -445,6 +445,9 @@
     const hp = Object.assign({}, S.DEFAULTS.help, s.help || {});   // Help Chat (로컬 Help 서버)
     $('helpEnabled').checked = hp.enabled !== false;
     $('helpUrl').value = hp.url || '';
+    $('teamsMcpUrl').value = ((s.teams || {}).mcpUrl) || S.DEFAULTS.teams.mcpUrl;   // 팀즈 MCP (lib/teams-mcp.js)
+    $('teamsTemplate').value = (s.teams || {}).template || '';   // 팀즈 글 템플릿 — 비면 기본(placeholder 는 lib/collect.js TEMPLATE)
+    if (typeof KRX_COLLECT !== 'undefined') $('teamsTemplate').placeholder = KRX_COLLECT.TEMPLATE;
     $('helpAutoPick').checked = hp.autoPick !== false;
     $('helpAutoPtcl').checked = hp.autoPtcl !== false;   // 비어 있는 청구내역을 Claude 가 씀 (연구내용 참조)
     $('helpPtclGuide').value = hp.ptclGuide || '';
@@ -548,6 +551,7 @@
         discover: $('plusDiscover').checked,                                        // 나와 공유된 과제 폴더 자동 찾기
         shareWith: $('plusShareWith').checked ? 'participants' : 'none'             // 과제 폴더를 만들 때 참여연구원에게 자동 공유(편집)
       },
+      teams: { mcpUrl: teamsBase(), template: $('teamsTemplate').value.trim().slice(0, 600) },   // 팀즈 MCP 주소(이 PC 만) · 팀즈 글 템플릿(자리표 — lib/collect.js)
       help: { enabled: $('helpEnabled').checked, url: $('helpUrl').value.trim().replace(/\/+$/, '') || S.DEFAULTS.help.url, autoPick: $('helpAutoPick').checked,
         autoPtcl: $('helpAutoPtcl').checked, ptclGuide: $('helpPtclGuide').value.trim().slice(0, 300), fetch: $('helpFetch').checked, fetchDocs: kindDocsNow(),
         api: { use: $('apiUse').value, model: $('apiModel').value || S.DEFAULTS.help.api.model } },
@@ -1063,6 +1067,26 @@
     try { await navigator.clipboard.writeText(KRX_HELP_SETUP.prompt(o)); setStatus('llmSetupStatus', '복사했습니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으면 준비물 확인과 서버 실행을 안내합니다'); }
     catch (e) { setStatus('llmSetupStatus', `복사하지 못했습니다: ${e.message}`, true); }
   });
+  /* 팀즈 MCP(lib/teams-mcp.js — 백그라운드 'teamsProbe' → storage.local.teamsStatus): 열 때 · 연결 확인 · 주소를 고친 뒤. 참여연구원 변경 탭의 [보내기]·[채팅방에 보내기]는 이 상태가 ok 일 때만 */
+  const teamsBase = () => { const u = $('teamsMcpUrl').value.trim(); return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/\S*$/i.test(u) ? u : S.DEFAULTS.teams.mcpUrl; };
+  async function probeTeams(force) {
+    let st = null;
+    try { st = await chrome.runtime.sendMessage({ type: 'teamsProbe', url: teamsBase(), force: !!force }); } catch (e) { st = null; }
+    const el = $('teamsState');
+    if (!st || typeof st.ok !== 'boolean') { el.textContent = '확인 못 함'; el.className = 'llm-state err'; el.title = '백그라운드가 응답하지 않습니다'; return null; }
+    el.textContent = st.ok ? `연결됨 · ${F.fmtClock(st.at)} 확인` : `연결 안 됨 · ${F.fmtClock(st.at)} 확인`;
+    el.className = 'llm-state ' + (st.ok ? 'on' : 'err'); el.title = st.ok ? `${st.server || ''} ${st.url}`.trim() : st.error || '';
+    return st;
+  }
+  $('btnTeamsProbe').addEventListener('click', async () => {
+    setStatus('teamsProbeStatus', '팀즈 MCP 서버에 연결하는 중…');
+    const r = await probeTeams(true);
+    if (r && r.ok) setStatus('teamsProbeStatus', `연결됨: ${r.server || r.url} — 참여연구원 변경 탭의 자료 요청에서 [보내기]·[채팅방에 보내기]가 창 없이 보냅니다 (주소를 고쳤으면 저장)`);
+    else setStatus('teamsProbeStatus', (r && r.error) || '연결할 수 없습니다 — 이 PC 의 KR_MS365_mcp teams 서버를 띄우세요', true);
+  });
+  let teamsUrlTimer = 0;
+  $('teamsMcpUrl').addEventListener('input', () => { clearTimeout(teamsUrlTimer); teamsUrlTimer = setTimeout(() => probeTeams(true).catch(() => {}), 700); });
+  probeTeams(false).catch(() => {});
   let helpUrlTimer = 0;
   $('helpUrl').addEventListener('input', () => { clearTimeout(helpUrlTimer); helpUrlTimer = setTimeout(() => probeLlm(true).catch(() => {}), 700); });   // 주소를 고치면 그 주소로 다시 확인
   setInterval(() => { if (document.visibilityState === 'visible') probeLlm(false).catch(() => {}); }, LLM_POLL_MS);
