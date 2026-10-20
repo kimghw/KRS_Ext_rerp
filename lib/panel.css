@@ -544,10 +544,10 @@ tr.krext-prep-over .krext-prep-drop { border-color: #4d8fe6; color: #245fbd; bac
 .krext-st-nudges { display: flex; flex: none; align-items: stretch; gap: 4px; padding-left: 10px; border-left: 1px solid #dce4ee; }
 .krext-st-nudges > .krext-st-step { min-width: 42px; }
 .krext-st-quick-k { line-height: 1.7; }
-.krext-st-auto-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.krext-st-auto-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }   /* 폼의 반영·취소 오른쪽 끝(좁으면 무리째 다음 줄) — 2026-10-20 사용자 "이거 한줄로 두고" */
 .krext-st-auto-actions > .krext-st-step:disabled { opacity: .6; }
 .krext-st-quick + .krext-plan-form { margin-top: 6px; }
-.krext-st-auto-actions > .krext-st-step { min-width: 90px; height: auto; min-height: 36px; margin: 0; padding: 5px 10px; gap: 2px; line-height: 1.3; }
+.krext-st-auto-actions > .krext-st-step { min-width: 0; height: auto; min-height: 36px; margin: 0; padding: 3px 10px; gap: 2px; line-height: 1.3; }
 .krext-st-step { appearance: none; -webkit-appearance: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; height: 28px; margin: 0; padding: 0 2px; border: 1px solid transparent; border-radius: 5px; background: #eceef2; color: #5d718c; font: inherit; font-size: 11px; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; transition: background .1s ease, color .1s ease, border-color .1s ease; }
 .krext-st-step-dn { background: #f7e8eb; color: #a3404f; }
 .krext-st-step-exclude { border-color: #e3c3ca; font-weight: 600; gap: 2px; }
@@ -562,14 +562,14 @@ button.krext-st-step:hover:not(:disabled) { border-color: #9cbbe6; }
 .krext-st-step-nudge { background: #f3f5f8; color: #34495e; font-weight: 600; }
 .krext-st-step-fit { border-color: #9cbbe6; background: #eef3fb; color: #1f4f8f; font-weight: 600; }
 .krext-st-step-fit small { font-size: 10px; font-weight: 400; }
-.krext-st-step-fit.krext-st-fit-over { border-color: #e3a3ab; background: #fbeef0; color: #b43243; }
-.krext-st-step-max { border-color: #e8c98e; background: #fff4e1; color: #96580e; }   /* 자동 계산 셋 — 예산 파랑/빨강 · MAX 주황 · 균등 파랑(2026-10-20 사용자 "한쪽만 색이 비었어"). 누르면 바로 반영이라 눌린 꼴은 없음 */
+/* 자동 계산 셋(예산에 맞추기 · MAX · 균등)은 모두 위 krext-st-step-fit 파랑 — 2026-10-20 사용자 "색상을 균등것과 같이". 누르면 바로 반영이라 눌린 꼴은 없음 */
 .krext-st-co-picks { display: inline-flex; gap: 6px; margin-right: 6px; font-size: 11px; color: #4b5a6e; white-space: nowrap; vertical-align: middle; }
 .krext-st-co-pick { display: inline-flex; align-items: center; gap: 2px; cursor: pointer; }
 .krext-st-co-pick input { margin: 0; width: 12px; height: 12px; }
 .krext-st-co-max { display: block; font-size: 10px; line-height: 1.2; }
 .krext-st-step:disabled { opacity: .45; cursor: default; }
 .krext-st-step-read { display: flex; flex-wrap: wrap; gap: 2px 10px; min-height: 16px; }
+.krext-st-step-read:has(.krext-st-step-pv:empty) { display: none; }   /* 고른 것·올린 칸이 없으면 줄 자체를 숨김(안내 글 없음 — 2026-10-20) */
 .krext-st-quick-k b { color: #1f4f8f; font-variant-numeric: tabular-nums; }
 .krext-st-step-pv { color: #34495e; }
 .krext-st-step-pv.krext-st-step-pending { color: #1f4f8f; }
@@ -946,8 +946,7 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-step-up.krext-st-step-on { background: #2d835b; color: #fff; }
 .krext-st-focus .krext-st-step-base { background: #e1e8f2; color: #3f5572; }
 .krext-st-focus .krext-st-nudges > .krext-st-step { min-width: 46px; background: #fff; border-color: #d9e2ee; color: #4c627d; }
-.krext-st-focus .krext-st-auto-actions > .krext-st-step { min-width: 108px; height: auto; min-height: 42px; padding: 5px 12px; font-size: 12px; }
-.krext-st-focus .krext-st-auto-actions > .krext-st-step:first-child { min-width: 124px; }
+.krext-st-focus .krext-st-auto-actions > .krext-st-step { min-width: 0; height: auto; min-height: 36px; padding: 3px 10px; font-size: 12px; }
 .krext-st-focus .krext-st-quick-k { color: #61728a; }
 .krext-st-focus .krext-st-quick-k b { margin: 0 2px; color: #294f83; font-size: 15px; }
 .krext-st-focus .krext-st-step-read { min-height: 0; padding: 8px 10px; border: 1px solid #e2e9f2; border-radius: 6px; background: #fff; line-height: 1.6; }
@@ -959,23 +958,20 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-form td { padding: 14px; background: #f7f9fd; box-shadow: inset 3px 0 #477dce; }
 .krext-st-focus .krext-st-editor-head { margin-bottom: 12px; }
 .krext-st-focus .krext-st-form .krext-plan-ind { display: none; }
-.krext-st-focus .krext-plan-form { gap: 8px 10px; }
+.krext-st-focus .krext-plan-form { gap: 8px 8px; }
 .krext-st-focus .krext-plan-form input, .krext-st-focus .krext-plan-form select { height: 36px; padding: 6px 10px; border: 1px solid #dbe5f0; border-radius: 7px; background: #fff; font-size: 14px; }
 .krext-st-focus .krext-plan-form label { gap: 5px; color: #5d718c; font-size: 12px; }
 .krext-st-focus .krext-st-form .krext-plan-btn { min-height: 36px; font-size: 13px; }
-.krext-st-focus .krext-st-form .krext-plan-form input[type="date"] { width: 140px; padding: 6px 6px; }   /* 2026-10-19 사용자 "반영/취소는 적용일, 종료일, 참여율 이거랑 1줄로. 날짜 너비 줄이면 될듯" */
-.krext-st-focus .krext-st-form .krext-plan-form select[data-stf="mode"] { width: 144px; }
+.krext-st-focus .krext-st-form .krext-plan-form input[type="date"] { width: 128px; padding: 6px 6px; }   /* 2026-10-19 사용자 "반영/취소는 적용일, 종료일, 참여율 이거랑 1줄로. 날짜 너비 줄이면 될듯" → 2026-10-20 자동 계산 단추까지 같은 줄이라 더 좁게 */
+.krext-st-focus .krext-st-form .krext-plan-form select[data-stf="mode"] { width: 128px; }
 .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="name"] { width: 132px; }
 .krext-st-focus .krext-st-form .krext-plan-form select[data-stf="role"] { width: 152px; }
 .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="supportRole"] { width: 200px; }
 .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="manual"] { width: 96px; }
-.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="value"] { width: 92px; }
-/* 채팅 패널을 열어 표가 좁아져도 긴 "반영 MAX …"와 취소가 날짜 옆에 함께 남도록 한다. */
+.krext-st-focus .krext-st-form .krext-plan-form input[data-stf="value"] { width: 72px; }
+/* 채팅 패널을 열어 표가 좁아져도 반영·취소가 날짜 옆에 함께 남도록 한다(자동 계산 단추는 무리째 다음 줄로). */
 @container staff-plan (max-width: 980px) {
   .krext-st-focus .krext-st-form .krext-plan-form { column-gap: 6px; }
-  .krext-st-focus .krext-st-form .krext-plan-form input[type="date"] { width: 128px; }
-  .krext-st-focus .krext-st-form .krext-plan-form select[data-stf="mode"] { width: 128px; }
-  .krext-st-focus .krext-st-form .krext-plan-form input[data-stf="value"] { width: 72px; }
   .krext-st-focus .krext-st-form .krext-plan-btn { padding-right: 10px; padding-left: 10px; }
 }
 .krext-st-focus .krext-st-warn { gap: 5px; margin-top: 14px; padding: 11px 13px; border-radius: 8px; background: #f7f9fc; font-size: 13px; }
@@ -1024,6 +1020,7 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-budget-even { background: #e7f4ee; color: #216346; }
 .krext-st-budget-over { background: #fff0f1; color: #ad3041; }
 .krext-st-budget-short { background: #fff4dc; color: #8c5d16; }
+.krext-st-focus .krext-st-budgetstate { padding: 4px 12px; font-size: 15px; }   /* 참여연구원 변경 탭 — 초과금/부족금을 크게(2026-10-20 사용자 "초과금/부족금 도 좀 크게") */
 .krext-st-plan-menu { position: relative; font-size: 13px; font-weight: 500; }
 .krext-st-plan-menu > summary { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 4px 12px; border: 1px solid #dce4ed; border-radius: 7px; background: #fff; color: #4b627f; list-style: none; cursor: pointer; }
 .krext-st-plan-menu > summary::-webkit-details-marker { display: none; }

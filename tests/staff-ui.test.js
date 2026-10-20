@@ -138,7 +138,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
   const [moon, kim] = plan.people.map((x) => x.id);
   const total = () => S.staffTotal(st.staffPlans[K1], st.staffPlans[K1].basis);
   const who = (id) => st.staffPlans[K1].people.find((x) => x.id === id);
-  const quickOf = (html) => { const i = html.indexOf('<div class="krext-st-quick">'); if (i < 0) return ''; const ends = ['<div class="krext-plan-form">', '</td></tr>'].map((t) => html.indexOf(t, i)).filter((k) => k > 0); return html.slice(i, Math.min(...ends)); };   // ✎ 폼은 증감 줄 뒤에 적용일·반영 줄
+  const quickOf = (html) => { const i = html.indexOf('<div class="krext-st-quick">'); return i < 0 ? '' : html.slice(i, html.indexOf('</td></tr>', i)); };   // ✎ 폼은 증감 줄 뒤에 적용일·반영 줄(자동 계산 단추는 그 줄 오른쪽) — 둘 다 포함
   withStaffActions(st, ({ click, change, input }) => {
     click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
     let html = U.section(d, {}, st, '', TAB), quick = quickOf(html);
@@ -146,15 +146,15 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     assert.ok(quick.includes('>제외<small>−100%</small></button>') && quick.indexOf('data-step="-100"') < quick.indexOf('data-step="-50"') && quick.includes('data-preview="제외 (−100%) — 11~12월 4,650 → 0천원'), '−50% 왼쪽에 제외(−100%)와 선택 기간을 0원으로 바꾸는 미리보기');
     assert.ok(quick.includes(`class="krext-st-step krext-st-step-dn" data-act="st-step" data-step="-50" data-kind="scale" data-id="${kim}"`) && quick.includes('data-preview="+30% — 11~12월 4,650 → 6,045천원 · 월평균 27.44% → 29.27% · 초과금 2,820천원"') && quick.includes('aria-pressed="false">−10%</button><span class="krext-st-step krext-st-step-base"'), '칸마다 미리보기(그 기간 합 · 월평균 · 예산 대비)');
     assert.ok(quick.includes(`data-act="st-nudge" data-dir="-1" data-kind="scale" data-id="${kim}"`) && quick.includes('data-dir="1"') && quick.indexOf('st-nudge') > quick.lastIndexOf('data-step="50"') && quick.indexOf('st-step-fit') > quick.lastIndexOf('st-nudge'), '+50% 오른쪽에 −1% · +1%, 그 오른쪽에 예산에 맞추기');
-    assert.ok(quick.includes('기준 <b>4,650</b>천원 · 11~12월 (2개월) · 나머지 3,225천원') && quick.includes('<span class="krext-st-step-pv" data-default="칸을 누르거나 기준에서 끌어') && quick.includes('class="krext-st-step krext-st-step-fit krext-st-fit-over" data-act="st-fit"') && quick.includes('>예산에 맞추기<small>초과금 1,425</small></button>'), '맨 오른쪽 예산에 맞추기 · 읽기 줄');
+    assert.ok(quick.includes('기준 <b>4,650</b>천원 · 11~12월 (2개월) · 나머지 3,225천원') && quick.includes('<span class="krext-st-step-pv" data-default="" aria-live="polite"></span>') && quick.includes('class="krext-st-step krext-st-step-fit" data-act="st-fit"') && quick.includes('>예산에 맞추기<small>초과금 1,425</small></button>'), '예산에 맞추기(초과금이어도 같은 파랑) · 읽기 줄은 고른 것이 없으면 빈 줄(안내 글 없음 — 2026-10-20)');
     // 폼 한 줄 — 반영·취소가 값 칸 바로 뒤, 지급 완료 안내는 그 뒤(2026-10-19 "반영/취소는 적용일, 종료일, 참여율 이거랑 1줄로")
     // ✎ 폼 — 머리글(이름) 없이 증감 줄 → 자동 계산 → 적용일·반영 줄(2026-10-20 "성명은 중복이라 … 빼도", "적용일/반영예산 메뉴를 아래에")
     const row = html.slice(html.indexOf('<tr class="krext-st-form"'), html.indexOf('</td></tr>', html.indexOf('<tr class="krext-st-form"')));
-    assert.ok(!row.includes('krext-st-editor-head') && !row.includes('참여 계획 조정') && row.indexOf('<div class="krext-st-quick">') < row.indexOf('<div class="krext-plan-form">') && row.indexOf('data-act="st-even"') < row.indexOf('data-stf="from"'), '✎ 폼은 머리글 없이 증감 줄이 먼저');
+    assert.ok(!row.includes('krext-st-editor-head') && !row.includes('참여 계획 조정') && row.indexOf('<div class="krext-st-quick">') < row.indexOf('<div class="krext-plan-form">') && row.indexOf('data-act="st-cancel"') < row.indexOf('<div class="krext-st-auto-actions"') && row.indexOf('data-act="st-fit"') < row.indexOf('data-act="st-max"') && row.indexOf('data-act="st-max"') < row.indexOf('data-act="st-even"') && !row.includes('칸을 누르거나'), '✎ 폼은 머리글 없이 증감 줄이 먼저, 자동 계산 단추는 반영·취소 오른쪽 같은 줄(2026-10-20 "이거 한줄로 두고"), 안내 줄 없음');
     const form = row.slice(row.indexOf('<div class="krext-plan-form">'));
     const pos = (t) => form.indexOf(t);
     assert.ok(pos('data-stf="value"') < pos('data-act="st-apply"') && pos('data-act="st-apply"') < pos('data-act="st-cancel"') && !form.includes('krext-st-form-hint'), '값 → 반영 → 취소(지급 완료가 없으니 안내 없음)');
-    assert.ok(form.includes('data-id="' + kim + '">반영</button>'), '고른 것이 없으면 반영');
+    assert.ok(form.includes('data-id="' + kim + '" disabled>반영</button>'), '값이 비면 반영 꺼짐(2026-10-20 "반영은 숫자를 넣은 경우에만")');
     // 예산에 맞추기 — 누르면 바로 반영(2026-10-20 "균등하게, 예산맞추기, max를 넣으면 바로 반영해줘. 반영 예산 따로 넣지 말고"). 미리보기는 단추의 data-preview(올리면 읽기 줄)
     assert.ok(quick.includes('data-preview="예산에 맞추기 — 초과금 1,425천원 줄임: 11~12월 4,650 → 3,225천원 (기준의 −31%)') && !quick.includes('aria-pressed="false">예산에 맞추기'), quick);
     click('st-fit', { id: kim });
@@ -162,9 +162,9 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     assert.strictEqual(S.monthlyText(who(kim).plan), '4~10월 2,328 · 11월 1,615 · 12월 1,610', '11·12월에서 712.5천원씩(앞달 올림) — 11월 2,328 · 12월 2,322 의 차이는 그대로');
     assert.ok(st.staffMsg && st.staffMsg.text.includes('김거화 — 예산 맞춤') && st.staffMsg.text.includes('초과금 1,425천원 줄임') && st.staffMsg.text.includes('예산과 같음'), st.staffMsg && st.staffMsg.text);
     assert.ok(U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(예산 맞춤\)$/.test(c.after)), '변경이력 한 줄');
-    assert.ok(!st.staffEdit && !st.staffDraft, '반영하면 폼 닫힘(고른 것도 같이)');
+    assert.ok(st.staffEdit && st.staffEdit.id === kim && st.staffDraft, '바로 반영한 뒤에도 폼은 열린 채(2026-10-20 "바로 바로 바뀌게")');
     // 균등 — 예산에 맞추기 오른쪽. 11~12월(1,615 · 1,610)의 합 3,225 ÷ 2 = 1,612.5 → 달마다 1,613 — 합은 3,226 이 돼 초과금 1천원
-    click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
+    input('from', '2026-11-01'); input('to', '2026-12-31');   // 폼은 열린 채(st-edit 를 다시 누르면 닫힘)
     html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
     assert.ok(quick.includes('data-act="st-even"') && quick.indexOf('st-even') > quick.indexOf('st-fit') && quick.includes('>균등<small>매월 같게</small></button>') && quick.includes('data-preview="균등 — 11~12월 월 1,613천원씩 (합 3,225 → 3,226천원, +1천원)') && quick.includes('초과금 1천원'), '예산에 맞추기 오른쪽에 균등 · 미리보기(합의 차와 예산 대비)');
     click('st-even', { id: kim });   // 바로 반영
@@ -172,7 +172,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     assert.ok(st.staffMsg && st.staffMsg.text.includes('김거화 — 균등') && st.staffMsg.text.includes('월 1,613천원씩(합 3,225 → 3,226천원)') && U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(균등\)$/.test(c.after)), st.staffMsg && st.staffMsg.text);
     st.staffPlans[K1].people = st.staffPlans[K1].people.map((x) => (x.id === kim ? Object.assign({}, x, { plan: x.plan.map((m) => (m.ym === '2026-11' ? Object.assign({}, m, { amt: 1615000 }) : m.ym === '2026-12' ? Object.assign({}, m, { amt: 1610000 }) : m)) }) : x));   // 뒤 검사는 11월 1,615 · 12월 1,610 기준이라 되돌림
     // MAX — 예산에 맞추기와 균등 사이(2026-10-20 "우측에 균등 왼쪽에 MAX"). 11~12월 나머지 3,225천원 ÷ (8,480천원 × 2) → 19.01% → 1,612천원씩(합 3,224 — 예산을 넘지 않는 가장 큰 0.01%)
-    click('st-edit', { id: kim }); input('from', '2026-11-01'); input('to', '2026-12-31');
+    input('from', '2026-11-01'); input('to', '2026-12-31');
     html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
     assert.ok(quick.indexOf('data-act="st-fit"') < quick.indexOf('data-act="st-max"') && quick.indexOf('data-act="st-max"') < quick.indexOf('data-act="st-even"') && quick.includes(`data-act="st-max" data-id="${kim}" data-v="19.01"`) && quick.includes('>MAX<small>참여율 19.01%</small></button>') && quick.includes('data-preview="MAX — 참여율 19.01% (예산 나머지 3,225천원 기준): 11~12월 월 1,612천원씩 · 월평균'), quick);
     click('st-max', { id: kim, v: '19.01' });   // 바로 반영
@@ -183,33 +183,27 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     st.staffPlans[K1].budgetPay = 31000000;
     click('st-edit', { id: moon }); input('from', '2026-12-01'); input('to', '2026-12-31');
     html = U.section(d, {}, st, '', TAB);
-    assert.ok(html.includes('>예산에 맞추기<small>부족금 1,000</small></button>') && !html.includes('krext-st-fit-over'));
+    assert.ok(html.includes('>예산에 맞추기<small>부족금 1,000</small></button>'));
     click('st-fit', { id: moon });
     assert.deepStrictEqual([total(), who(moon).plan[8].amt], [31000000, 2159000], '12월 1,159 + 1,000');
+    assert.ok(st.staffEdit && st.staffEdit.id === moon, '자동 계산 뒤에도 폼은 열린 채'); click('st-cancel');
     assert.ok(!quickOf(U.section(d, {}, st, '', TAB)), '폼이 닫히면 증감 줄도 없음');
-    // 칸을 누르면 고르기 — +20% 고른 뒤 +1% 두 번 → +22%, 반영 단추 "반영 +22%"; 반영하면 1,610 × 1.22
+    // 칸을 누르면 바로 반영하고 폼은 열린 채(2026-10-20 "퍼센트나 뭘 누르면 금액이 바뀌어야지 … 바로 바로 바뀌게") — 기준은 매번 지금 지급: +20% → 1,610 × 1.2 = 1,932, +1% 두 번 → 1,951 → 1,971(천원 반올림)
     click('st-edit', { id: kim }); input('from', '2026-12-01'); input('to', '2026-12-31');
     click('st-step', { id: kim, kind: 'scale', step: '20' });
-    assert.deepStrictEqual(st.staffDraft.step, { kind: 'scale', v: 20 });
+    assert.deepStrictEqual([who(kim).plan[8].amt, st.staffEdit && st.staffEdit.id, st.staffDraft.step], [1932000, kim, undefined], st.staffError || '누르면 바로 1,610 × 1.2 · 폼은 열린 채 · 고르기(draft.step)는 없음');
+    assert.ok(st.staffMsg.text.includes('김거화 — 증감 +20%') && st.staffMsg.text.includes('기준 1,610 → 1,932천원 (+20%)') && U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(증감 \+20%\)$/.test(c.after)), st.staffMsg.text);
     click('st-nudge', { id: kim, kind: 'scale', dir: '1' }); click('st-nudge', { id: kim, kind: 'scale', dir: '1' });
-    assert.deepStrictEqual([st.staffDraft.step, who(kim).plan[8].amt], [{ kind: 'scale', v: 22 }, 1610000], '+1% 두 번 — 아직 적용 안 됨');
-    html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
-    assert.ok(html.includes('>반영 +22%</button>') && quick.includes('<b>반영</b>을 누르면 — +22% — 12월 1,610 → 1,964천원') && quick.includes('aria-pressed="true">+20%</button>') && quick.includes('aria-pressed="false">+30%</button>') && quick.includes('title="기준에서 1% 씩 늘림 — 지금 +22%"'), quick);
-    click('st-apply', { id: kim });
-    assert.strictEqual(who(kim).plan[8].amt, 1964000, st.staffError || '1,610 × 1.22 = 1,964.2 → 1,964');
-    assert.ok(st.staffMsg.text.includes('김거화 — 증감 +22%') && st.staffMsg.text.includes('기준 1,610 → 1,964천원 (+22%)'), st.staffMsg.text);
-    assert.ok(U.changesOf(st, P.prjNo, 1).some((c) => c.item === '김거화' && /\(증감 \+22%\)$/.test(c.after)));
-    // −1% 만 누르면 0 에서 시작 → −1%; 값을 적으면 고른 것을 거둠; 구분을 바꿔도 거둠
-    click('st-edit', { id: kim }); input('from', '2026-12-01'); input('to', '2026-12-31');
+    assert.strictEqual(who(kim).plan[8].amt, 1971000, st.staffError || '+1% 씩 바로 — 1,932 × 1.01 = 1,951.32 → 1,951, × 1.01 = 1,970.51 → 1,971');
     click('st-nudge', { id: kim, kind: 'scale', dir: '-1' });
-    assert.deepStrictEqual(st.staffDraft.step, { kind: 'scale', v: -1 });
-    click('st-nudge', { id: kim, kind: 'scale', dir: '1' });
-    assert.strictEqual(st.staffDraft.step, null, '0 이 되면 거둠');
-    click('st-step', { id: kim, kind: 'scale', step: '-10' }); input('value', '15');
-    assert.strictEqual(st.staffDraft.step, null, '값을 적으면 거둠');
-    click('st-step', { id: kim, kind: 'scale', step: '-10' }); change({ stf: 'mode' }, 'amt');
-    assert.strictEqual(st.staffDraft.step, null, '구분을 바꾸면 거둠');
-    click('st-cancel');
+    assert.strictEqual(who(kim).plan[8].amt, 1951000, st.staffError || '−1% 도 바로 — 1,971 × 0.99 = 1,951.29 → 1,951');
+    html = U.section(d, {}, st, '', TAB); quick = quickOf(html);
+    assert.ok(html.includes(`data-id="${kim}" disabled>반영</button>`) && quick.includes('data-preview="+10% — 12월 1,951 → 2,146천원') && !quick.includes('krext-st-step-on'), '값이 비면 반영 꺼짐 · 칸의 미리보기는 지금 지급 기준 · 켜진 칸 없음');
+    // 반영은 구분·값으로만(2026-10-20 "반영은 숫자를 넣은 경우에만") — 값을 적으면 켜지고, 누르면 참여율 15% = 8,480 × 15% = 1,272 · 폼 닫힘
+    input('value', '15');
+    assert.ok(U.section(d, {}, st, '', TAB).includes(`data-id="${kim}">반영</button>`), '값을 적으면 반영 켜짐');
+    click('st-apply', { id: kim });
+    assert.deepStrictEqual([who(kim).plan[8].amt, st.staffEdit], [1272000, null], st.staffError || '반영 — 12월 8,480 × 15% · 폼 닫힘');
     // 그 기간에 지급이 없으면(제외한 12월) 나머지의 10~100% 칸 — 50% 고르고 반영
     st.staffPlans[K1].budgetPay = 32000000;
     st.staffPlans[K1].people = st.staffPlans[K1].people.map((x) => (x.id === moon ? S.applyChange(x, 'rerp', { from: '2026-12', mode: 'exclude' }, S.ymRange('2026-04', '2026-12')) : x));
@@ -217,11 +211,8 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
     const left = 32000000 - S.personStats(who(kim), 'rerp').total - S.personStats(who(moon), 'rerp').total;   // 예산 − 김거화 − 문창재 4~11월
     quick = quickOf(U.section(d, {}, st, '', TAB));
     assert.ok(quick.includes('krext-st-steps-share') && quick.includes(`나머지 <b>${S.thousand(left)}</b>천원 · 12월 (1개월)`) && quick.includes(`data-step="100" data-kind="share" data-id="${moon}"`) && !quick.includes('krext-st-step-base') && quick.includes('data-kind="share" data-id="' + moon + '" title="나머지의 1% 씩 늘림"') && quick.includes('data-act="st-fit"'), quick);
-    click('st-step', { id: moon, kind: 'share', step: '50' });
-    html = U.section(d, {}, st, '', TAB);
-    assert.ok(html.includes('>반영 50%</button>') && html.includes('aria-pressed="true">50%</button>') && html.includes('aria-pressed="true">10%</button>') && html.includes('aria-pressed="false">60%</button>'), '나머지 칸은 10~50 이 켜짐');
-    click('st-apply', { id: moon });
-    assert.ok(st.staffMsg.text.includes('문창재 — 나머지 배분') && st.staffMsg.text.includes('의 50% = '), st.staffError || st.staffMsg.text);
+    click('st-step', { id: moon, kind: 'share', step: '50' });   // 바로 반영 — 폼은 열린 채
+    assert.ok(st.staffMsg.text.includes('문창재 — 나머지 배분') && st.staffMsg.text.includes('의 50% = ') && st.staffEdit && st.staffEdit.id === moon, st.staffError || st.staffMsg.text);
     assert.strictEqual(who(moon).plan[8].amt, Math.round(left / 2 / 1000) * 1000, '12월 = 나머지의 50%');
   });
   // 예산이 없으면 안내만 · 예산과 같으면 맞추기 꺼짐
@@ -241,7 +232,7 @@ test('폼 아래 증감 줄(회의실 현황 꼴) — ✎ 폼: [제외 −100%][
   const low = U.section(d, {}, st2, '', TAB);
   assert.ok(low.includes('<span class="krext-st-low">월평균 8.58%</span>') && low.includes('문창재 — 월평균 참여율 8.58% — 10% 를 넘어야 합니다.'), '500 ÷ 5,823 = 8.586…% → 8.58%');
 });
-test('증감 줄 끌기 — 누른 칸부터 손가락 밑 칸(elementFromPoint)까지 기준에서 krext-st-step-on · 읽기 줄에 그 칸의 미리보기, 놓으면 그 값을 고르기만(draft.step — 계획 그대로, 표시는 "반영을 누르면") 하고 뒤따르는 click 은 무시, 반영을 눌러야 적용; 기준에서 놓으면 거둠, pointercancel 은 고른 것 그대로, 다른 포인터·꺼진 칸은 무시, 끌지 않을 때 올리면 미리보기', () => {
+test('증감 줄 끌기 — 누른 칸부터 손가락 밑 칸(elementFromPoint)까지 기준에서 krext-st-step-on · 읽기 줄에 그 칸의 미리보기, 놓으면 ✎ 폼은 그 값을 바로 반영(폼은 열린 채 — 2026-10-20 "퍼센트나 뭘 누르면 금액이 바뀌어야지")하고 뒤따르는 click 은 무시; 기준에서 놓으면 아무것도 안 함, pointercancel 도 그대로, 다른 포인터·꺼진 칸은 무시, 끌지 않을 때 올리면 미리보기', () => {
   const rows = S.rowsOfErp(REC);
   const staff = S.peopleOfErp(rows, { prjNo: P.prjNo, now: 1 });
   const plan = Object.assign({ prjNo: P.prjNo, year: 1, prjNm: P.prjNm, from: '2026-04', to: '2026-12', budgetPay: 30000000, budget: null, at: 1, by: '', note: '' }, staff);
@@ -284,32 +275,26 @@ test('증감 줄 끌기 — 누른 칸부터 손가락 밑 칸(elementFromPoint)
     listeners.pointermove({ pointerId: 2, clientX: 0, clientY: 0 });
     assert.deepStrictEqual([on(), draws], [[-20, -10], d0], '다른 포인터는 무시 · 끄는 동안 다시 그리지 않음');
     listeners.pointerup({ pointerId: 1 });
-    assert.deepStrictEqual([on(), pv.textContent, applyBtn.textContent, dec(), st.staffDraft.step, draws], [[-20, -10], '반영을 누르면 — 미리보기 -20', '반영 −20%', 2322000, { kind: 'scale', v: -20 }, d0], '놓으면 −20% 를 고르기만 — 계획 그대로 · 표시는 반영을 누르면 · 반영 단추에 값 · 다시 그리지 않음');
+    assert.deepStrictEqual([on(), dec(), !!st.staffEdit, st.staffDraft.step, draws], [[], 1858000, true, undefined, d0 + 1], st.staffError || '놓으면 −20% 를 바로 반영(12월 2,322 × 0.8 = 1,857.6 → 1,858) · 폼은 열린 채 · 고른 것 없음 · 한 번 다시 그림');
     click({ act: 'st-step', id: kim, kind: 'scale', step: '50' });
-    assert.deepStrictEqual(st.staffDraft.step, { kind: 'scale', v: -20 }, '놓은 뒤의 click(포인터를 잡았던 칸)은 무시');
+    assert.strictEqual(dec(), 1858000, '놓은 뒤의 click(포인터를 잡았던 칸)은 무시');
     timers.splice(0).forEach((fn) => fn());
-    click({ act: 'st-apply', id: kim });
-    assert.deepStrictEqual([dec(), st.staffEdit], [1858000, null], st.staffError || '반영을 누르면 −20% 반영(12월 2,322 × 0.8 = 1,857.6 → 1,858) · 폼 닫힘');
-    open(); st.staffDraft.step = { kind: 'scale', v: 30 };
     listeners.pointerdown({ button: 0, pointerId: 3, target: steps[8], preventDefault() {} }); listeners.pointermove({ pointerId: 3, clientX: 5, clientY: 0 });
     assert.deepStrictEqual([on(), pv.textContent], [[], 'hint'], '기준 칸 위면 표시 없음');
     listeners.pointerup({ pointerId: 3 });
-    assert.deepStrictEqual([st.staffDraft.step, dec(), !!st.staffEdit, applyBtn.textContent], [null, 1858000, true, '반영'], '기준에서 놓으면 고른 것을 거둠(폼은 그대로)');
+    assert.deepStrictEqual([dec(), !!st.staffEdit, draws], [1858000, true, d0 + 1], '기준에서 놓으면 아무것도 바꾸지 않음(폼은 그대로)');
     timers.splice(0).forEach((fn) => fn());
-    st.staffDraft.step = { kind: 'scale', v: 30 };
     listeners.pointerdown({ button: 0, pointerId: 4, target: steps[2], preventDefault() {} }); listeners.pointercancel({ pointerId: 4 });
-    assert.deepStrictEqual([on(), st.staffDraft.step, dec()], [[10, 20, 30], { kind: 'scale', v: 30 }, 1858000], 'pointercancel 은 고른 것 그대로(표시도 그것으로)');
+    assert.deepStrictEqual([on(), dec()], [[], 1858000], 'pointercancel 은 아무것도 바꾸지 않음');
     steps[0].disabled = true;
     listeners.pointerdown({ button: 0, pointerId: 5, target: steps[0], preventDefault() {} });
-    assert.deepStrictEqual([on(), steps[0].captured], [[10, 20, 30], null], '꺼진 칸은 무시');
+    assert.deepStrictEqual([on(), steps[0].captured], [[], null], '꺼진 칸은 무시');
     listeners.pointermove({ pointerId: 6, target: steps[1], clientX: 0, clientY: 0 });
     assert.strictEqual(pv.textContent, '미리보기 -40', '끌지 않을 때 올리면 그 칸의 미리보기');
     listeners.pointermove({ pointerId: 6, target: { closest: () => null }, clientX: 0, clientY: 0 });
     assert.strictEqual(pv.textContent, 'hint', '벗어나면 안내(data-default)로');
     click({ act: 'st-step', id: kim, kind: 'scale', step: '10' });
-    assert.deepStrictEqual([st.staffDraft.step, dec()], [{ kind: 'scale', v: 10 }, 1858000], '키보드(Enter·Space)의 click 도 고르기만');
-    click({ act: 'st-apply', id: kim });
-    assert.strictEqual(dec(), 2044000, st.staffError || '반영 — 1,858 × 1.1 = 2,043.8 → 2,044');
+    assert.deepStrictEqual([dec(), !!st.staffEdit], [2044000, true], st.staffError || '키보드(Enter·Space)의 click 도 바로 반영 — 1,858 × 1.1 = 2,043.8 → 2,044 · 폼은 열린 채');
   } finally { globalThis.chrome = priorChrome; globalThis.setTimeout = priorTimeout; }
 });
 test('참여인력 변경 탭 — section({ only: "staff" }): 과제 칩·과제 카드(과제명 · 과제번호 · 기간 칸)·예산·변경이력·요약 세 칸 없이 제목 줄 뒤 별칭 · 과제 정보 링크, 연차 칩, 접히지 않는 참여인력 카드(머리 한 줄에 요약 + 단추 줄)만(2026-10-19 "너무 공간을 많이 차지함"), [참여연구원 변경] 단추는 보통 화면의 펼친 카드에만; bind().focus 는 주소의 과제·연차를 보는 상태로 두고 화면을 연다(저장된 staffView 가 뒤늦게 읽혀도 덮지 않음) · openTab 은 백그라운드 openExtTab 에 #tab&page=staff&only=staff&prj&year 주소를 보낸다', () => {
@@ -1104,30 +1089,22 @@ test('지급 완료(2026-10-19 "지급된 월은 수정 못하게 … 월 우측
   st.staffEdit = { prjNo: P.prjNo, year: 1, id };
   st.staffDraft = { from: '2026-09-01', to: '2026-12-31', mode: 'rate', value: '' };
   const form = U.section(d, {}, st, '', TAB);
-  assert.ok(form.includes('data-stf="from" value="2026-09-01" min="2026-09-01"') && form.includes('>8월까지 지급 완료 — 그 뒤 달부터</span>'), '적용일 하한 · 안내');
+  assert.ok(form.includes('data-stf="from" value="2026-09-01" min="2026-09-01"') && !form.includes('지급 완료 — 그 뒤 달부터'), '적용일 하한 — "n월까지 지급 완료" 안내 줄은 없음(2026-10-20, 격자의 지급 꼬리표로 보임)');
   st.staffEdit = null; st.staffDraft = null;
-  // 제외(−100%)도 먼저 고른 뒤 반영 — 선택한 9~10월만 0원, 지급 완료·선택 밖은 유지
+  // 제외(−100%)도 누르면 바로 — 선택한 9~10월만 0원, 지급 완료·선택 밖은 유지(잠긴 달이 들어가면 거부하고 그대로)
   withStaffActions(st, ({ click, input }) => {
     const before = JSON.parse(JSON.stringify(st.staffPlans[K1].people));
-    click('st-edit', { id }); input('from', '2026-09-01'); input('to', '2026-10-31');
+    click('st-edit', { id }); input('from', '2026-08-01'); input('to', '2026-10-31');
     click('st-step', { id, kind: 'scale', step: '-100' });
-    assert.deepStrictEqual(st.staffDraft.step, { kind: 'scale', v: -100 });
-    assert.deepStrictEqual(st.staffPlans[K1].people, before, '제외를 골라도 반영 전에는 지급계획 그대로');
-    const pending = U.section(d, {}, st, '', TAB);
-    assert.ok(pending.includes('>반영 제외</button>') && pending.includes('aria-pressed="true">제외<small>−100%</small></button>') && pending.includes('<b>반영</b>을 누르면 — 제외 (−100%) — 9~10월 2,330 → 0천원'), '제외를 고른 상태와 반영 결과를 표시');
-    click('st-nudge', { id, kind: 'scale', dir: '-1' });
-    assert.strictEqual(st.staffDraft.step.v, -100, '제외에서 −1%를 눌러도 −100% 아래로 내려가지 않음');
-    click('st-nudge', { id, kind: 'scale', dir: '1' });
-    assert.strictEqual(st.staffDraft.step.v, -99, '제외에서 +1%를 누르면 −99%');
-    click('st-nudge', { id, kind: 'scale', dir: '-1' });
-    input('from', '2026-08-01'); click('st-apply', { id });
     assert.ok(st.staffError.includes('지급이 끝난 달'), '제외도 지급 완료 달에는 반영할 수 없음');
     assert.deepStrictEqual(st.staffPlans[K1].people, before, '잠긴 달에 반영을 시도해도 지급계획 그대로');
-    input('from', '2026-09-01'); click('st-apply', { id });
+    input('from', '2026-09-01');
+    assert.ok(U.section(d, {}, st, '', TAB).includes('data-preview="제외 (−100%) — 9~10월 2,330 → 0천원'), '제외 칸의 미리보기');
+    click('st-step', { id, kind: 'scale', step: '-100' });
     const after = st.staffPlans[K1].people.find((x) => x.id === id);
-    assert.deepStrictEqual(after.plan, before[0].plan.map((x) => x.ym === '2026-09' || x.ym === '2026-10' ? Object.assign({}, x, { amt: 0 }) : x), '9~10월만 제외하고 지급 완료 4~8월과 선택 밖 11~12월은 유지');
+    assert.deepStrictEqual(after.plan, before[0].plan.map((x) => x.ym === '2026-09' || x.ym === '2026-10' ? Object.assign({}, x, { amt: 0 }) : x), st.staffError || '9~10월만 제외하고 지급 완료 4~8월과 선택 밖 11~12월은 유지');
     assert.deepStrictEqual(st.staffPlans[K1].people[1], before[1], '다른 연구원의 지급계획 유지');
-    assert.ok(!st.staffEdit && !st.staffDraft, '반영하면 제외 선택과 폼을 닫음');
+    assert.ok(st.staffEdit && st.staffEdit.id === id, '바로 반영한 뒤에도 폼은 열린 채');
   });
   // 잠긴 구간(4~9월 전체가 지급 완료)의 칸은 읽기만 — 김거화를 9월까지 지급된 것으로
   const paid9 = Object.assign({}, paid, { through: '2026-09' });
