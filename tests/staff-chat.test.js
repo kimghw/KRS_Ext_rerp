@@ -1,6 +1,7 @@
 /* 참여연구원 변경 도우미(채팅, 0.8.8) 테스트 — lib/staff-chat-core.js(입력 정리 · 프롬프트 · 스키마 · 결과 검사 · 작업 한 줄 글), lib/staff-ui.js bind().agent(계획 요약 snapshot · 작업 반영 apply — 표의 칸·✎ 폼과 같은 길),
  * help-server/staff-chat.js run(claude -p 인수와 stream-json 결과 읽기 — child_process.spawn 은 가짜). DOM·chrome·claude 없이. 실행: node tests/staff-chat.test.js */
 globalThis.self = globalThis;
+const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const EventEmitter = require('events');
@@ -161,7 +162,7 @@ test('agent.apply — change(적용일부터 · 전체 · 제외 · 나머지의
     assert.ok(r[0].msg.startsWith('문창재 — 참여율 변경: 20.00% · 10,479천원 · 4~12월 → '), r[0].msg);
     assert.strictEqual(r[1].msg, '나그네 이(가) 1차년도 계획에 없습니다.');
     const m = personOf(st, '문창재');
-    assert.deepStrictEqual(m.plan.filter((x) => x.ym >= '2026-11').map((x) => x.amt), [1456000, 1456000], '11·12월 = round천원(5,823 × 25%)');
+    assert.deepStrictEqual(m.plan.filter((x) => x.ym >= '2026-11').map((x) => x.amt), [1455000, 1455000], '11·12월 = floor천원(5,823 × 25%) — 2026-10-20 천원 내림');
     assert.deepStrictEqual(m.plan.filter((x) => x.ym < '2026-11').map((x) => x.amt), Array(7).fill(1165000), '그 앞은 그대로');
     assert.deepStrictEqual(st.staffLastRange, { key: S.planKey(P.prjNo, 1), from: '2026-12-01', to: '2026-12-31' }, '다음 폼의 기본 날짜 = 마지막으로 반영한 작업의 날짜(applyForm 과 같은 길)');
     assert.strictEqual(personOf(st, '김거화').plan.find((x) => x.ym === '2026-12').amt, 0, '12월 제외');
@@ -228,12 +229,43 @@ test('agent.apply init carry — 이전 차년도에서 가져오기(2026-10-20)
     assert.deepStrictEqual([r[0].ok, r[0].text, r[0].msg], [false, '초기화 — 이전 차년도에서 가져오기', '1차년도에는 가져올 앞 연차가 없습니다.']);
     r = await api.agent.apply([{ op: 'init', how: 'erp' }, { op: 'year', year: 2 }, { op: 'budget', value: 35900 }, { op: 'init', how: 'carry' }]);
     assert.ok(r.every((x) => x.ok), JSON.stringify(r));
-    assert.ok(r[3].msg.startsWith('2차년도 참여연구원 2명 — 1차년도 계획에서 연구원·월급여·참여율을 가져와 1~12월 전체(12개월)에 · 초과금 6,016천원'), r[3].msg);
-    assert.deepStrictEqual(planOf(st, 2).people.map((q) => [q.name, q.plan.length, q.plan[0].amt, q.plan[11].ym]), [['문창재', 12, 1165000, '2027-12'], ['김거화', 12, 2328000, '2027-12']]);
+    assert.ok(r[3].msg.startsWith('2차년도 참여연구원 2명 — 1차년도 계획에서 연구원·월급여·참여율을 가져와 1~12월 전체(12개월)에 · 초과금 5,992천원'), r[3].msg);
+    assert.deepStrictEqual(planOf(st, 2).people.map((q) => [q.name, q.plan.length, q.plan[0].amt, q.plan[11].ym]), [['문창재', 12, 1164000, '2027-12'], ['김거화', 12, 2327000, '2027-12']]);
     personOf(st, '문창재', 2).plan[0].amt = 0;
     r = await api.agent.apply([{ op: 'init', how: 'carry' }]);
-    assert.ok(r[0].ok && personOf(st, '문창재', 2).plan[0].amt === 1165000, JSON.stringify(r));
+    assert.ok(r[0].ok && personOf(st, '문창재', 2).plan[0].amt === 1164000, JSON.stringify(r));
   });
+});
+
+test('예산 규칙(rules) — clean 이 줄바꿈을 두고 제어 문자·줄 끝 공백을 지우며 3,000자로 자르고, build 의 system 은 SYSTEM 뒤에 규칙(없으면 SYSTEM 그대로), 기본 글은 예산 이야기', () => {
+  const i = C.clean({ text: 'x', rules: ' # 예산 규칙\r\n- 초과금 금지  \n\n\u0007- 둘째 ', snapshot: {} });
+  assert.strictEqual(i.rules, '# 예산 규칙\n- 초과금 금지\n\n- 둘째');
+  const b = C.build(i);
+  assert.ok(b.system.startsWith(C.SYSTEM + '\n\n') && b.system.endsWith('\n' + i.rules) && b.system.includes('[규칙]'), b.system.slice(-300));
+  assert.ok(!b.text.includes('초과금 금지'), '규칙은 요청 글이 아니라 시스템 프롬프트에');
+  assert.strictEqual(C.build(C.clean({ text: 'x', snapshot: {} })).system, C.SYSTEM);
+  assert.strictEqual(C.build(C.clean({ text: 'x', rules: '   \n ', snapshot: {} })).system, C.SYSTEM, '빈 글은 없는 것');
+  assert.strictEqual(C.clean({ text: 'x', rules: 'a'.repeat(5000), snapshot: {} }).rules.length, C.LIMIT.rules);
+  assert.ok(C.DEFAULT_RULES.includes('인건비 예산') && C.DEFAULT_RULES.includes('[규칙]') && C.DEFAULT_RULES.length <= C.LIMIT.rules && C.rulesOf(C.DEFAULT_RULES) === C.DEFAULT_RULES);
+});
+
+test('첨부(files) — clean 이 이름의 경로 문자를 _ 로, 종류 밖은 "", base64 는 pdf·image 만, 글은 줄바꿈 두고 자르며, build 가 "첨부 파일" 절로 붙인다(글 · path 는 Read · attached 는 블록 · 못 읽음은 note)', () => {
+  const i = C.clean({ text: '첨부대로', snapshot: {}, files: [
+    { name: ' ..\\x/명세.xlsx ', kind: 'xlsx', text: '[시트 1]\r\n이름\t참여율  \n문창재\t25', size: '1234' },
+    { name: '사진.png', kind: 'image', type: 'image/jpeg', data: 'AAAA' },
+    { name: '옛.doc', kind: 'doc', note: '읽을 수 없는 종류' },
+    { name: '', kind: 'pdf' },
+    { name: '공문.hwpx', kind: 'hwpx', text: 'x'.repeat(20000), truncated: true, data: 'AAAA' },
+  ] });
+  assert.strictEqual(i.files.length, 4);
+  assert.deepStrictEqual([i.files[0].name, i.files[0].kind, i.files[0].text, i.files[0].size], ['_x_명세.xlsx', 'xlsx', '[시트 1]\n이름\t참여율\n문창재\t25', 1234]);
+  assert.deepStrictEqual([i.files[1].kind, i.files[1].data, i.files[2].kind, i.files[2].note, i.files[3].data, i.files[3].text.length, i.files[3].truncated], ['image', 'AAAA', '', '읽을 수 없는 종류', '', C.LIMIT.fileText, true]);
+  i.files[1].path = 'C:\\tmp\\사진.png';   // 서버가 둔 경로
+  const t = C.build(i).text;
+  assert.ok(t.includes('첨부 파일 4개') && t.includes('- _x_명세.xlsx (엑셀):\n[시트 1]\n이름\t참여율\n문창재\t25') && t.includes('C:\\tmp\\사진.png 을 Read 도구로') && t.includes('- 옛.doc — 읽지 못함: 읽을 수 없는 종류.') && t.includes('- 공문.hwpx (HWPX) — 앞부분만:'), t.slice(-800));
+  assert.ok(C.build(C.clean({ text: 'x', snapshot: {}, files: [{ name: 'a.pdf', kind: 'pdf', attached: true }] })).text.includes('- a.pdf (PDF) — 이 메시지에 함께 붙인 문서를 본다.'));
+  assert.ok(!C.build(C.clean({ text: 'x', snapshot: {} })).text.includes('첨부 파일'));
+  assert.strictEqual(C.clean({ text: 'x', snapshot: {}, files: new Array(9).fill({ name: 'a.txt', kind: 'text', text: 'a' }) }).files.length, C.LIMIT.files);
 });
 
 /* help-server/staff-chat.js run — child_process.spawn 을 가짜로: 인수를 보고 stream-json result 한 줄을 돌려준다 */
@@ -241,14 +273,17 @@ test('server run — claude -p 인수(모델 · --safe-mode · 도구 없음 · 
   const cp = require('child_process');
   const realSpawn = cp.spawn;
   let seen = null;
-  cp.spawn = (bin, args) => {
+  let spawns = 0, crashOnce = false;
+  cp.spawn = (bin, args, o) => {
+    spawns++;
     const child = new EventEmitter();
-    seen = { bin, args, stdin: '' };
+    seen = { bin, args, stdin: '', cwd: o && o.cwd, staged: (() => { try { return fs.readdirSync(o.cwd); } catch (e) { return null; } })() };
     child.stdin = { on() {}, end(s) { seen.stdin = String(s); } };
     child.stdout = new EventEmitter(); child.stdout.setEncoding = () => {};
     child.stderr = new EventEmitter(); child.stderr.setEncoding = () => {};
     child.kill = () => {};
     setImmediate(() => {
+      if (crashOnce) { crashOnce = false; return child.emit('close', 3221226505); }   // claude.exe 가 시작하다 결과 없이 죽음 — 서버가 한 번 더 돌려야
       child.stdout.emit('data', JSON.stringify({ type: 'system', subtype: 'init' }) + '\n' + JSON.stringify({ type: 'result', is_error: false, total_cost_usd: 0.02, duration_api_ms: 3000,
         structured_output: { reply: '11월부터 25% 로 바꿉니다.', ops: [{ op: 'change', name: '문창재', newName: '', role: '', from: '2026-11-01', to: '', mode: 'rate', value: 25, monthly: 0, how: '', year: 0, supportRole: '', ref: true }, { op: 'remove', name: '아무개', newName: '', role: '', from: '', to: '', mode: '', value: 0, monthly: 0, how: '', year: 0, supportRole: '', ref: true }] } }) + '\n');
       child.emit('close', 0);
@@ -269,6 +304,23 @@ test('server run — claude -p 인수(모델 · --safe-mode · 도구 없음 · 
     assert.strictEqual(a[a.indexOf('--system-prompt') + 1], C.SYSTEM);
     assert.deepStrictEqual(JSON.parse(a[a.indexOf('--json-schema') + 1]).required, ['reply', 'ops']);
     assert.ok(seen.stdin.includes('요청: 문창재 11월부터 25%로') && seen.stdin.includes('- 문창재 — 참여연구원'), 'stdin 에 계획 요약과 요청');
+    const withRules = runner.clean({ text: '문창재 11월부터 25%로', snapshot: SNAP, rules: '- 초과금 금지' });   // 예산 규칙은 시스템 프롬프트 뒤에
+    await runner.run(withRules, { bins: ['claude-x'], model: 'claude-opus-5-5', fallback: '', env: {}, timeoutMs: 5000 });
+    const sys = seen.args[seen.args.indexOf('--system-prompt') + 1];
+    assert.strictEqual(sys, C.build(withRules).system);
+    assert.ok(sys.startsWith(C.SYSTEM) && sys.endsWith('- 초과금 금지') && sys.includes('예산 규칙'), sys.slice(-200));
+    assert.strictEqual(seen.args[seen.args.indexOf('--tools') + 1], '', '첨부 없으면 도구 없음');
+    const withFiles = runner.clean({ text: '첨부대로', snapshot: SNAP, files: [{ name: '../명세.pdf', kind: 'pdf', type: 'application/pdf', size: 8, data: Buffer.from('%PDF-1.4').toString('base64') }, { name: '공문.hwpx', kind: 'hwpx', text: '참여율 25%' }] });
+    await runner.run(withFiles, { bins: ['claude-x'], model: 'claude-opus-5-5', fallback: '', env: {}, timeoutMs: 5000 });
+    assert.strictEqual(seen.args[seen.args.indexOf('--tools') + 1], 'Read', 'PDF·이미지가 있으면 Read');
+    assert.strictEqual(seen.args[seen.args.indexOf('--permission-mode') + 1], 'dontAsk');
+    assert.deepStrictEqual(seen.staged, ['_명세.pdf'], '요청 폴더에 PDF 만 (이름의 경로 문자는 _)');
+    assert.ok(seen.cwd.startsWith(runner.WORK_DIR) && seen.cwd !== runner.WORK_DIR && !fs.existsSync(seen.cwd), '작업 폴더는 요청마다 새로, 끝나면 지움');
+    assert.ok(seen.stdin.includes('첨부 파일 2개') && seen.stdin.includes(withFiles.files[0].path) && seen.stdin.includes('Read 도구로') && seen.stdin.includes('참여율 25%'), seen.stdin.slice(-600));
+    crashOnce = true; const n0 = spawns;
+    const again = await runner.run(input, { bins: ['claude-x'], model: 'claude-opus-5-5', fallback: '', env: {}, timeoutMs: 5000 });
+    assert.strictEqual(spawns, n0 + 2, '결과 없이 바로 죽으면 한 번 더');
+    assert.strictEqual(again.ops.length, 1);
   } finally { cp.spawn = realSpawn; }
 });
 

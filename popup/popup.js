@@ -14,12 +14,14 @@
   try { state.partPlans = await KRX_PART.load(); } catch (e) {}   // 예비 참여율(참여 계획) (lib/part.js)
   try { state.prep = await KRX_PREP.load(); } catch (e) {}        // 청구 준비: 거래별 청구종류·첨부 파일 (lib/prep.js)
   try { state.research = await KRX_RESEARCH.load(); } catch (e) {}   // 연구개발계획서(연구내용) 참조 — 패널의 연구내용 탭 (lib/research.js, render.js researchSection)
-  try { state.staffPlans = await KRX_STAFF.load(); } catch (e) {}   // 사업비 관리 화면(제목 줄 아이콘): 과제마다 연차별 예산·참여연구원 계획 (lib/staff.js, lib/staff-ui.js — 0.8.7)
+  try { state.staffPlans = await KRX_STAFF.load(); } catch (e) {}
+  if (self.KRX_ALLOW) { try { state.allowCalc = await KRX_ALLOW.load(); } catch (e) {} }   // 연구수당 계산 탭의 기준·계수·한도·직접 지급액 (lib/allowance.js)   // 사업비 관리 화면(제목 줄 아이콘): 과제마다 연차별 예산·참여연구원 계획 (lib/staff.js, lib/staff-ui.js — 0.8.7)
   const draw = () => KRX_RENDER.render(host, state);
   KRX_PLAN.bind(host, state, draw);   // 과제집행비율 표의 예상 비용 입력(＋/수정/삭제) 처리
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
+  if (self.KRX_ALLOW) KRX_ALLOW.bind(host, state, draw);   // 연구수당 계산 탭의 기준 칸·계수·한도·지급액 입력, 복사·초기화
   const staffApi = KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
   if (state.tab && self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.init({ api: staffApi, state, draw });   // 참여연구원 변경 탭의 오른쪽 변경 도우미 채팅(popup/staff-chat.js, 0.8.8) — only=staff 일 때 제목 줄 [에이전트] 단추(st-agent)로 열고 닫음, LLM(Help 서버)이 연결돼 있을 때만 입력
   const prepApi = KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
@@ -30,11 +32,11 @@
   const applyHash = () => {
     if (!state.tab) return;
     const q = new URLSearchParams(location.hash.replace(/^#/, ''));
-    const only = q.get('only') === 'staff';
-    state.staffOnly = only ? 'staff' : '';
+    const only = ['staff', 'allow'].includes(q.get('only')) ? q.get('only') : '';   // staff: 참여연구원 변경 · allow: 연구수당 계산(lib/allowance.js, 2026-10-21)
+    state.staffOnly = only;
     document.documentElement.classList.toggle('krext-only', only);
-    if (only) document.title = '참여연구원 변경 — R&D ERP 현황';
-    if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.show(only);   // 변경 도우미 채팅은 참여연구원 변경 탭에만
+    if (only) document.title = `${only === 'allow' ? '연구수당 계산' : '참여연구원 변경'} — R&D ERP 현황`;
+    if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.show(only === 'staff');   // 변경 도우미 채팅은 참여연구원 변경 탭에만
     if (q.get('page') === 'staff' && staffApi && staffApi.focus) staffApi.focus({ prjNo: q.get('prj') || '', year: Number(q.get('year')) || 0 });
     else if (only) draw();
   };

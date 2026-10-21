@@ -568,10 +568,10 @@ button.krext-st-step:hover:not(:disabled) { border-color: #9cbbe6; }
 .krext-st-co-pick input { margin: 0; width: 12px; height: 12px; }
 .krext-st-co-max { display: block; font-size: 10px; line-height: 1.2; }
 .krext-st-step:disabled { opacity: .45; cursor: default; }
-.krext-st-step-read { display: flex; flex-wrap: wrap; gap: 2px 10px; min-height: 16px; }
-.krext-st-step-read:has(.krext-st-step-pv:empty) { display: none; }   /* 고른 것·올린 칸이 없으면 줄 자체를 숨김(안내 글 없음 — 2026-10-20) */
+.krext-st-quick-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }   /* 기준 줄 — 오른쪽 같은 줄에 그 칸의 미리보기(비면 글만 없음 — 줄 높이가 그대로라 누를 때 폼이 들썩이지 않음, 2026-10-20 사용자 "이 2개 알림이나 노트는 한줄에 같이 적어줘") */
 .krext-st-quick-k b { color: #1f4f8f; font-variant-numeric: tabular-nums; }
 .krext-st-step-pv { color: #34495e; }
+.krext-st-step-pv:not(:empty)::before { content: "·"; margin-right: 8px; color: #9aa9bd; }
 .krext-st-step-pv.krext-st-step-pending { color: #1f4f8f; }
 .krext-st-step-pv b { color: #1f4e9c; }
 .krext-st-sum .krext-st-low { color: #b43243; font-weight: 600; }
@@ -892,8 +892,10 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-row { height: 56px; }   /* 사람 줄·달 격자를 약 30% 낮게 — 2026-10-19 사용자 "높이를 30%만 줄이면 좋겠어"(줄 86→60px · 달 격자 64→45px) */
 .krext-st-focus .krext-st-row:hover > td { background: #fcfdff; }
 .krext-st-focus .krext-st-row[data-editing="true"] > td { background: #f2f7ff; }
-.krext-st-focus .krext-st-row[data-editing="true"] > .krext-st-nm { box-shadow: inset 3px 0 #477dce; }
 .krext-st-focus .krext-st-row[data-editing="true"] + .krext-st-months > td { background: #f2f7ff; border-bottom-color: #cadbf3; }
+/* 편집 중인 사람 줄(성명 칸 — 구간 줄까지 rowspan) · 달 격자 · rERP 등록 줄 · 폼의 왼쪽 3px 파란 세로줄은 하나로 이어진다 — ::before 가 위아래 1px 더 뻗어 줄 경계의 선을 덮음(2026-10-20 사용자 "이거 하나의 선으로 이어져라") */
+.krext-st-focus .krext-st-row[data-editing="true"] > .krext-st-nm, .krext-st-focus .krext-st-row[data-editing="true"] + .krext-st-months > td, .krext-st-focus .krext-st-row[data-editing="true"] + .krext-st-months + .krext-st-erp > td, .krext-st-focus .krext-st-form > td { position: relative; }
+.krext-st-focus .krext-st-row[data-editing="true"] > .krext-st-nm::before, .krext-st-focus .krext-st-row[data-editing="true"] + .krext-st-months > td::before, .krext-st-focus .krext-st-row[data-editing="true"] + .krext-st-months + .krext-st-erp > td::before, .krext-st-focus .krext-st-form > td::before { content: ""; position: absolute; left: 0; top: -1px; bottom: -1px; width: 3px; background: #477dce; pointer-events: none; }
 .krext-st-focus .krext-st-table .krext-st-nm { min-width: 118px; color: #233c59; font-weight: 600; vertical-align: middle; }
 .krext-st-focus .krext-st-table .krext-st-in { width: 108px; height: 32px; padding: 4px 10px; border: 1px solid #dce4ee; border-radius: 6px; background: #fff; color: #233c59; font-size: 14px; font-variant-numeric: tabular-nums; }
 .krext-st-focus .krext-st-table .krext-st-rate { width: 100px; }
@@ -949,13 +951,12 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-focus .krext-st-auto-actions > .krext-st-step { min-width: 0; height: auto; min-height: 36px; padding: 3px 10px; font-size: 12px; }
 .krext-st-focus .krext-st-quick-k { color: #61728a; }
 .krext-st-focus .krext-st-quick-k b { margin: 0 2px; color: #294f83; font-size: 15px; }
-.krext-st-focus .krext-st-step-read { min-height: 0; padding: 8px 10px; border: 1px solid #e2e9f2; border-radius: 6px; background: #fff; line-height: 1.6; }
+.krext-st-focus .krext-st-quick-head { gap: 2px 12px; line-height: 1.7; }
 .krext-st-focus .krext-st-step-pv { color: #68798e; }
 .krext-st-focus .krext-st-step-pv.krext-st-step-pending { color: #285b9e; }
-.krext-st-focus .krext-st-step-read:has(.krext-st-step-pending) { border-color: #c6d9f3; background: #edf4ff; }
 .krext-st-focus .krext-st-step-fit small { font-size: 11px; }
 .krext-st-focus .krext-st-step-exclude small { font-size: 10px; }
-.krext-st-focus .krext-st-form td { padding: 14px; background: #f7f9fd; box-shadow: inset 3px 0 #477dce; }
+.krext-st-focus .krext-st-form td { padding: 14px; background: #f7f9fd; }
 .krext-st-focus .krext-st-editor-head { margin-bottom: 12px; }
 .krext-st-focus .krext-st-form .krext-plan-ind { display: none; }
 .krext-st-focus .krext-plan-form { gap: 8px 8px; }
@@ -1016,6 +1017,46 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-budgetline > span { white-space: nowrap; }
 .krext-st-budgetline strong { margin-left: 6px; color: #243b55; font-size: 16px; font-weight: 700; }
 .krext-st-budgetline .krext-st-unit { margin-left: auto; color: #62738b; font-size: 11px; }
+/* 연구수당 계산 탭(lib/allowance.js card — 10-53 별지 1·2) — 일반 정보 칸, 평가 표(성과 항목 줄 · 기타 선택 · 등급), 지급 내역 표(통합·조정 줄 · 미지급), 대상이 아닌 줄 */
+.krext-al-h { margin: 12px 0 6px; font-size: 13px; font-weight: 700; color: #243b55; }
+.krext-al-card .krext-ws-body > .krext-al-h:first-child { margin-top: 2px; }
+.krext-al-general { display: grid; grid-template-columns: max-content minmax(120px, 1fr) max-content minmax(120px, 1fr); gap: 4px 10px; align-items: center; margin: 0; padding: 9px 12px; border: 1px solid #e5ebf3; border-radius: 8px; background: #f6f8fc; font-size: 12px; }
+.krext-al-general dt { color: #586b82; white-space: nowrap; }
+.krext-al-general dd { margin: 0; color: #243b55; min-width: 0; overflow-wrap: anywhere; }
+.krext-al-general dd.krext-al-wide { grid-column: 2 / 5; }
+.krext-al-general strong { font-size: 15px; margin-right: 3px; }
+.krext-al-general small { margin-left: 4px; color: #2563c4; font-size: 10px; }
+.krext-al-in { border-color: #c9d1dc !important; background: #fff !important; }
+.krext-al-general .krext-al-in { width: 110px; height: 26px; text-align: left; }
+.krext-al-general [data-al="pool"], .krext-al-general [data-al="avail"] { text-align: right; }
+.krext-al-table th.krext-al-grp { text-align: center; background: #f1f5fa; }
+.krext-al-table .krext-al-in { width: 60px; }
+.krext-al-t1 th, .krext-al-t1 td { padding: 3px 4px; }
+.krext-al-t1 th { white-space: normal; line-height: 1.3; min-width: 48px; }
+.krext-al-t1 .krext-al-sel { max-width: 84px; }
+.krext-al-table .krext-al-grade { width: 44px; text-align: center; }
+.krext-al-table td.krext-st-nm small { display: block; font-size: 10px; font-weight: 400; }
+.krext-al-table .krext-al-num { width: 38px; }
+.krext-al-sel { height: 24px; padding: 1px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #222; font-family: inherit; font-size: 12px; }
+.krext-al-items { min-width: 250px; }
+.krext-al-item { display: flex; align-items: center; gap: 3px; margin-bottom: 2px; }
+.krext-al-item .krext-al-item-nm { width: 120px; text-align: left; }
+.krext-al-score { min-width: 36px; font-size: 11px; color: #586b82; white-space: nowrap; }
+.krext-al-del { width: 20px; height: 20px; padding: 0; font-size: 13px; }
+.krext-al-add { padding: 1px 7px; font-size: 11px; }
+.krext-al-table tr.krext-al-off td { color: #9aa5b4; }
+.krext-al-table td.krext-al-gr b { font-size: 13px; color: #2563c4; }
+.krext-al-table td.krext-al-gr small { display: block; font-size: 10px; color: #d97706; }
+.krext-al-table tfoot td { font-weight: 600; border-top: 1px solid #cfdcf0; }
+.krext-al-opts { margin: 0 0 8px !important; }
+.krext-al-opts label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.krext-al-adj { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.krext-al-adj .krext-al-num { width: 40px; height: 24px; }
+.krext-al-groups { flex-basis: 100%; color: #586b82; font-size: 11px; white-space: normal !important; }
+.krext-al-note { min-width: 220px; }
+.krext-al-note .krext-al-out { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-size: 11px; white-space: nowrap; }
+.krext-al-note .krext-al-note-in { width: 160px; text-align: left; }
+.krext-al-sign { min-width: 60px; }
 .krext-st-budgetstate { padding: 2px 8px; border-radius: 5px; font-weight: 600; }
 .krext-st-budget-even { background: #e7f4ee; color: #216346; }
 .krext-st-budget-over { background: #fff0f1; color: #ad3041; }
@@ -1176,3 +1217,35 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
   .krext-st-co-stat + .krext-st-co-stat { padding-left: 0; border-left: 0; }
   .krext-st-co-closed .krext-st-co-heading .krext-sub { margin-left: 0; }
 }
+
+/* ✎ 폼 — 남은 참여율 줄(증감 줄 위): 그 기간 다른 과제 참여율의 최대 달과 100 − 그것. 적은 값이 그것을 넘으면 줄과 값 칸이 빨강(2026-10-20 사용자 "남아 있는 최소 참여율" · "초과 될 때도 빨간색으로") */
+.krext-st-room { font-size: 12px; color: #4b5b6e; margin-bottom: 2px; }
+.krext-st-room b { color: #1f4e9c; }
+.krext-st-room.krext-st-over, .krext-st-room.krext-st-over b { color: #b43243; }
+.krext-plan-form input.krext-st-over { border-color: #b43243; color: #b43243; background: #fff5f6; }
+
+/* ✎·＋ 폼 두 줄(2026-10-20 사용자 "이걸 2개로 나누고 … 적용일, 종료일 구분은 상세로 접혀있다고 따로 펼게"): 1줄 왼쪽 [제외][10%][20%][30%]·[−1%][+1%], 오른쪽 [예산 맞추기][rERP 최대][사용자 제공 최대][균등]; 2줄 값·반영·취소; 그 아래 접힌 상세(적용일·종료일·구분) */
+.krext-st-quickrow { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px 14px; }
+.krext-st-quickrow > .krext-st-steps { flex: 0 1 auto; }
+.krext-st-quickrow > .krext-st-steps .krext-st-scale-options { grid-auto-columns: minmax(44px, auto); }
+.krext-st-quickrow > .krext-st-auto-actions { margin-left: auto; }
+.krext-st-detail { margin: 2px 0 0 18px; font-size: 12px; color: #4b5b6e; }
+.krext-st-detail > summary { cursor: pointer; color: #1f4f8f; list-style: none; }
+.krext-st-detail > summary::before { content: "▸ "; color: #9aa9bd; }
+.krext-st-detail[open] > summary::before { content: "▾ "; }
+.krext-st-detail-body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 4px; }
+.krext-st-detail-body label { display: inline-flex; align-items: center; gap: 4px; }
+
+/* 2026-10-21: ✎ 폼의 값·반영·취소도 상세에(접힘), 안내 글도 접힘, 올리면 바뀌는 미리보기 줄 없음(칸이 움직이지 않게) */
+.krext-plan-form.krext-st-detail-body { margin-top: 4px; }
+.krext-st-guide-wrap { margin-bottom: 8px; }
+.krext-st-guide-wrap > summary { cursor: pointer; color: #4a6484; font-size: 13px; list-style: none; }
+.krext-st-guide-wrap > summary::before { content: "▸ "; color: #9aa9bd; }
+.krext-st-guide-wrap[open] > summary::before { content: "▾ "; }
+.krext-st-guide-wrap[open] > .krext-st-guide { margin-top: 6px; }
+
+/* 자료 요청 사람 표 — 요청 대상 체크 상자, 꺼진 사람(이 연차 계획에 없음 · 끈 사람)은 흐리게(2026-10-21 "해당 년도에 포함되지 않은 경우 비활성화 … 체크") */
+.krext-st-co-person > .krext-st-co-on { margin: 0 6px 0 0; }
+.krext-st-co-row.krext-st-co-off td { opacity: .55; }
+.krext-st-co-row.krext-st-co-off td.krext-st-nm { opacity: 1; }
+.krext-st-co-row.krext-st-co-off .krext-st-co-person-name { opacity: .55; }

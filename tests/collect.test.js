@@ -22,10 +22,10 @@ test('목록 제목·칸·설명 — 별칭 → 과제명 앞부분 → 과제�
   assert.deepStrictEqual(fields.map((f) => [f.name, f.kind]), [['PeriodFrom', 2], ['PeriodTo', 2], ['Rate', 9], ['Monthly', 9], ['Note', 3]], '안 고르면 기본(참여율·월급여) — 0.8.9 처음 모양');
   assert.ok(fields.every((f) => /^[A-Za-z]+$/.test(f.name) && /[가-힣]/.test(f.title) && !('ask' in f)));
   fields[0].name = 'X'; assert.strictEqual(C.FIELDS[0].name, 'PeriodFrom', '사본');
-  assert.deepStrictEqual(C.ASK.map((f) => [f.name, f.ask]), [['Rate', '참여율'], ['Monthly', '월급여'], ['Allowance', '남은 연구수당']], '고르는 칸');
+  assert.deepStrictEqual(C.ASK.map((f) => [f.name, f.ask]), [['Rate', '잔여 참여율'], ['Monthly', '월급여'], ['Allowance', '잔여 연구수당']], '고르는 칸');
   assert.deepStrictEqual(C.fieldsOf(['Allowance']).map((f) => f.name), ['PeriodFrom', 'PeriodTo', 'Allowance', 'Note'], '고른 칸만 — 항목·시작·끝·비고는 늘');
   assert.deepStrictEqual([C.askOf(['Monthly', 'x', 'Monthly', 'Rate']), C.askOf('Allowance,Rate'), C.askOf([]), C.askOf(null)], [['Monthly', 'Rate'], ['Allowance', 'Rate'], ['Rate', 'Monthly'], ['Rate', 'Monthly']], 'askOf — 모르는 이름·중복 버림, 비면 기본');
-  assert.deepStrictEqual(C.askLabels(['Allowance', 'Rate']), ['남은 연구수당', '참여율']);
+  assert.deepStrictEqual(C.askLabels(['Allowance', 'Rate']), ['잔여 연구수당', '잔여 참여율']);
   assert.deepStrictEqual([C.titleFieldFor({ prjNm: 'MW급 과제', alias: 'SSCB' }).defaultValue, C.titleFieldFor({ alias: 'SSCB' }).defaultValue, C.titleFieldFor({ prjNo: '2026-0063-01' }).defaultValue, C.titleFieldFor({}).defaultValue, C.titleFieldFor({ prjNm: 'MW급 과제' }).title], ['MW급 과제', 'SSCB', '2026-0063-01', '이 과제', '항목'], '항목 기본값 = 과제 제목 → 별칭 → 과제번호 → "이 과제"(2026-10-20 "항목은 이 과제가 아니고 과제 제목을 넣고")');
   assert.ok(C.titleFieldFor({ prjNm: 'MW급 과제' }).desc.includes('"MW급 과제" 그대로 두고'));
   const withPeriod = C.fieldsOf(['Rate'], { from: '2026-11', to: '2027-03' });
@@ -39,13 +39,13 @@ test('목록 제목·칸·설명 — 별칭 → 과제명 앞부분 → 과제�
 
 test('기본 글(템플릿 자리표) · messageOf · Teams 딥 링크 — users 는 이메일(여럿이면 그룹 + topicName), message 는 URL 인코딩, 이메일이 없으면 빈 값', () => {
   const msg = C.defaultMessage({ alias: 'SSCB', prjNm: 'MW급', year: 1, from: '2026-04', to: '2026-12', formUrl: FORM, who: '김거화' });
-  assert.strictEqual(msg, `[SSCB — MW급] 1차년도 참여연구원 자료 요청\n\n기간 2026-04 ~ 2026-12의 참여 기간(시작·끝 달) · 참여율(%) · 월급여(천원)를 아래 양식에 적어 주세요.\n다른 과제에 참여 중이면 그 과제 이름으로 한 줄씩 더 적어 주시면 참여율 합(100%)을 같이 봅니다.\n\n양식: ${FORM}`, '기본 템플릿 — 빈 줄로 문단');
+  assert.strictEqual(msg, `[SSCB — MW급] 1차년도 참여연구원 자료 요청\n\n기간 2026-04 ~ 2026-12의 참여 기간(시작·끝 달) · 잔여 참여율(%) · 월급여(천원)를 아래 양식에 적어 주세요.\n다른 과제에 참여 중이면 그 과제 이름으로 한 줄씩 더 적어 주시면 참여율 합(100%)을 같이 봅니다.\n\n양식: ${FORM}`, '기본 템플릿 — 빈 줄로 문단');
   const tpl = '{과제명} {연차}차 {기간} {시작}~{끝}\n{별칭}/{과제번호}\n\n\n\n{항목} {양식} {보낸사람} {모름}  ';
-  assert.strictEqual(C.defaultMessage({ template: tpl, prjNm: 'MW급', alias: 'SSCB', prjNo: 'P1', year: 2, from: '2026-04', to: '2026-12', formUrl: FORM, who: '김거화', ask: ['Rate'] }), `MW급 2차 2026-04 ~ 2026-12 2026-04~2026-12\nSSCB/P1\n\n참여 기간(시작·끝 달) · 참여율(%) ${FORM} 김거화 {모름}`, '설정 템플릿 — 모르는 자리표는 그대로, 빈 줄 셋 이상은 둘, 끝 공백 제거');
+  assert.strictEqual(C.defaultMessage({ template: tpl, prjNm: 'MW급', alias: 'SSCB', prjNo: 'P1', year: 2, from: '2026-04', to: '2026-12', formUrl: FORM, who: '김거화', ask: ['Rate'] }), `MW급 2차 2026-04 ~ 2026-12 2026-04~2026-12\nSSCB/P1\n\n참여 기간(시작·끝 달) · 잔여 참여율(%) ${FORM} 김거화 {모름}`, '설정 템플릿 — 모르는 자리표는 그대로, 빈 줄 셋 이상은 둘, 끝 공백 제거');
   assert.ok(C.defaultMessage({ template: '  ', prjNo: 'P1' }).startsWith('[P1] 1차년도') && C.defaultMessage({ prjNo: 'P1' }).includes('기간 1차년도의'), '빈 템플릿은 기본 · 기간을 모르면 n차년도');
   assert.deepStrictEqual(C.PLACEHOLDERS, ['과제', '별칭', '과제명', '과제번호', '연차', '기간', '시작', '끝', '항목', '양식', '보낸사람']);
   assert.ok(C.PLACEHOLDERS.every((k) => C.TEMPLATE.includes(`{${k}}`) || ['별칭', '과제명', '과제번호', '시작', '끝', '보낸사람'].includes(k)), '기본 템플릿의 자리표는 모두 목록에');
-  assert.ok(C.defaultMessage({ alias: 'SSCB', year: 1, ask: ['Allowance'] }).includes('참여 기간(시작·끝 달) · 남은 연구수당(천원)를 아래'), '고른 칸만 말함');
+  assert.ok(C.defaultMessage({ alias: 'SSCB', year: 1, ask: ['Allowance'] }).includes('참여 기간(시작·끝 달) · 잔여 연구수당(천원)를 아래'), '고른 칸만 말함');
   assert.ok(C.messageOf({ formUrl: FORM, ask: ['Monthly'] }, { alias: 'SSCB' }).includes('참여 기간(시작·끝 달) · 월급여(천원)를'), 'messageOf 는 요청의 ask 를 씀');
   assert.strictEqual(C.messageOf({ message: '내 글', formUrl: FORM }, {}), '내 글');
   assert.ok(C.messageOf({ message: '', formUrl: FORM, year: 2 }, { alias: 'SSCB' }).includes('2차년도') && C.messageOf({ formUrl: FORM }, {}).includes(FORM));
@@ -80,7 +80,7 @@ test('responsesOfItems — Author 이메일로 사람(한글 이름) 맞춤, 없
   const out = C.responsesOfItems(items, req, ['이몽룡']);
   assert.deepStrictEqual(out.map((r) => r.id), ['4', '3', '5', '6'], '최신 먼저(Modified), 못 읽는 시각은 0');
   const r3 = out.find((r) => r.id === '3');
-  assert.deepStrictEqual([r3.name, r3.by, r3.email, r3.title, r3.from, r3.to, r3.rate, r3.monthly, r3.allowance, r3.note, r3.at], ['문창재', 'MOON Changjae', 'cjmoon@krs.co.kr', '이 과제', '2026-11', '2027-03', 25, 5823000, 1200000, '11월부터', Date.parse('2026-10-20T02:00:00Z')], '남은 연구수당도 천원 → 원');
+  assert.deepStrictEqual([r3.name, r3.by, r3.email, r3.title, r3.from, r3.to, r3.rate, r3.monthly, r3.allowance, r3.note, r3.at], ['문창재', 'MOON Changjae', 'cjmoon@krs.co.kr', '이 과제', '2026-11', '2027-03', 25, 5823000, 1200000, '11월부터', Date.parse('2026-10-20T02:00:00Z')], '잔여 연구수당도 천원 → 원');
   const r4 = out.find((r) => r.id === '4');
   assert.deepStrictEqual([r4.name, r4.from, r4.to, r4.rate, r4.monthly, r4.allowance], ['KIM Geohwa', '2026-10', '2026-10', 80, null, null], '이메일·이름으로 못 맞추면 표시 이름, 끝 달이 비면 시작 달, 안 물은 칸은 null');
   const r5 = out.find((r) => r.id === '5');
@@ -125,12 +125,12 @@ test('isThis — 비었거나 "이 과제" 또는 별칭·과제번호·과제�
   assert.deepStrictEqual(C.pending(req, CTX).map((r) => r.id), ['3'], '이 과제 줄 가운데 미반영만(4 는 다른 과제, 5 는 반영됨)');
   assert.deepStrictEqual(C.responseStats(req), { 문창재: { n: 2, at: 5 }, 홍길동: { n: 1, at: 3 } });
   assert.deepStrictEqual([C.lastResponse(req, '문창재').id, C.lastResponse(req, '문 창재').id, C.lastResponse(req, '김거화')], ['3', '3', null], '마지막 응답(최신 먼저) — 공백 무시, 없으면 null');
-  assert.deepStrictEqual(C.responseBits(req.responses[0], CTX), ['이 과제', '2026-11~2027-03', '25%', '월급여 5,823천원', '남은 연구수당 1,200천원'], '응답 조각 — 사람 표의 응답 칸');
+  assert.deepStrictEqual(C.responseBits(req.responses[0], CTX), ['이 과제', '2026-11~2027-03', '25%', '월급여 5,823천원', '잔여 연구수당 1,200천원'], '응답 조각 — 사람 표의 응답 칸');
   assert.deepStrictEqual(C.responseBits({ title: '', note: 'x' }, CTX), ['이 과제', '기간 없음', '참여율 없음', '"x"']);
   assert.strictEqual(C.summary(req, CTX), '공유 1/3명 · 응답 2명 (3건) · 미반영 1건');
   assert.strictEqual(C.summary({ people: [], responses: [] }, CTX), '사람 없음 · 응답 0명');
   assert.strictEqual(C.summary(null), '');
-  assert.strictEqual(C.responseText(req.responses[0], req, CTX), '문창재 — 이 과제 · 2026-11~2027-03 · 25% · 월급여 5,823천원 · 남은 연구수당 1,200천원 · 미반영');
+  assert.strictEqual(C.responseText(req.responses[0], req, CTX), '문창재 — 이 과제 · 2026-11~2027-03 · 25% · 월급여 5,823천원 · 잔여 연구수당 1,200천원 · 미반영');
   assert.strictEqual(C.responseText(req.responses[1], req, CTX), '문창재 — 선박 과제 · 2026-10 · 80% · 100% 검사에 씀');
   assert.strictEqual(C.responseText(req.responses[2], req, CTX), '홍길동 — 이 과제 · 2026-11 · 10% · "참고로 길게 적은 비고 글" · 반영됨');
   assert.strictEqual(C.summaryLines(req, CTX).length, 3);

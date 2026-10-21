@@ -573,9 +573,11 @@ applySidePanel();
 async function openExtTab(url, sender) {
   const root = chrome.runtime.getURL('');
   if (!url || !url.startsWith(root)) return { ok: false, error: '확장 페이지만 열 수 있습니다' };
-  const path = url.split('#')[0];
+  // 같은 경로라도 only(staff 참여연구원 변경 · allow 연구수당 계산)가 다르면 다른 탭 — 둘을 나란히 열어 둘 수 있게(2026-10-21)
+  const keyOf = (u) => { const [p, h] = String(u || '').split('#'); return `${p}|${new URLSearchParams(h || '').get('only') || ''}`; };
+  const path = keyOf(url);
   let tabs = [];
-  try { tabs = (await chrome.tabs.query({})).filter((t) => t.url && t.url.split('#')[0] === path); } catch (e) {}
+  try { tabs = (await chrome.tabs.query({})).filter((t) => t.url && keyOf(t.url) === path); } catch (e) {}
   const win = sender && sender.tab && sender.tab.windowId != null ? sender.tab.windowId : null;
   const t = (win != null && tabs.find((x) => x.windowId === win)) || tabs[0] || null;
   if (t) {
@@ -1243,7 +1245,8 @@ async function collectShare(msg) {
     const hint = {};
     for (const x of req.people) if (x.email) hint[x.name] = x.email;
     for (const x of given) if (x.email) hint[String(x.name)] = String(x.email);   // 탭에서 적은 것이 앞선다
-    const names = req.people.map((x) => x.name).concat(given.map((x) => String(x.name).trim()));
+    const skip = new Set((Array.isArray(msg && msg.skip) ? msg.skip : []).map((n) => KRX_STAFF.nameKeyOf(n)));   // 탭에서 꺼 둔 사람(2026-10-21) — 찾지도 공유하지도 않고 기록은 그대로
+    const names = req.people.map((x) => x.name).concat(given.map((x) => String(x.name).trim())).filter((n) => !skip.has(KRX_STAFF.nameKeyOf(n)));
     const cfg = await collectSiteCfg(p);
     const people = await collectResolve(cfg, names, hint);
     for (const q of people) { const k = req.people.find((x) => KRX_STAFF.sameName(x.name, q.name)); if (!k) continue; if (k.status === 'shared' && k.email === q.email) { q.status = 'shared'; q.sharedAt = k.sharedAt; } q.sentAt = k.sentAt; if (!q.title) q.title = k.title; }
@@ -1256,7 +1259,8 @@ async function collectShare(msg) {
       const w = await shareStore.openWriter(cfg);
       try { await collectShareWith(w, req, people); } finally { try { await w.close(); } catch (e) {} }
     }
-    req.people = people;
+    for (const q of people) { const k = req.people.find((x) => KRX_STAFF.sameName(x.name, q.name)); if (k && k.off != null) q.off = k.off; }   // 사람이 정한 켜짐/꺼짐은 지킨다
+    req.people = people.concat(req.people.filter((x) => skip.has(KRX_STAFF.nameKeyOf(x.name)) && !people.some((q) => KRX_STAFF.sameName(q.name, x.name))));
     await KRX_COLLECT.put(prjNo, year, req, no);
     return { ok: true, req };
   } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
@@ -1425,6 +1429,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepFetchCancel': return await KRX_PREP_FETCH.cancel(String(msg.key || ''));
       case 'fetchSiteSave': try { return { ok: true, site: await KRX_PREP_FETCH.saveSite(msg.site || {}, msg.cred || null, fromExtPage(sender)) }; } catch (e) { return { ok: false, error: String(e.message || e) }; }   // 비밀번호는 확장 페이지에서 온 것만
       case 'fetchSiteRemove': return { ok: await KRX_PREP_FETCH.removeSite(String(msg.id || '')) };
+      case 'staffPersonRates': return await staffPersonRates(String(msg.name || '').trim(), String(msg.prjNo || '').trim(), Array.isArray(msg.prjNos) ? msg.prjNos : [], !!msg.force);   // 참여연구원 변경 ✎ 폼: 이 과제 rERP 에 안 이어진 사람의 다른 과제 월별 참여율(lib/rnd-api.js personRates)
       case 'callService': return await KRX_API.call(msg.service, msg.input || {});
       case 'fetchBudget': return await KRX_API.fetchBudget(String(msg.prjNo || '').trim(), await KRX_SETTINGS.load());   // 자금현황 비목별 잔액(과제집행비율과 같은 조회) — 사업비 관리 참여인력 카드가 인건비 비목 승인액으로 몇 월까지 지급됐는지 셈한다(lib/staff-ui.js fetchRows → KRX_STAFF.paidThroughOf)
       case 'diagnose': {   // 진단은 그 과제의 참여인력 캐시를 지금 값으로 바꾸므로, 끝나면 패널도 다시 조회해 반영 (캐시 TTL 무시, 다른 과제의 참여인력은 캐시)
@@ -1437,3 +1442,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   })().then(sendResponse, (e) => sendResponse({ error: String((e && e.message) || e), kind: e && e.kind }));
   return true;
 });
+
+/* 참여연구원 변경 ✎ 폼 — 이 과제 rERP 에 안 이어진 사람의 다른 과제 월별 참여율(lib/rnd-api.js personRates, 2026-10-20 사용자 "rerp 에서 해당 기간동안의 참여율 불러와서 남아 있는 최소 참여율을 알려줄 수 있도록").
+ * 사람 결과는 storage.local.staffRates[이름키] = { at, target(보던 과제), found, empNo, name, dept, src, rows, reason }(하루), 과제별 최신 차수 참여인력은 erpPartIdx[과제번호] = { req, people, at }(7일)에 캐시해 다음 사람은 빠르다.
+ * 훑는 과제는 탭이 준 목록(state.data.projects) + 내 과제 목록 캐시(projectList · cache) + 참여 과제 판정 캐시 membership 의 키(진행 과제 전체). 탭(lib/staff-ui.js ensureRates)은 결과를 state.staffRates 에 두고 증감 줄의 "남은 참여율" 줄을 다시 그린다 */
+const RATES_KEY = 'staffRates', PART_IDX_KEY = 'erpPartIdx', RATES_TTL = 864e5;
+async function staffPersonRates(name, prjNo, prjNos, force) {
+  const key = name.replace(/\s/g, '');
+  if (!key) return { ok: false, error: '이름이 없습니다.' };
+  const l = await chrome.storage.local.get([RATES_KEY, PART_IDX_KEY, 'projectList', CACHE_KEY, 'membership']);
+  const all = (l[RATES_KEY] && typeof l[RATES_KEY] === 'object') ? l[RATES_KEY] : {};
+  const cur = all[key];
+  if (!force && cur && cur.at && Date.now() - cur.at < (cur.found ? RATES_TTL : 36e5) && cur.target === prjNo) return { ok: true, rates: cur, cached: true };   // 못 찾은 결과는 한 시간만(그 사이 어느 과제에 등록될 수 있음)
+  // 훑을 과제 — 내 과제(projectList · cache) + 참여 과제 판정 캐시(membership: 진행 과제 전체의 키, 2026-10-20 실측 69개)
+  const known = ((l.projectList && l.projectList.projects) || []).concat(((l[CACHE_KEY] || {}).projects) || []).map((p) => p && p.prjNo).filter(Boolean).concat(Object.keys((l.membership && typeof l.membership === 'object') ? l.membership : {}));
+  const idx = (l[PART_IDX_KEY] && typeof l[PART_IDX_KEY] === 'object') ? l[PART_IDX_KEY] : {};
+  try {
+    const r = await KRX_API.personRates(name, [...new Set(prjNos.concat(known))], { target: prjNo, idx });
+    const rates = { at: Date.now(), target: prjNo, found: !!r.found, empNo: r.empNo || '', name: r.name || name, dept: r.dept || '', src: r.src || null, rows: r.rows || [], reason: r.reason || '' };
+    all[key] = rates;
+    await chrome.storage.local.set({ [RATES_KEY]: all, [PART_IDX_KEY]: r.idx || idx });
+    return { ok: true, rates };
+  } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message, kind: d.kind }; }
+}

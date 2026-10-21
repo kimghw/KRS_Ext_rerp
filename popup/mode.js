@@ -13,5 +13,5 @@
   const tab = !popup && /[#&?]tab(\b|$)/.test(location.hash);
   window.KRX_TAB = tab;
   if (tab) document.documentElement.classList.add('krext-tab');
-  if (tab && /[#&]only=staff(\b|$)/.test(location.hash)) document.documentElement.classList.add('krext-only');
+  if (tab && /[#&]only=(staff|allow)(\b|$)/.test(location.hash)) document.documentElement.classList.add('krext-only');   // allow: 연구수당 계산 탭(lib/allowance.js)도 같은 꼴
 })();

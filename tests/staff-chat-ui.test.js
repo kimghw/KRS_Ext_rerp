@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../popup/staff-chat.js'), 'utf8');
+const CORE = require(path.join(__dirname, '../lib/staff-chat-core.js'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const online = { ok: true, url: 'http://127.0.0.1:8106', staff: 'test-model' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -31,14 +32,17 @@ async function harness(options = {}) {
     return elements.get(id);
   };
   const data = clone({ staffChat: { turns: [], open: true }, llmStatus: options.status || online, ...options.data });
-  const calls = { fetch: [], apply: [], probe: [] };
+  const calls = { fetch: [], apply: [], probe: [], api: [], clip: [] };
   const changes = [];
   const state = {};
-  const context = vm.createContext({
-    document: { getElementById: getElement }, AbortController, setTimeout, clearTimeout, console,
+  const globals = {
+    document: { getElementById: getElement }, AbortController, setTimeout, clearTimeout, console, TextDecoder, File, btoa,
+    navigator: { clipboard: { writeText: async (t) => { calls.clip.push(t); } } },
+    KRX_STAFF_CHAT_CORE: CORE, KRX_HELP_SETUP: { prompt: (o) => `SETUP ${o.url} ${o.from}` },
+    KRX_DOC_TEXT: { kindOf: (n) => (/\.txt$/i.test(n) ? 'text' : /\.pdf$/i.test(n) ? 'pdf' : ''), textOf: async (n, buf) => new TextDecoder().decode(buf) },
     chrome: {
       storage: {
-        sync: { get: async () => ({}) },
+        sync: { get: async () => (options.settings ? { settings: clone(options.settings) } : {}) },
         local: {
           get: async () => clone(data),
           set: async (value) => { Object.assign(data, clone(value)); },
@@ -52,7 +56,9 @@ async function harness(options = {}) {
       calls.fetch.push({ url, body: JSON.parse(init.body) });
       return options.fetch ? options.fetch(url, init) : { json: async () => ({ ok: true, reply: '반영했습니다.', ops: [] }) };
     }
-  });
+  };
+  if (options.api) globals.KRX_CLAUDE_API = { mask: (k) => `…${String(k).slice(-4)}`, staff: async (input, o) => { calls.api.push({ input: clone(input), model: o.model, blocks: o.blocks }); return clone(options.apiResult || { reply: 'API 답', ops: [], dropped: 0, model: 'claude-opus-5-5' }); } };
+  const context = vm.createContext(globals);
   context.self = context;
   vm.runInContext(source, context, { filename: 'popup/staff-chat.js' });
   const chat = context.KRX_STAFF_CHAT;
@@ -100,6 +106,91 @@ test('예시는 초안만 채우며 닫았다 열어도 초안과 대화가 보�
   assert.equal(h.get('staffChat').hidden, false);
   assert.equal(h.get('scText').value, request);
   assert.deepEqual(h.calls.fetch, []);
+});
+
+test('예산 규칙: 저장한 글(storage.local.staffRules)을 요청마다 rules 로 보내고, [규칙]이 대화 자리의 편집란을 열며 [저장]이 저장소에 남긴다', async () => {
+  const h = await harness({ data: { staffRules: '- 초과금 금지' } });
+  h.example();
+  await h.chat.send();
+  assert.equal(h.calls.fetch[0].body.rules, '- 초과금 금지');
+  assert.equal(h.get('scRulesBox').hidden, true);
+  h.get('scRules').emit('click');
+  assert.equal(h.get('scRulesBox').hidden, false);
+  assert.equal(h.get('scRulesText').value, '- 초과금 금지');
+  assert.ok(h.get('scRulesText').focusCount > 0);
+  h.get('scRulesText').value = '- 부족금은 두어도 됨';
+  h.get('scRulesSave').emit('click');
+  assert.equal(h.data.staffRules, '- 부족금은 두어도 됨');
+  assert.ok(h.get('scRulesStatus').textContent.includes('저장했어요'));
+  h.get('scRules').emit('click');
+  assert.equal(h.get('scRulesBox').hidden, true);
+  h.example();
+  await h.chat.send();
+  assert.equal(h.calls.fetch[1].body.rules, '- 부족금은 두어도 됨');
+  h.get('scRules').emit('click');
+  h.get('scRulesText').value = '';
+  h.get('scRulesSave').emit('click');   // 비우고 저장 — 규칙 없이
+  assert.equal(h.data.staffRules, '');
+  h.example();
+  await h.chat.send();
+  assert.equal(h.calls.fetch[2].body.rules, '');
+});
+
+test('연결: 기본은 Claude CLI, 서버가 없어도 저장된 Claude API 키가 있으면 API 길(설정 off 면 안 씀 · always 면 먼저), 키가 없으면 안내 카드의 [설정 프롬프트 복사]와 API 키 [저장]', async () => {
+  const h = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-test-1234' }, apiResult: { reply: 'API 로 반영', ops: [{ op: 'change', name: '문창재', from: '2026-11-01', to: '', mode: 'rate', value: 25 }], dropped: 0, model: 'claude-opus-5-5' } });
+  assert.equal(h.chat.route(), 'api');
+  assert.ok(h.get('scStatus').textContent.includes('Claude API'));
+  assert.equal(h.get('scText').disabled, false);
+  assert.equal(h.get('scConnection').hidden, true);
+  h.example();
+  await h.chat.send();
+  assert.equal(h.calls.fetch.length, 0);
+  assert.equal(h.calls.api.length, 1);
+  assert.equal(h.calls.api[0].model, 'claude-opus-5-5');
+  assert.equal(h.calls.api[0].input.text, '문창재 11월부터 참여율을 25%로 바꿔줘');
+  assert.equal(h.calls.api[0].input.snapshot.prjNo, 'test-project');
+  assert.equal(h.calls.apply.length, 1);
+  assert.equal(h.data.staffChat.turns[1].via, 'api');
+  const off = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-test-1234' }, settings: { help: { api: { use: 'off' } } } });
+  assert.equal(off.chat.route(), '');
+  assert.equal(off.get('scConnection').hidden, false);
+  const always = await harness({ api: true, data: { claudeApiKey: 'sk-ant-test-1234' }, settings: { help: { api: { use: 'always' } } } });
+  assert.equal(always.chat.route(), 'api');
+  const cli = await harness({ api: true, data: { claudeApiKey: 'sk-ant-test-1234' } });
+  assert.equal(cli.chat.route(), 'server');
+  assert.ok(cli.get('scStatus').textContent.includes('Claude CLI'));
+  const none = await harness({ status: { ok: false, url: online.url }, api: true });
+  assert.equal(none.chat.route(), '');
+  assert.equal(none.get('scConnection').hidden, false);
+  assert.ok(none.get('scConnTitle').textContent.includes('Claude CLI'));
+  assert.ok(none.get('scConnText').textContent.includes('node help-server/server.js'));
+  none.get('scSetup').emit('click');
+  await tick();
+  assert.equal(none.calls.clip[0], `SETUP ${online.url} 참여연구원 변경 도우미`);
+  assert.ok(none.get('scSetupNote').textContent.includes('복사했어요'));
+  none.get('scApiKey').value = ' sk-ant-new-9999 ';
+  none.get('scApiSave').emit('click');
+  await tick();
+  assert.equal(none.data.claudeApiKey, 'sk-ant-new-9999');
+  assert.equal(none.chat.route(), 'api');
+  assert.equal(none.get('scConnection').hidden, true);
+});
+
+test('첨부: 글 파일은 보내기 전에 글을 뽑아 files 로 보내고, 보낸 뒤 목록은 비며 말풍선에 이름이 남는다 (서버가 첨부를 받는 버전일 때만 📎)', async () => {
+  const h = await harness({ status: { ...online, staffFiles: true } });
+  assert.equal(h.get('scAttach').disabled, false);
+  h.chat.attach([new File(['문창재 11월부터 25%'], '메모.txt', { type: 'text/plain' }), new File(['x'], '표.pptx')]);
+  assert.equal(h.get('scFiles').hidden, false);
+  assert.ok(h.get('scHint').textContent.includes('pptx'), '못 붙이는 종류는 안내');
+  h.get('scText').value = '첨부대로 반영해줘';
+  await h.chat.send();
+  const body = h.calls.fetch[0].body;
+  assert.equal(body.files.length, 1);
+  assert.deepEqual([body.files[0].name, body.files[0].kind, body.files[0].text, body.files[0].data], ['메모.txt', 'text', '문창재 11월부터 25%', '']);
+  assert.deepEqual(h.data.staffChat.turns[0].files, ['메모.txt']);
+  assert.equal(h.get('scFiles').hidden, true);
+  const old = await harness();
+  assert.equal(old.get('scAttach').disabled, true, 'staffFiles 없는 서버');
 });
 
 test('사용자가 보낼 때만 요청하고 처리 중 중복 전송·예시를 막는다', async () => {
