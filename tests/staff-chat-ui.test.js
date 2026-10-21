@@ -8,6 +8,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../popup/staff-chat.js'), 'utf8');
 const CORE = require(path.join(__dirname, '../lib/staff-chat-core.js'));
+const ALLOW_CORE = require(path.join(__dirname, '../lib/allow-chat-core.js'));   // 연구수당 도우미(allow 모드)
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const online = { ok: true, url: 'http://127.0.0.1:8106', staff: 'test-model' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -32,13 +33,13 @@ async function harness(options = {}) {
     return elements.get(id);
   };
   const data = clone({ staffChat: { turns: [], open: true }, llmStatus: options.status || online, ...options.data });
-  const calls = { fetch: [], apply: [], probe: [], api: [], clip: [] };
+  const calls = { fetch: [], apply: [], allowApply: [], probe: [], api: [], clip: [] };
   const changes = [];
   const state = {};
   const globals = {
     document: { getElementById: getElement }, AbortController, setTimeout, clearTimeout, console, TextDecoder, File, btoa,
     navigator: { clipboard: { writeText: async (t) => { calls.clip.push(t); } } },
-    KRX_STAFF_CHAT_CORE: CORE, KRX_HELP_SETUP: { prompt: (o) => `SETUP ${o.url} ${o.from}` },
+    KRX_STAFF_CHAT_CORE: CORE, KRX_ALLOW_CHAT_CORE: ALLOW_CORE, KRX_HELP_SETUP: { prompt: (o) => `SETUP ${o.url} ${o.from}` },
     KRX_DOC_TEXT: { kindOf: (n) => (/\.txt$/i.test(n) ? 'text' : /\.pdf$/i.test(n) ? 'pdf' : ''), textOf: async (n, buf) => new TextDecoder().decode(buf) },
     chrome: {
       storage: {
@@ -57,16 +58,20 @@ async function harness(options = {}) {
       return options.fetch ? options.fetch(url, init) : { json: async () => ({ ok: true, reply: '반영했습니다.', ops: [] }) };
     }
   };
-  if (options.api) globals.KRX_CLAUDE_API = { mask: (k) => `…${String(k).slice(-4)}`, staff: async (input, o) => { calls.api.push({ input: clone(input), model: o.model, blocks: o.blocks }); return clone(options.apiResult || { reply: 'API 답', ops: [], dropped: 0, model: 'claude-opus-5-5' }); } };
+  if (options.api) globals.KRX_CLAUDE_API = { mask: (k) => `…${String(k).slice(-4)}`, staff: async (input, o) => { calls.api.push({ input: clone(input), model: o.model, blocks: o.blocks, core: o.core }); return clone(options.apiResult || { reply: 'API 답', ops: [], dropped: 0, model: 'claude-opus-5-5' }); } };
   const context = vm.createContext(globals);
   context.self = context;
   vm.runInContext(source, context, { filename: 'popup/staff-chat.js' });
   const chat = context.KRX_STAFF_CHAT;
-  await chat.init({ state, draw() {}, api: { agent: {
+  await chat.init({ state, draw: options.draw || (() => {}), api: { agent: {
     snapshot: () => ({ prjNo: 'test-project', year: 1, names: ['문창재'] }),
     apply: async (ops) => { calls.apply.push(clone(ops)); return options.results || [{ ok: true, text: '참여율 변경', msg: '25%로 변경' }]; }
+  } }, allow: { agent: {   // 연구수당 계산 탭의 반영 손(lib/allowance.js agent) — allow 모드가 씀
+    snapshot: () => ({ prjNo: 'test-project', year: 1, n: 2, names: ['문창재', '김거화'], people: ['문창재 (연) — …'], hasPlan: true }),
+    apply: async (ops) => { calls.allowApply.push(clone(ops)); return [{ ok: true, text: '문창재 — 기타 평가 우수(100)', msg: '문창재 — 합산기여도 …' }]; }
   } } });
-  chat.show(true);
+  chat.show(options.mode || true);
+  await tick();
   await tick();
   const example = (text = '문창재 11월부터 참여율을 25%로 바꿔줘') => getElement('scLog').emit('click', {
     target: { closest: () => ({ getAttribute: () => text }) }
@@ -244,6 +249,104 @@ test('Shift+Enter와 한글 조합 중 Enter는 전송하지 않고 일반 Enter
   assert.equal(h.get('scText').emit('keydown', { key: 'Enter' }).prevented, true);
   await tick();
   assert.equal(h.calls.fetch.length, 1);
+});
+
+/* 2026-10-21 사용자 "이거 다시 쓰려는데 바뀌는 곳이 없네... 에이전트에서" — 키를 저장하면 연결 카드가 숨어 바꿀 곳이 없던 것 */
+test('[연결] 단추: 연결된 뒤에도 연결 카드를 열어 Claude API 키를 바꾸거나 지울 수 있다(열면 키 칸에 초점, 저장해도 열린 채, 다시 누르면 닫힘)', async () => {
+  const h = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-test-1234' } });
+  assert.equal(h.chat.route(), 'api');
+  assert.equal(h.get('scConnection').hidden, true);
+  h.get('scConn').emit('click');
+  assert.equal(h.get('scConnection').hidden, false);
+  assert.ok(h.get('scConnTitle').textContent.includes('Claude API 키로 연결돼 있어요'));
+  assert.ok(h.get('scConnText').textContent.includes('새 키를 넣고 [저장]') && h.get('scConnText').textContent.includes('sk-ant-api03-'));
+  assert.ok(h.get('scApiKey').focusCount > 0);
+  h.get('scApiKey').value = 'sk-ant-api03-new-5678';
+  h.get('scApiSave').emit('click');
+  await tick();
+  assert.equal(h.data.claudeApiKey, 'sk-ant-api03-new-5678');
+  assert.equal(h.get('scConnection').hidden, false, '저장해도 카드는 열린 채(저장 안내를 보임)');
+  assert.ok(h.get('scApiNote').textContent.includes('저장했어요'));
+  h.get('scConn').emit('click');
+  assert.equal(h.get('scConnection').hidden, true);
+  const cli = await harness({ api: true, data: { claudeApiKey: 'sk-ant-test-1234' } });
+  cli.get('scConn').emit('click');
+  assert.ok(cli.get('scConnTitle').textContent.includes('Claude CLI(Help 서버)에 연결돼 있어요'));
+});
+
+test('send(글) 은 입력란 대신 그 글을 보내고 초안은 그대로 두며, 연결 길이 바뀌면 탭을 다시 그린다(H.draw — 연구수당 계산 카드의 연구내용 항목이 연결 여부를 봄)', async () => {
+  let draws = 0;
+  const h = await harness({ mode: 'allow', status: { ok: true, url: online.url, staff: 'test-model', allow: 'test-model' }, draw: () => { draws++; }, data: { allowChat: { turns: [], open: true }, allowChatDraft: '쓰던 초안' } });
+  const d0 = draws;
+  assert.ok(d0 >= 1, '연결된 채 시작하면 한 번 다시 그림');
+  assert.equal(h.get('scText').value, '쓰던 초안');
+  await h.chat.send('연구내용 분류해줘');
+  assert.equal(h.calls.fetch.length, 1);
+  assert.equal(h.calls.fetch[0].body.text, '연구내용 분류해줘');
+  assert.equal(h.get('scText').value, '쓰던 초안');
+  assert.equal(h.data.allowChatDraft, '쓰던 초안');
+  assert.equal(h.data.allowChat.turns[0].text, '연구내용 분류해줘');
+  const d1 = draws;
+  h.data.llmStatus = { ok: false, url: online.url, error: '꺼짐' };
+  await h.chat.probe(true);
+  assert.equal(h.chat.route(), '');
+  assert.ok(draws > d1, '연결이 끊기면 다시 그림');
+  const d2 = draws;
+  await h.chat.probe(true);
+  assert.equal(draws, d2, '그대로면 다시 그리지 않음');
+});
+test('allow 모드(연구수당 계산 탭): 같은 틀에서 제목·[지침]·예시만 바뀌고, 대화·초안·규칙은 allowChat·allowChatDraft·allowRules, 요청은 POST /allow + 연구수당 지침, 반영은 allow agent — 서버에 /allow 가 없으면 업데이트 필요', async () => {
+  const h = await harness({ mode: 'allow', status: { ok: true, url: online.url, staff: 'test-model', allow: 'test-model' }, data: { staffChat: { turns: [{ role: 'user', text: '참여 쪽 대화', at: 1 }], open: true }, staffRules: '- 예산 규칙', allowChat: { turns: [], open: true }, allowChatDraft: '연구수당 초안' } });
+  assert.equal(h.chat.mode(), 'allow');
+  assert.equal(h.get('scTitle').textContent, '연구수당 도우미');
+  assert.equal(h.get('scRules').textContent, '지침');
+  assert.equal(h.get('scRulesTitle').textContent, '연구수당 지침');
+  assert.equal(h.get('scRulesText').maxLength, ALLOW_CORE.LIMIT.rules);
+  assert.equal(h.get('scText').value, '연구수당 초안');
+  assert.ok(h.get('scLog').innerHTML.includes('연구수당 계산을 도와 드릴까요?') && h.get('scLog').innerHTML.includes('P3 직급의 연구수당 지급상한은 얼마야?'), '빈 대화의 연구수당 예시');
+  assert.ok(h.get('scHelpText').textContent.includes('연구수당 계산의 요약') && h.get('scHelpText').textContent.includes('[지침]'));
+  h.get('scText').value = '김거화 기타 평가를 우수로 해줘';
+  h.get('scText').emit('input');
+  assert.equal(h.data.allowChatDraft, '김거화 기타 평가를 우수로 해줘');
+  await h.chat.send();
+  assert.equal(h.calls.fetch[0].url, online.url + '/allow');
+  assert.equal(h.calls.fetch[0].body.rules, ALLOW_CORE.DEFAULT_RULES, '저장한 지침이 없으면 10-53 기본 글');
+  assert.equal(h.calls.fetch[0].body.snapshot.n, 2);
+  assert.deepEqual(h.calls.apply, [], '참여연구원 쪽 반영 손은 안 씀');
+  assert.equal(h.data.allowChat.turns.length, 2);
+  assert.equal(h.data.staffChat.turns.length, 1, '참여연구원 대화는 그대로');
+  assert.equal(h.data.allowChatDraft, undefined);
+  // 반영: 서버가 작업을 주면 allow agent 로
+  const h2 = await harness({ mode: 'allow', status: { ok: true, url: online.url, staff: 'test-model', allow: 'test-model' }, fetch: () => ({ json: async () => ({ ok: true, reply: '우수로 둡니다.', ops: [{ op: 'person', name: '김거화', field: 'etc', value: '100' }] }) }) });
+  h2.get('scText').value = '김거화 기타 우수';
+  await h2.chat.send();
+  assert.deepEqual(h2.calls.allowApply, [[{ op: 'person', name: '김거화', field: 'etc', value: '100' }]]);
+  assert.ok(h2.data.allowChat.turns[1].results[0].text === '문창재 — 기타 평가 우수(100)');
+  // [지침] 편집란 — 기본값은 10-53 글, 저장은 allowRules
+  h2.get('scRules').emit('click');
+  assert.equal(h2.get('scRulesText').value, ALLOW_CORE.DEFAULT_RULES);
+  h2.get('scRulesText').value = '# 내 지침';
+  h2.get('scRulesSave').emit('click');
+  assert.equal(h2.data.allowRules, '# 내 지침');
+  assert.equal(h2.data.staffRules, undefined);
+  // Claude API 길도 allow 모듈로
+  const h3 = await harness({ mode: 'allow', status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-test-1234' } });
+  assert.equal(h3.chat.route(), 'api');
+  h3.get('scText').value = '지침 질문';
+  await h3.chat.send();
+  assert.equal(h3.calls.api[0].input.snapshot.n, 2);
+  assert.equal(h3.calls.api[0].core, ALLOW_CORE);
+  // /allow 가 없는 옛 서버 — 업데이트 필요
+  const old = await harness({ mode: 'allow' });
+  assert.equal(old.chat.route(), '');
+  assert.equal(old.get('scStatus').textContent, '업데이트 필요');
+  assert.ok(old.get('scConnTitle').textContent.includes('업데이트'));
+  // 같은 탭에서 모드가 바뀌면 그 모드의 대화를 읽는다
+  old.chat.show('staff');
+  await tick();
+  assert.equal(old.chat.mode(), 'staff');
+  assert.equal(old.get('scTitle').textContent, '변경 도우미');
+  assert.equal(old.chat.route(), 'server');
 });
 
 (async () => {

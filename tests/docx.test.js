@@ -27,22 +27,25 @@ test('꾸러미 — Content_Types 의 document·styles, 관계, 제목·만든�
   assert.ok(get(bytes, 'docProps/core.xml').includes('<dc:title>T&lt;1&gt;</dc:title>') && get(bytes, 'docProps/core.xml').includes('<dc:creator>A&amp;B</dc:creator>'));
   assert.ok(get(bytes, 'word/styles.xml').includes('w:eastAsia="맑은 고딕"') && get(bytes, 'word/styles.xml').includes('w:styleId="Normal"'));
   const doc = get(bytes, 'word/document.xml');
-  assert.ok(doc.includes('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"') && doc.includes('<w:pgSz w:w="11906" w:h="16838"/>') && doc.includes('<w:pgMar w:top="720"') && doc.endsWith('</w:sectPr></w:body></w:document>'));
+  assert.ok(doc.includes('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"') && doc.includes('<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>') && doc.includes('<w:pgMar w:top="720"') && doc.endsWith('</w:sectPr></w:body></w:document>'));
 });
-test('문단·표 — 제목(16pt 굵게 가운데) · 줄바꿈 · 병합(gridSpan · vMerge restart/continue) · 회색 머리 · 열 너비 합 · 머리 줄 반복 · 쪽 나눔', () => {
-  const doc = { blocks: [{ type: 'p', text: '제목', align: 'CENTER', style: 'title' }, { type: 'table', widths: [1, 3], rows: [[{ text: '머리', shade: true, colSpan: 2 }, { skip: true }], [{ text: 'a\nb', rowSpan: 2 }, { text: '<x> & "y"', align: 'RIGHT', bold: true }], [{ skip: true }, { text: 'c' }]] }, { type: 'pagebreak' }, { type: 'p', text: '작게', style: 'small' }] };
+test('문단·표 — 제목(16pt 굵게 가운데) · 줄바꿈 · 위첨자 · 병합(gridSpan · vMerge restart/continue) · 회색 머리 · 빗금 · 열 너비 합(A4 가로) · 머리 줄 반복 · 쪽 나눔', () => {
+  const doc = { blocks: [{ type: 'p', text: '제목', align: 'CENTER', style: 'title' }, { type: 'table', widths: [1, 3], rows: [[{ text: '머리<sup>1)</sup>\n(%)', shade: true, colSpan: 2 }, { skip: true }], [{ text: 'a\nb', rowSpan: 2 }, { text: '<x> & "y"', align: 'RIGHT', bold: true }], [{ skip: true }, { text: '', hatch: true }]] }, { type: 'pagebreak' }, { type: 'p', text: '작게', style: 'small' }] };
   const xml = get(D.build(doc), 'word/document.xml');
   assert.ok(balanced(xml));
   assert.ok(xml.includes('<w:jc w:val="center"/></w:pPr>') && xml.includes('<w:rPr><w:b/><w:bCs/><w:sz w:val="32"/>') && xml.includes('<w:t xml:space="preserve">제목</w:t>'));
   assert.ok((xml.match(/<w:tc>/g) || []).length === 5, '칸: 머리 1 + 둘째 줄 2 + 셋째 줄 2(세로 병합 이어짐 칸 포함)');
-  assert.ok(xml.includes('<w:gridSpan w:val="2"/>') && xml.includes('<w:vMerge w:val="restart"/>') && xml.includes('<w:vMerge/>') && xml.includes('<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>'));
+  assert.ok(xml.includes('<w:gridSpan w:val="2"/>') && xml.includes('<w:vMerge w:val="restart"/>') && xml.includes('<w:vMerge/>') && xml.includes('<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>') && xml.includes('<w:shd w:val="thinDiagStripe" w:color="808080" w:fill="D9D9D9"/>'));
+  assert.ok(xml.includes('<w:t xml:space="preserve">머리</w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/><w:vertAlign w:val="superscript"/></w:rPr><w:t xml:space="preserve">1)</w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr><w:br/><w:t xml:space="preserve">(%)</w:t></w:r>'), '위첨자 run 뒤 줄바꿈 run');
   assert.ok(xml.includes('<w:br/><w:t xml:space="preserve">b</w:t>') && xml.includes('&lt;x&gt; &amp; &quot;y&quot;') && xml.includes('<w:jc w:val="right"/>'));
   const grid = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]));
-  assert.deepStrictEqual([grid, grid.reduce((s, x) => s + x, 0)], [[2617, 7849], D.BODY_W], '1:3 나눔, 합은 본문 너비 10466');
+  assert.deepStrictEqual([grid, grid.reduce((s, x) => s + x, 0)], [[3850, 11548], D.BODY_W], '1:3 나눔, 합은 본문 너비 15398(A4 가로)');
   const tcw = [...xml.matchAll(/<w:tcW w:w="(\d+)"/g)].map((m) => Number(m[1]));
-  assert.deepStrictEqual(tcw, [D.BODY_W, 2617, 7849, 2617, 7849], '병합 칸은 두 열 너비 합');
-  assert.ok(xml.includes('<w:tblHeader/>') && xml.includes('<w:br w:type="page"/>') && xml.includes('<w:sz w:val="16"/>'));
-  assert.ok(xml.includes('<w:tblLayout w:type="fixed"/>') && xml.includes('<w:tblW w:w="10466" w:type="dxa"/>'));
+  assert.deepStrictEqual(tcw, [D.BODY_W, 3850, 11548, 3850, 11548], '병합 칸은 두 열 너비 합');
+  assert.ok(xml.includes('<w:tblHeader/>') && xml.includes('<w:p><w:pPr><w:pageBreakBefore/><w:spacing w:before="0" w:after="60"/></w:pPr><w:r><w:rPr><w:sz w:val="16"/>') && !xml.includes('w:type="page"'), '쪽 나눔은 다음 문단의 pageBreakBefore');
+  const x2 = get(D.build({ blocks: [{ type: 'table', headerRows: 2, rows: [['a'], ['b'], ['c']] }, { type: 'pagebreak' }] }), 'word/document.xml');
+  assert.ok((x2.match(/<w:tblHeader\/>/g) || []).length === 2 && x2.includes('<w:br w:type="page"/>'), '머리 줄 2개 반복, 마지막 쪽 나눔은 run');
+  assert.ok(xml.includes('<w:tblLayout w:type="fixed"/>') && xml.includes('<w:tblW w:w="15398" w:type="dxa"/>'));
 });
 
 console.log(`\n${n} passed, ${failed} failed`);

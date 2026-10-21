@@ -1429,6 +1429,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepFetchCancel': return await KRX_PREP_FETCH.cancel(String(msg.key || ''));
       case 'fetchSiteSave': try { return { ok: true, site: await KRX_PREP_FETCH.saveSite(msg.site || {}, msg.cred || null, fromExtPage(sender)) }; } catch (e) { return { ok: false, error: String(e.message || e) }; }   // 비밀번호는 확장 페이지에서 온 것만
       case 'fetchSiteRemove': return { ok: await KRX_PREP_FETCH.removeSite(String(msg.id || '')) };
+      case 'allowMembers': return await allowMembers(String(msg.prjNo || '').trim(), Array.isArray(msg.names) ? msg.names : []);   // 연구수당 계산 탭: 이 과제 rERP 참여인력의 소속 부서·직급 — 부서명·직급 칸 기본값(lib/allowance.js ensureErp, 2026-10-21)
       case 'staffPersonRates': return await staffPersonRates(String(msg.name || '').trim(), String(msg.prjNo || '').trim(), Array.isArray(msg.prjNos) ? msg.prjNos : [], !!msg.force);   // 참여연구원 변경 ✎ 폼: 이 과제 rERP 에 안 이어진 사람의 다른 과제 월별 참여율(lib/rnd-api.js personRates)
       case 'callService': return await KRX_API.call(msg.service, msg.input || {});
       case 'fetchBudget': return await KRX_API.fetchBudget(String(msg.prjNo || '').trim(), await KRX_SETTINGS.load());   // 자금현황 비목별 잔액(과제집행비율과 같은 조회) — 사업비 관리 참여인력 카드가 인건비 비목 승인액으로 몇 월까지 지급됐는지 셈한다(lib/staff-ui.js fetchRows → KRX_STAFF.paidThroughOf)
@@ -1447,6 +1448,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
  * 사람 결과는 storage.local.staffRates[이름키] = { at, target(보던 과제), found, empNo, name, dept, src, rows, reason }(하루), 과제별 최신 차수 참여인력은 erpPartIdx[과제번호] = { req, people, at }(7일)에 캐시해 다음 사람은 빠르다.
  * 훑는 과제는 탭이 준 목록(state.data.projects) + 내 과제 목록 캐시(projectList · cache) + 참여 과제 판정 캐시 membership 의 키(진행 과제 전체). 탭(lib/staff-ui.js ensureRates)은 결과를 state.staffRates 에 두고 증감 줄의 "남은 참여율" 줄을 다시 그린다 */
 const RATES_KEY = 'staffRates', PART_IDX_KEY = 'erpPartIdx', RATES_TTL = 864e5;
+/* 연구수당 계산 탭의 부서명·직급 기본값(2026-10-21 사용자 "연구수당 계산에서 부서명, 직급 이런거 갖어 올 수 있지 않냐?") — 이 과제의 rERP 참여인력(lib/rnd-api.js fetchMembers: 소속 부서 BLNG_DEPT_NM · 직급 POS_NM)에
+ * 계획에는 있는데 참여인력에 아직 없는 이름(names — 이은주처럼 rERP 에 안 이어진 사람)은 인적정보 검색(searchPerson — 같은 이름이면 본교 ATT_GB_CD 10 우선)으로 보탠다(src 'hr'). 읽기만. → { ok, members[{ name, dept, pos, … }] } */
+async function allowMembers(prjNo, names) {
+  if (!prjNo) return { ok: false, error: '과제번호가 없습니다.' };
+  try {
+    const members = await KRX_API.fetchMembers(prjNo);
+    const key = (s) => String(s || '').replace(/\s/g, '');
+    const have = new Set(members.map((m) => key(m.name)));
+    for (const nm of [...new Set(names.map(key).filter(Boolean))]) {
+      if (have.has(nm)) continue;
+      try { const f = (await KRX_API.searchPerson(nm)).filter((x) => key(x.name) === nm); const c = f.find((x) => x.att === '10') || f[0]; if (c) members.push({ empNo: c.empNo, name: c.name, dept: c.dept, pos: c.pos, role: '', from: '', to: '', src: 'hr' }); } catch (e) { /* 그 사람만 빈칸 */ }
+    }
+    return { ok: true, members };
+  } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message }; }
+}
 async function staffPersonRates(name, prjNo, prjNos, force) {
   const key = name.replace(/\s/g, '');
   if (!key) return { ok: false, error: '이름이 없습니다.' };

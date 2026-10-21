@@ -1018,14 +1018,14 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-budgetline strong { margin-left: 6px; color: #243b55; font-size: 16px; font-weight: 700; }
 .krext-st-budgetline .krext-st-unit { margin-left: auto; color: #62738b; font-size: 11px; }
 /* 연구수당 계산 탭(lib/allowance.js card — 10-53 별지 1·2) — 일반 정보 칸, 평가 표(성과 항목 줄 · 기타 선택 · 등급), 지급 내역 표(통합·조정 줄 · 미지급), 대상이 아닌 줄 */
-.krext-al-h { margin: 12px 0 6px; font-size: 13px; font-weight: 700; color: #243b55; }
+.krext-al-h { margin: 12px 0 6px; font-size: 14px; font-weight: 700; color: #243b55; }
 .krext-al-card .krext-ws-body > .krext-al-h:first-child { margin-top: 2px; }
-.krext-al-general { display: grid; grid-template-columns: max-content minmax(120px, 1fr) max-content minmax(120px, 1fr); gap: 4px 10px; align-items: center; margin: 0; padding: 9px 12px; border: 1px solid #e5ebf3; border-radius: 8px; background: #f6f8fc; font-size: 12px; }
-.krext-al-general dt { color: #586b82; white-space: nowrap; }
+.krext-al-general { display: grid; grid-template-columns: max-content minmax(120px, 1fr) max-content minmax(120px, 1fr); gap: 4px 10px; align-items: center; margin: 0; padding: 9px 12px; border: 1px solid #e5ebf3; border-radius: 8px; background: #f6f8fc; font-size: 13px; }
+.krext-al-general dt { color: #414f60; white-space: nowrap; }
 .krext-al-general dd { margin: 0; color: #243b55; min-width: 0; overflow-wrap: anywhere; }
 .krext-al-general dd.krext-al-wide { grid-column: 2 / 5; }
-.krext-al-general strong { font-size: 15px; margin-right: 3px; }
-.krext-al-general small { margin-left: 4px; color: #2563c4; font-size: 10px; }
+.krext-al-general strong { font-size: 16px; margin-right: 3px; }
+.krext-al-general small { margin-left: 4px; color: #1b4991; font-size: 12px; }
 .krext-al-in { border-color: #c9d1dc !important; background: #fff !important; }
 .krext-al-general .krext-al-in { width: 110px; height: 26px; text-align: left; }
 .krext-al-general [data-al="pool"], .krext-al-general [data-al="avail"] { text-align: right; }
@@ -1035,26 +1035,29 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-al-t1 th { white-space: normal; line-height: 1.3; min-width: 48px; }
 .krext-al-t1 .krext-al-sel { max-width: 84px; }
 .krext-al-table .krext-al-grade { width: 44px; text-align: center; }
-.krext-al-table td.krext-st-nm small { display: block; font-size: 10px; font-weight: 400; }
+.krext-al-table td.krext-st-nm small { display: block; font-size: 12px; font-weight: 400; }
 .krext-al-table .krext-al-num { width: 38px; }
-.krext-al-sel { height: 24px; padding: 1px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #222; font-family: inherit; font-size: 12px; }
+.krext-al-sel { height: 24px; padding: 1px 4px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #222; font-family: inherit; font-size: 13px; }
 .krext-al-items { min-width: 250px; }
 .krext-al-item { display: flex; align-items: center; gap: 3px; margin-bottom: 2px; }
 .krext-al-item .krext-al-item-nm { width: 120px; text-align: left; }
-.krext-al-score { min-width: 36px; font-size: 11px; color: #586b82; white-space: nowrap; }
-.krext-al-del { width: 20px; height: 20px; padding: 0; font-size: 13px; }
-.krext-al-add { padding: 1px 7px; font-size: 11px; }
-.krext-al-table tr.krext-al-off td { color: #9aa5b4; }
-.krext-al-table td.krext-al-gr b { font-size: 13px; color: #2563c4; }
-.krext-al-table td.krext-al-gr small { display: block; font-size: 10px; color: #d97706; }
+.krext-al-score { min-width: 36px; font-size: 12px; color: #414f60; white-space: nowrap; }
+.krext-al-del { width: 20px; height: 20px; padding: 0; font-size: 14px; }
+.krext-al-add { padding: 1px 7px; font-size: 12px; max-width: 240px; }
+.krext-al-req { font-size: 11px; color: #6f7987; text-align: center; }
+.krext-al-item-req .krext-al-item-nm[readonly] { color: #42566c; background: #f3f6fa; }
+.krext-al-classify small { margin-left: 3px; font-weight: 400; opacity: .8; }
+.krext-al-table tr.krext-al-off td { color: #727a85; }
+.krext-al-table td.krext-al-gr b { font-size: 14px; color: #1b4991; }
+.krext-al-table td.krext-al-gr small { display: block; font-size: 12px; color: #a15804; }
 .krext-al-table tfoot td { font-weight: 600; border-top: 1px solid #cfdcf0; }
 .krext-al-opts { margin: 0 0 8px !important; }
 .krext-al-opts label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .krext-al-adj { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .krext-al-adj .krext-al-num { width: 40px; height: 24px; }
-.krext-al-groups { flex-basis: 100%; color: #586b82; font-size: 11px; white-space: normal !important; }
+.krext-al-groups { flex-basis: 100%; color: #414f60; font-size: 12px; white-space: normal !important; }
 .krext-al-note { min-width: 220px; }
-.krext-al-note .krext-al-out { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-size: 11px; white-space: nowrap; }
+.krext-al-note .krext-al-out { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; font-size: 12px; white-space: nowrap; }
 .krext-al-note .krext-al-note-in { width: 160px; text-align: left; }
 .krext-al-sign { min-width: 60px; }
 .krext-st-budgetstate { padding: 2px 8px; border-radius: 5px; font-weight: 600; }
@@ -1249,3 +1252,279 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-st-co-row.krext-st-co-off td { opacity: .55; }
 .krext-st-co-row.krext-st-co-off td.krext-st-nm { opacity: 1; }
 .krext-st-co-row.krext-st-co-off .krext-st-co-person-name { opacity: .55; }
+/* 연구수당 계산 — 지급 내역 아래 등급 칸(끌어 놓기 · 부서별 탭 · 부서별 자리 표) 2026-10-21 */
+.krext-al-boardwrap { margin: 8px 0 4px; }
+.krext-al-boardhead { margin: 0 0 6px !important; }
+.krext-al-boardhead label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-weight: 600; }
+.krext-al-boardhead .krext-dim { font-size: 12px; white-space: normal; }
+.krext-al-slots { width: auto; margin-bottom: 6px; }
+.krext-al-slots th, .krext-al-slots td { padding: 2px 6px; }
+.krext-al-slots .krext-al-num { width: 34px; height: 22px; }
+.krext-al-slots tfoot td { font-weight: 600; border-top: 1px solid #cfdcf0; }
+.krext-al-slots .krext-err { color: #8e2a20; font-weight: 700; }
+.krext-al-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.krext-al-tab { display: inline-flex; align-items: baseline; gap: 4px; padding: 3px 10px; border: 1px solid #c9d1dc; border-bottom-width: 2px; border-radius: 7px 7px 0 0; background: #f1f5fa; color: #243b55; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.krext-al-tab small { font-size: 12px; font-weight: 400; color: #414f60; }
+.krext-al-tab.krext-al-tab-on { background: #fff; border-color: #2563c4; color: #1b4991; }
+.krext-al-done { color: #107937; font-weight: 700; }
+.krext-al-board { display: flex; gap: 6px; flex-wrap: wrap; }
+.krext-al-col { flex: 1 1 120px; min-width: 120px; min-height: 76px; padding: 6px; border: 1px dashed #c9d1dc; border-radius: 8px; background: #f8fafd; }
+.krext-al-col.krext-al-dropping { border-color: #2563c4; border-style: solid; background: #eaf1fc; }
+.krext-al-col.krext-al-over .krext-al-colcnt { color: #8e2a20; font-weight: 700; }
+.krext-al-col.krext-al-under .krext-al-colcnt { color: #a15804; font-weight: 700; }
+.krext-al-colhead { display: flex; align-items: baseline; gap: 5px; margin-bottom: 5px; font-size: 12px; color: #414f60; white-space: nowrap; }
+.krext-al-colhead b { font-size: 15px; color: #1b4991; }
+.krext-al-colno { display: inline-block; min-width: 16px; padding: 0 4px; border-radius: 8px; background: #243b55; color: #fff; font-size: 12px; line-height: 17px; text-align: center; }
+.krext-al-chips { display: flex; flex-direction: column; gap: 3px; }
+.krext-al-chip { display: flex; align-items: baseline; gap: 5px; padding: 3px 7px; border: 1px solid #c9d1dc; border-radius: 6px; background: #fff; font-size: 13px; cursor: grab; user-select: none; }
+.krext-al-chip small { color: #414f60; font-size: 12px; }
+.krext-al-chip.krext-al-dragging { opacity: .5; }
+.krext-al-chip.krext-al-locked { cursor: default; background: #f1f5fa; color: #414f60; }
+.krext-al-boardfoot { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; }
+.krext-al-manual { color: #a15804; font-weight: 600; }
+.krext-al-table .krext-al-rank { max-width: 64px; }
+
+/* 연구수당 계산: 금액 요약 → 지급·등급 배정 → 연구원별 평가. 다른 관리 화면에는 적용하지 않는다. */
+.krext-st-focus .krext-al-card { container: allowance / inline-size; padding: 22px 24px 24px; border-color: #dfe6ef; color: #253951; font-size: 15px; line-height: 1.55; }
+.krext-al-card * { box-sizing: border-box; }
+.krext-al-card .krext-al-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 20px; }
+.krext-al-card .krext-al-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 12px; min-width: 0; }
+.krext-al-card .krext-al-heading > strong { color: #1d314c; font-size: 20px; letter-spacing: -.5px; }
+.krext-al-card .krext-al-heading > small { color: #4f5b6b; font-size: 13px; }
+.krext-st-focus .krext-al-card .krext-st-acts { gap: 7px; }
+.krext-st-focus .krext-al-card .krext-plan-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.krext-al-card .krext-al-summary { display: flex; flex-wrap: nowrap; gap: 8px; margin-bottom: 16px; overflow-x: auto; scrollbar-width: thin; }
+.krext-al-card .krext-al-metric { display: flex; flex: 1 0 auto; align-items: center; justify-content: space-between; gap: 12px; min-width: max-content; padding: 8px 12px; border: 1px solid #e4eaf2; border-radius: 7px; background: #f8fafc; white-space: nowrap; }
+.krext-al-card .krext-al-metric > span { color: #485567; font-size: 13px; font-weight: 500; }
+.krext-al-card .krext-al-metric > strong { color: #233b59; font-size: 17px; font-weight: 700; line-height: 1.4; letter-spacing: -.2px; font-variant-numeric: tabular-nums; }
+.krext-al-card .krext-al-metric strong small { margin-left: 3px; font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.krext-al-card .krext-al-metric-primary { border-color: #d1e1fc; background: #eef5ff; }
+.krext-al-card .krext-al-metric-primary > strong, .krext-al-card .krext-al-metric-primary > span { color: #1b468a; }
+.krext-al-card .krext-al-section { min-width: 0; margin-top: 26px; }
+.krext-al-card .krext-al-section:first-child { margin-top: 0; }
+.krext-al-card .krext-al-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 10px; margin: 0 0 5px; color: #203951; font-size: 17px; font-weight: 700; letter-spacing: -.25px; }
+.krext-al-card .krext-al-h > small { font-size: 12px; font-weight: 400; letter-spacing: 0; }
+.krext-al-card .krext-al-caption { margin: 0 0 12px; color: #535f6f; font-size: 13px; }
+.krext-al-card .krext-al-itemlist { margin: 0 0 14px; padding: 10px 14px; border: 1px solid #e5ebf3; border-radius: 10px; background: #f8fafc; }   /* 평가항목 목록 편집 상자(2026-10-21) */
+.krext-al-card .krext-al-itemlist > summary { cursor: pointer; color: #203951; font-size: 13px; font-weight: 600; }
+.krext-al-card .krext-al-itemlist > summary small { margin-left: 6px; color: #545f6f; font-weight: 400; }
+.krext-al-card .krext-al-itemlist-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.krext-al-card .krext-al-itemlist-grid label > span { display: block; margin-bottom: 4px; color: #545f6f; font-size: 12px; }
+.krext-al-card .krext-al-itemlist-in { width: 100%; min-height: 150px; padding: 6px 8px; resize: vertical; font: inherit; font-size: 12px; line-height: 1.5; }
+@media (max-width: 720px) { .krext-al-card .krext-al-itemlist-grid { grid-template-columns: 1fr; } }
+.krext-al-card .krext-al-general { grid-template-columns: 140px minmax(0, 1fr) 140px minmax(0, 1fr); gap: 12px 16px; padding: 18px 20px; border-color: #e5ebf3; border-radius: 10px; background: #f8fafc; font-size: 14px; }
+.krext-al-card .krext-al-general dt { color: #545f6f; font-size: 13px; }
+.krext-al-card .krext-al-general dd { color: #304860; word-break: keep-all; overflow-wrap: anywhere; }
+.krext-al-card .krext-al-general dd.krext-al-wide { color: #263e59; font-weight: 600; }
+.krext-st-focus .krext-al-card input.krext-al-in, .krext-st-focus .krext-al-card select.krext-al-sel { box-sizing: border-box; width: 100%; min-width: 0; height: 36px; padding: 6px 9px; border: 1px solid #d8e1ed; border-color: #d8e1ed !important; border-radius: 6px; background: #fff; color: #304860; font-family: inherit; font-size: 14px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.krext-st-focus .krext-al-card .krext-al-general input[data-al="org"] { width: min(100%, 200px); text-align: left; }
+.krext-al-card .krext-al-amount { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; }
+.krext-st-focus .krext-al-card .krext-al-amount input.krext-al-in { width: 142px; max-width: 100%; text-align: right; font-weight: 600; }
+.krext-al-card .krext-al-amount > span { color: #596372; font-size: 13px; white-space: nowrap; }
+.krext-al-card input[type="checkbox"] { flex: none; width: 15px; height: 15px; margin: 0; accent-color: #2869c7; vertical-align: middle; }
+.krext-st-focus .krext-al-card input.krext-al-in:hover, .krext-st-focus .krext-al-card select.krext-al-sel:hover { border-color: #adc4e2 !important; }
+.krext-st-focus .krext-al-card input.krext-al-in:focus, .krext-st-focus .krext-al-card select.krext-al-sel:focus { border-color: #5084d1 !important; box-shadow: 0 0 0 3px rgb(53 111 197 / 10%); }
+.krext-al-card :is(button, input, select, summary, [tabindex]):focus-visible { outline: 2px solid #3574cd; outline-offset: 3px; }
+.krext-st-focus .krext-al-card :is(button, input, select):disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.krext-al-card .krext-ws-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.krext-al-card .krext-al-scroll-hint { display: none; margin: 8px 0 0; color: #4b5b6e; font-size: 12px; }
+@container allowance (max-width: 1000px) { .krext-al-card .krext-al-scroll-hint { display: block; } }
+.krext-st-focus .krext-al-card .krext-al-t2 { width: 100%; min-width: 850px; table-layout: auto; font-size: 14px; line-height: 1.5; }
+.krext-st-focus .krext-al-card .krext-al-t2 th { padding: 12px 12px; color: #4a586a; background: #f5f8fc; font-size: 13px; white-space: nowrap; word-break: keep-all; }
+.krext-st-focus .krext-al-card .krext-al-t2 td { padding: 9px 12px; vertical-align: middle; white-space: nowrap; word-break: keep-all; }
+.krext-st-focus .krext-al-card .krext-al-t2 .krext-st-nm { min-width: 72px; }
+.krext-al-card .krext-al-t2 th:first-child { min-width: 145px; }
+.krext-al-card .krext-al-t2 th.krext-al-amt { min-width: 118px; }
+.krext-al-card .krext-al-t2 td.krext-al-amt strong { color: #243e60; font-size: 15px; }
+/* 잔여 한도 열 — 값(출처 응답/HR) · 여유(초록)/초과(빨강) · ↓ 가능 배지(2026-10-21) */
+.krext-al-card .krext-al-t2 th.krext-al-cap { min-width: 150px; }
+.krext-al-card .krext-al-cap .krext-al-capval small { margin-left: 3px; color: #1b4991; font-size: 12px; }
+.krext-al-card .krext-al-cap small.krext-al-caproom, .krext-al-card .krext-al-cap small.krext-al-capover { display: block; margin-top: 1px; font-size: 12px; }
+.krext-al-card .krext-al-caproom { color: #2f6643; }
+.krext-al-card .krext-al-capover { color: #8e2a20; font-weight: 600; }
+.krext-al-card .krext-al-capflag { display: inline-block; margin: 2px 0 0 4px; padding: 1px 7px; border-radius: 10px; background: #e6f4ea; color: #235a37; font-size: 12px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.krext-st-focus .krext-al-card .krext-al-t2 tbody tr:hover td { background: #fbfdff; }
+.krext-st-focus .krext-al-card .krext-al-t2 tfoot td { padding-top: 12px; padding-bottom: 12px; border-top: 1px solid #dce5f1; background: #f8faff; color: #243853; }
+.krext-al-card .krext-al-note { min-width: 250px; }
+.krext-al-card div.krext-al-note, .krext-al-card .krext-al-note > div { display: flex; align-items: center; gap: 10px; }
+.krext-al-card .krext-al-note .krext-al-out { display: inline-flex; align-items: center; gap: 5px; margin-right: 8px; color: #555f70; font-size: 12px; }
+.krext-st-focus .krext-al-card .krext-al-note input.krext-al-note-in { flex: 1 1 160px; width: 160px; min-width: 120px; max-width: 100%; text-align: left; }
+.krext-st-focus .krext-al-card select.krext-al-rank { width: 65px; max-width: 76px; color: #1e457c; font-weight: 600; }
+.krext-al-card .krext-al-settings { margin-top: 12px; border: 1px solid #e4eaf2; border-radius: 8px; background: #fbfcfe; }
+.krext-al-card .krext-al-settings > summary, .krext-al-card .krext-al-guide > summary { padding: 11px 14px; border-radius: 8px; color: #3d4d5f; font-size: 13px; font-weight: 600; cursor: pointer; }
+.krext-al-card .krext-al-settings > summary:hover, .krext-al-card .krext-al-guide > summary:hover { background: #f1f6fd; color: #1e467d; }
+.krext-al-card .krext-al-settings > summary small { margin-left: 7px; color: #616b79; font-size: 12px; font-weight: 400; }
+/* 1. 일반 정보 접기(2026-10-21 "접어줘") — 제목 줄이 summary, 앞에 ▸/▾ */
+.krext-al-card .krext-al-general-wrap > summary { cursor: pointer; list-style: none; }
+.krext-al-card .krext-al-general-wrap > summary::-webkit-details-marker { display: none; }
+.krext-al-card .krext-al-general-wrap > summary::before { content: '▸'; color: #5b6776; font-size: 14px; }
+.krext-al-card .krext-al-general-wrap[open] > summary::before { content: '▾'; }
+.krext-al-card .krext-al-general-wrap > summary:hover { color: #1e467d; }
+.krext-al-card .krext-al-general-wrap > summary > small { color: #535f6f; font-size: 13px; font-weight: 400; }
+.krext-al-card .krext-al-general-wrap[open] > .krext-al-general { margin-top: 8px; }
+.krext-st-focus .krext-al-card .krext-al-opts { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 0 !important; padding: 4px 14px 14px; border: 0; border-radius: 0; background: transparent; font-size: 13px; }
+.krext-al-card .krext-al-opts label { gap: 6px; }
+.krext-al-card .krext-al-adj { display: inline-flex; flex-wrap: wrap; gap: 8px; white-space: normal; }
+.krext-st-focus .krext-al-card .krext-al-adj input.krext-al-num { width: 46px; height: 34px; padding: 5px 6px; text-align: right; }
+.krext-al-card .krext-al-groups { padding-top: 10px; border-top: 1px solid #e5ebf3; color: #5a6471; line-height: 1.8; }
+.krext-al-card .krext-al-boardwrap { margin: 18px 0 0; }
+.krext-st-focus .krext-al-card .krext-al-boardhead { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 12px !important; padding: 0; border: 0; background: transparent; }
+.krext-al-card .krext-al-boardtitle { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin: 0 0 8px; color: #32455a; font-size: 14px; font-weight: 600; }
+.krext-al-card .krext-al-boardtitle .krext-al-caption { margin: 0; font-size: 12px; font-weight: 400; }
+.krext-al-card .krext-al-boardhead label { gap: 6px; margin-left: 0; font-size: 13px; font-weight: 500; }
+.krext-al-card .krext-al-boardhead .krext-dim { flex: 1 1 220px; color: #535f70; font-size: 12px; line-height: 1.6; }
+.krext-al-card .krext-al-board { display: flex; flex-wrap: wrap; gap: 10px; }
+.krext-al-card .krext-al-col { --al-group: #60748f; flex: 1 1 145px; min-width: 0; min-height: 114px; padding: 12px; border: 1px solid #e1e8f2; border-top: 3px solid var(--al-group); border-radius: 8px; background: #f8fafc; }
+.krext-al-card .krext-al-col[data-grp="S"] { --al-group: #3065ba; background: #f5f8ff; }
+.krext-al-card .krext-al-col[data-grp="A"] { --al-group: #5980b7; }
+.krext-al-card .krext-al-col[data-grp="B"] { --al-group: #729b96; }
+.krext-al-card .krext-al-col[data-grp="C"] { --al-group: #9a93af; }
+.krext-al-card .krext-al-col[data-grp="D"] { --al-group: #9ca8b8; }
+.krext-al-card .krext-al-colhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 10px; color: #545f70; font-size: 12px; white-space: normal; }
+.krext-al-card .krext-al-colhead b { color: var(--al-group); font-size: 16px; }
+.krext-al-card .krext-al-colno { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px; background: #eaf0f8; color: var(--al-group); font-size: 12px; }
+.krext-al-card .krext-al-colcnt { margin-left: auto; }
+.krext-al-card .krext-al-chips { gap: 6px; }
+.krext-al-card .krext-al-chip { align-items: center; gap: 8px; min-height: 36px; padding: 7px 9px; border-color: #dce5f1; border-radius: 6px; color: #26384d; font-size: 13px; font-weight: 600; box-shadow: 0 1px 2px rgb(30 55 85 / 3%); }
+.krext-al-card .krext-al-chip small { margin-left: auto; color: #5b6776; font-size: 12px; font-weight: 400; }
+/* 칩의 한도 표시(2026-10-21) — ↓등급: 낮춰도 한도를 채움(초록), !: 초과인데 낮추면 못 채움(빨강) */
+.krext-al-card .krext-al-chip.krext-al-chip-sel { border-color: #2563c4; background: #edf4ff; box-shadow: 0 0 0 2px rgb(37 99 196 / 22%); }   /* 눌러 고른 칩 — 여럿 끌기(2026-10-21) */
+.krext-al-chip .krext-al-chipdown, .krext-al-chip .krext-al-chipover { flex: none; padding: 0 5px; border-radius: 9px; font-size: 12px; font-weight: 700; line-height: 16px; }
+.krext-al-chip .krext-al-chipdown { background: #e6f4ea; color: #235a37; }
+.krext-al-chip .krext-al-chipover { background: #fdecea; color: #8e2a20; }
+/* 부서별 재조정 알림(2026-10-21) — [부서별 배정] 탭·부서 칩의 빨간 !, 자리 표 칸의 "배정 n", 등급 판 열 머리의 자리 수 칸 */
+.krext-al-alert { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; margin-left: 5px; border-radius: 50%; background: #e05252; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; vertical-align: middle; }
+.krext-al-fitbad { display: block; margin-top: 2px; color: #8e2a20; font-size: 12px; font-weight: 600; white-space: nowrap; }
+/* 부서 그룹(2026-10-21) — 자리 표의 부서 이름을 끌어 다른 줄에 놓기, 그룹 줄의 [분리] */
+.krext-al-slots td.krext-al-dept { cursor: grab; white-space: nowrap; }
+.krext-al-slots td.krext-al-dept.krext-al-dragging { opacity: .5; }
+.krext-al-slots tr.krext-al-dropping td { background: #edf4ff; box-shadow: inset 0 0 0 2px #5084d1; }
+/* 자리 표의 −/+ (2026-10-21) */
+.krext-al-slots .krext-al-stepper { display: inline-flex; align-items: center; gap: 3px; }
+.krext-al-card .krext-al-slots .krext-al-step { box-sizing: border-box; width: 24px; min-width: 24px; height: 24px; min-height: 0; padding: 0; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: #1b4991; font: inherit; font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer; }
+.krext-al-card .krext-al-slots .krext-al-step:hover { border-color: #5084d1; background: #edf4ff; }
+.krext-al-card .krext-al-slots .krext-al-step:disabled { opacity: .35; cursor: not-allowed; }
+.krext-st-focus .krext-al-card .krext-al-slots .krext-al-stepper input.krext-al-in { width: 44px; height: 28px; padding: 0 4px; text-align: center; }
+/* 자리 동그라미(2026-10-21) — 칸의 −/+ 오른쪽에 자리 수만큼, 두 줄(열 = --krx-cols) · ● 배정(파랑) ○ 빈 자리 ● 넘침(빨강) */
+.krext-al-slots .krext-al-dots { display: inline-grid; grid-template-columns: repeat(var(--krx-cols, 1), 9px); gap: 3px; margin-left: 8px; vertical-align: middle; }
+.krext-al-slots .krext-al-dots > i { display: block; box-sizing: border-box; width: 9px; height: 9px; border: 1.5px solid #9fb3cc; border-radius: 50%; background: #fff; }
+.krext-al-slots .krext-al-dots > i.krext-al-dot-on { border-color: #2563c4; background: #2563c4; }
+.krext-al-slots .krext-al-dots > i.krext-al-dot-over { border-color: #e05252; background: #e05252; }
+.krext-al-slots td.krext-al-slotcell { white-space: nowrap; }
+.krext-al-card .krext-al-slots .krext-al-split { width: auto; min-width: 0; height: 20px; min-height: 0; margin-left: 6px; padding: 0 6px; font-size: 12px; }
+.krext-al-card .krext-al-colcnt input.krext-al-slot-in { box-sizing: border-box; width: 34px; height: 24px; margin: 0 1px; padding: 0 3px; border: 1px solid #c9d1dc; border-radius: 5px; background: #fff; color: inherit; font: inherit; font-size: 13px; font-weight: 700; text-align: center; }
+.krext-al-card .krext-al-chip[draggable="true"]:hover { border-color: #9bb9e2; box-shadow: 0 2px 5px rgb(37 99 196 / 9%); }
+.krext-al-card .krext-al-col.krext-al-dropping { border-color: #5486d1; background: #eaf2ff; box-shadow: inset 0 0 0 1px #5486d1; }
+.krext-al-card .krext-al-empty { display: flex; justify-content: center; align-items: center; min-height: 36px; border: 1px dashed #dce4ef; border-radius: 6px; color: #707986; font-size: 12px; }
+.krext-al-card .krext-al-boardfoot { flex-wrap: wrap; gap: 8px; margin-top: 10px; color: #576373; font-size: 12px; }
+.krext-st-focus .krext-al-card .krext-al-boardfoot .krext-plan-btn { min-height: 30px; padding: 4px 9px; font-size: 12px; }
+.krext-al-card .krext-al-slot-scroll { max-width: 100%; margin-bottom: 12px; overflow-x: auto; border: 1px solid #e4eaf2; border-radius: 8px; }
+.krext-st-focus .krext-al-card .krext-al-slots { width: 100%; min-width: 500px; margin: 0; font-size: 13px; }
+.krext-st-focus .krext-al-card .krext-al-slots :is(th, td) { padding: 7px 12px; white-space: nowrap; word-break: keep-all; font-size: 13px; }
+.krext-st-focus .krext-al-card .krext-al-slots input.krext-al-num { width: 46px; height: 32px; padding: 4px 6px; text-align: right; }
+.krext-al-card .krext-al-tabs { gap: 6px; margin-bottom: 10px; }
+.krext-al-card .krext-al-tab { align-items: center; gap: 6px; min-height: 34px; padding: 6px 12px; border: 1px solid #e0e7f1; border-radius: 7px; background: #f7f9fc; color: #4b596b; }
+.krext-al-card .krext-al-tab.krext-al-tab-on { border-color: #bad0ee; background: #edf4ff; color: #1e4a87; }
+.krext-al-card .krext-al-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 0 0 14px; border-bottom: 2px solid #e0e7f1; }
+.krext-al-card .krext-al-subtab { margin-bottom: -2px; padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #4b596b; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.krext-al-card .krext-al-subtab:hover { color: #1e4a87; }
+.krext-al-card .krext-al-subtab.krext-al-subtab-on { color: #1b4991; border-bottom-color: #2563c4; }
+.krext-al-card .krext-al-subtabs > label { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; padding-bottom: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.krext-al-card .krext-al-pane[hidden] { display: none; }
+.krext-al-card .krext-al-pane .krext-al-boardwrap { margin-top: 0; }
+.krext-al-card .krext-al-evaluations { display: grid; gap: 14px; }
+.krext-al-card .krext-al-person { min-width: 0; border: 1px solid #e1e8f1; border-radius: 10px; background: #fff; overflow: hidden; }
+.krext-al-card .krext-al-personhead { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 20px; padding: 14px 16px; border-bottom: 1px solid #e8edf4; background: #f8fafc; }
+.krext-al-card .krext-al-person-title { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+.krext-al-card .krext-al-person-title b { color: #294563; font-size: 16px; }
+.krext-al-card .krext-al-person-title > span { padding: 2px 6px; border-radius: 4px; background: #eaf0f8; color: #4c5f74; font-size: 12px; }
+.krext-al-card .krext-al-person-fields { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.krext-al-card .krext-al-person-fields > label { display: flex; align-items: center; gap: 7px; color: #5b6675; font-size: 12px; }
+.krext-al-card .krext-al-person-fields > label > span { white-space: nowrap; }
+.krext-st-focus .krext-al-card .krext-al-person-fields input[data-alp="dept"] { width: 190px; }
+.krext-st-focus .krext-al-card .krext-al-person-fields input[data-alp="grade"] { width: 64px; text-align: center; }
+.krext-al-card .krext-al-person-result { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; color: #546173; font-size: 12px; }
+.krext-al-card .krext-al-person-result strong { margin-left: 4px; color: #203753; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.krext-al-card .krext-al-person-result > b { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 30px; padding: 0 8px; border: 1px solid #d2e2f7; border-radius: 7px; background: #eaf3ff; color: #1f4b87; font-size: 16px; }
+.krext-al-card .krext-al-person-result > small { color: #805b26; font-size: 12px; }
+.krext-al-card .krext-al-eval-grid { display: grid; grid-template-columns: minmax(140px, .9fr) minmax(360px, 3fr) minmax(140px, .9fr); gap: 0; padding: 16px 0; }
+.krext-al-card .krext-al-eval-grid > div { min-width: 0; padding: 0 16px; }
+.krext-al-card .krext-al-eval-grid > div + div { border-left: 1px solid #edf1f6; }
+.krext-al-card .krext-al-eval-grid h5 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 13px; color: #3b4e5f; font-size: 13px; font-weight: 600; }
+.krext-al-card .krext-al-eval-grid h5 > span { padding: 1px 5px; border-radius: 4px; background: #f0f4fa; color: #536377; font-size: 12px; font-weight: 500; }
+.krext-al-card .krext-al-values, .krext-al-card .krext-al-values dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; margin: 0; }
+.krext-al-card .krext-al-values dt { color: #545f70; font-size: 12px; }
+.krext-al-card .krext-al-values dd { margin: 0; color: #3d5065; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.krext-al-card .krext-al-items { min-width: 0; }
+.krext-al-card .krext-al-itemhead, .krext-al-card .krext-al-item { display: grid; grid-template-columns: minmax(80px, 1fr) 75px 46px 54px 40px 28px; align-items: center; gap: 6px; }
+.krext-al-card .krext-al-itemhead { margin-bottom: 6px; color: #545f70; font-size: 12px; text-align: center; }
+.krext-al-card .krext-al-itemhead > :first-child { text-align: left; }
+.krext-al-card .krext-al-item { margin-bottom: 6px; }
+.krext-al-card .krext-al-item-field { display: grid; min-width: 0; margin: 0; }
+.krext-al-card .krext-al-item-field > span { display: none; }
+.krext-al-card .krext-al-item-field > b { color: #42566c; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.krext-st-focus .krext-al-card .krext-al-item input.krext-al-in, .krext-st-focus .krext-al-card .krext-al-item select.krext-al-sel { width: 100%; max-width: none; padding: 6px; font-size: 13px; }
+.krext-st-focus .krext-al-card .krext-al-item input.krext-al-item-nm { text-align: left; }
+.krext-st-focus .krext-al-card .krext-al-item input.krext-al-num { text-align: right; }
+.krext-al-card .krext-al-score { min-width: 0; color: #516073; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.krext-st-focus .krext-al-card .krext-al-del { width: 28px; min-width: 28px; height: 32px; min-height: 32px; padding: 0; border-color: transparent; background: transparent; color: #6f7987; font-size: 17px; }
+.krext-st-focus .krext-al-card .krext-al-del:hover { border-color: #f0d8dd; background: #fff4f5; color: #833844; }
+.krext-st-focus .krext-al-card .krext-al-add { min-height: 30px; margin-top: 2px; padding: 3px 9px; border-color: #dae5f4; color: #435b7c; font-size: 12px; }
+.krext-st-focus .krext-al-card .krext-al-eval-other select.krext-al-sel { width: 100%; max-width: 160px; margin-bottom: 10px; }
+.krext-al-card .krext-al-eval-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 15px; margin-top: 10px; padding-top: 9px; border-top: 1px solid #edf1f6; color: #5f6b79; font-size: 12px; }
+.krext-al-card .krext-al-eval-foot :is(strong, b) { margin-left: 5px; color: #3e526c; font-weight: 600; }
+.krext-al-card .krext-al-eval-other > label { display: block; }
+.krext-al-card .krext-al-eval-other > label > .krext-al-caption { display: block; margin-bottom: 6px; font-size: 12px; }
+.krext-al-card .krext-al-eval-total { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 18px; margin-top: 12px; padding: 11px 15px; border-radius: 8px; background: #f7f9fc; color: #5a6573; font-size: 12px; font-variant-numeric: tabular-nums; }
+.krext-al-card .krext-al-eval-total > :first-child { margin-right: auto; color: #3d4e63; font-weight: 600; }
+.krext-al-card .krext-al-eval-total :is(strong, b) { margin-left: 5px; color: #384b64; }
+.krext-al-card .krext-al-person.krext-al-off { background: #fbfcfd; }
+.krext-al-card .krext-al-person.krext-al-off .krext-al-person-title, .krext-al-card .krext-al-person.krext-al-off .krext-al-person-result { opacity: .6; }
+.krext-al-card .krext-al-person > :is(.krext-dim, .krext-al-caption) { display: block; margin: 0; padding: 14px 16px; color: #566272; font-size: 13px; }
+.krext-al-card .krext-al-checks { margin-top: 22px; padding: 14px 16px; border: 1px solid #f0e4ca; border-radius: 9px; background: #fffaf1; }
+.krext-al-card .krext-al-checks h4 { margin: 0 0 7px; color: #67542f; font-size: 13px; font-weight: 600; }
+.krext-st-focus .krext-al-card .krext-al-checks .krext-st-warn { gap: 5px; margin: 0; padding: 0; background: transparent; font-size: 13px; line-height: 1.7; }
+.krext-al-card .krext-al-guide { margin-top: 18px; border: 1px solid #e5eaf2; border-radius: 8px; background: #fafbfd; }
+.krext-al-card .krext-al-guide > :not(summary) { margin: 0; padding: 0 14px 14px; color: #5c6675; font-size: 13px; line-height: 1.8; }
+@container allowance (max-width: 900px) {
+  .krext-al-card .krext-al-general { grid-template-columns: 125px minmax(0, 1fr) 125px minmax(0, 1fr); gap: 10px 12px; padding: 16px; }
+  .krext-al-card .krext-al-eval-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 0; }
+  .krext-al-card .krext-al-eval-performance { grid-row: 2; grid-column: 1 / -1; padding-top: 14px !important; border-top: 1px solid #edf1f6; border-left: 0 !important; }
+  .krext-al-card .krext-al-eval-other { grid-row: 1; grid-column: 2; }
+  .krext-al-card .krext-al-personhead { gap: 10px 16px; }
+  .krext-al-card .krext-al-person-fields { order: 3; width: 100%; }
+}
+@container allowance (max-width: 600px) {
+  .krext-al-card .krext-al-toolbar { gap: 13px; margin-bottom: 16px; }
+  .krext-st-focus .krext-al-card .krext-al-toolbar .krext-st-acts { width: 100%; margin-left: 0; }
+  .krext-al-card .krext-al-section { margin-top: 22px; }
+  .krext-al-card .krext-al-general { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; padding: 14px; }
+  .krext-al-card .krext-al-general dd.krext-al-wide { grid-column: 2; }
+  .krext-al-card .krext-al-general dt { white-space: normal; word-break: keep-all; }
+  .krext-al-card .krext-al-col { flex-basis: 140px; }
+  .krext-al-card .krext-al-personhead { padding: 12px; }
+  .krext-al-card .krext-al-person-fields { gap: 9px; }
+  .krext-al-card .krext-al-person-fields > label:first-child { flex: 1 1 180px; }
+  .krext-st-focus .krext-al-card .krext-al-person-fields input[data-alp="dept"] { width: 100%; }
+  .krext-al-card .krext-al-eval-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 14px 0; }
+  .krext-al-card .krext-al-eval-grid > div { grid-row: auto; grid-column: 1; padding: 0 12px; border-left: 0; }
+  .krext-al-card .krext-al-eval-grid > div + div { padding-top: 14px; border-top: 1px solid #edf1f6; }
+  .krext-al-card .krext-al-eval-part .krext-al-values { grid-template-columns: 1fr auto 1fr auto; }
+  .krext-al-card .krext-al-eval-grid h5 { margin-bottom: 10px; }
+  .krext-al-card .krext-al-itemhead { display: none; }
+  .krext-al-card .krext-al-item { grid-template-columns: minmax(56px, 1.2fr) minmax(30px, .8fr) minmax(34px, .9fr) 32px 24px; align-items: end; gap: 8px 5px; padding: 8px; margin-bottom: 8px; border: 1px solid #e7edf5; border-radius: 7px; background: #fafcfe; }
+  .krext-al-card .krext-al-item .krext-al-item-nm { grid-column: 1 / -1; }
+  .krext-al-card .krext-al-item-field > span { display: block; margin-bottom: 4px; color: #545f70; font-size: 12px; text-align: center; white-space: nowrap; }
+  .krext-al-card .krext-al-item-field > b { display: flex; align-items: center; justify-content: flex-end; height: 36px; }
+  .krext-st-focus .krext-al-card .krext-al-item .krext-al-del { min-width: 24px; width: 24px; min-height: 36px; height: 36px; }
+  .krext-al-card .krext-al-eval-total { justify-content: flex-start; }
+  .krext-al-card .krext-al-eval-total > :first-child { flex-basis: 100%; }
+}
+@container allowance (max-width: 400px) {
+  .krext-al-card .krext-al-eval-part .krext-al-values { grid-template-columns: minmax(0, 1fr) auto; }
+}
+.krext-st-focus:has(.krext-al-card) .krext-ws-years { min-width: 0; max-width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+.krext-st-focus:has(.krext-al-card) .krext-ws-years > .krext-ws-year { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .krext-st-focus .krext-al-card { padding: 16px 12px; }
+}

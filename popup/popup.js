@@ -21,9 +21,9 @@
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
-  if (self.KRX_ALLOW) KRX_ALLOW.bind(host, state, draw);   // 연구수당 계산 탭의 기준 칸·계수·한도·지급액 입력, 복사·초기화
+  const allowApi = self.KRX_ALLOW ? KRX_ALLOW.bind(host, state, draw) : null;   // 연구수당 계산 탭의 기준 칸·계수·한도·지급액 입력, 복사·초기화 — agent 는 연구수당 도우미 채팅(2026-10-21)이 씀
   const staffApi = KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
-  if (state.tab && self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.init({ api: staffApi, state, draw });   // 참여연구원 변경 탭의 오른쪽 변경 도우미 채팅(popup/staff-chat.js, 0.8.8) — only=staff 일 때 제목 줄 [에이전트] 단추(st-agent)로 열고 닫음, LLM(Help 서버)이 연결돼 있을 때만 입력
+  if (state.tab && self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.init({ api: staffApi, allow: allowApi, state, draw });   // 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 채팅(popup/staff-chat.js, 0.8.8 · 2026-10-21) — 제목 줄 [에이전트] 단추(st-agent)로 열고 닫음, LLM(Help 서버)이 연결돼 있을 때만 입력
   const prepApi = KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
 
   /* 브라우저 탭으로 열렸을 때(mode.js KRX_TAB — 주소 #tab&page=staff&only=staff&prj=과제번호&year=연차, lib/staff-ui.js openTab → background.js openExtTab):
@@ -36,7 +36,7 @@
     state.staffOnly = only;
     document.documentElement.classList.toggle('krext-only', only);
     if (only) document.title = `${only === 'allow' ? '연구수당 계산' : '참여연구원 변경'} — R&D ERP 현황`;
-    if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.show(only === 'staff');   // 변경 도우미 채팅은 참여연구원 변경 탭에만
+    if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.show(only);   // 도우미 채팅 — staff(변경 도우미) · allow(연구수당 도우미) 모드, 그 밖에는 없음
     if (q.get('page') === 'staff' && staffApi && staffApi.focus) staffApi.focus({ prjNo: q.get('prj') || '', year: Number(q.get('year')) || 0 });
     else if (only) draw();
   };

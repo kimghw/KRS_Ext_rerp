@@ -16,6 +16,7 @@
  *   GET /health 의 fetch 에 그 모델을 적는다(Node 22 미만이면 빈 값).
  * 참여연구원 변경 도우미(0.8.8): POST /staff — 참여연구원 변경 탭의 오른쪽 채팅(popup/staff-chat.js)이 요청 한 줄 + 보고 있는 과제·연차 계획의 요약 + 최근 대화를 보내면 help-server/staff-chat.js 가 claude -p 를 한 번 돌려
  *   답(reply)과 확장이 반영할 작업 목록(ops)을 돌려준다(반영·계산·저장은 확장 lib/staff-ui.js agent.apply). 자동 분류와 같은 자리(CLASSIFY_SLOTS)를 나눠 쓴다. GET /health 의 staff 에 그 모델을 적어 확장이 이 기능이 있는 서버인지 안다.
+ * 연구수당 도우미(2026-10-21): POST /allow — 연구수당 계산 탭의 같은 채팅(popup/staff-chat.js allow 모드)이 요청 + 계산 요약(lib/allowance.js agent.snapshot)을 보내면 같은 staff-chat.js run 을 lib/allow-chat-core.js(프롬프트 = 10-53 연구수당 지침)로 돌려 작업 목록을 돌려준다(반영은 lib/allowance.js agent.apply). GET /health 의 allow 에 그 모델.
  * 환경 변수: KRX_HELP_PORT(8106) · KRX_HELP_MODEL(claude-opus-5-5) · KRX_HELP_FAST_MODEL(claude-haiku-5-5, 자동 분류) · KRX_HELP_CLAUDE(claude 실행 파일) · KRX_HELP_PERMISSION(acceptEdits) · KRX_HELP_TIMEOUT_MIN(30) · KRX_HELP_EXT_ID
  *   증빙 찾아오기: KRX_FETCH_MODEL(KRX_HELP_MODEL) 외 site-fetch/README.md */
 'use strict';
@@ -27,6 +28,7 @@ const { spawn, execFile } = require('child_process');
 const classify = require('./classify');
 const siteFetch = require('../site-fetch');   // 증빙 찾아오기 — 다른 웹 사이트에 가는 부분은 site-fetch/ 에 따로 (이 서버는 /fetch 경로만 넘겨 줌)
 const staffChat = require('./staff-chat');     // 참여연구원 변경 도우미 — 탭 채팅의 POST /staff (0.8.8)
+const allowChat = require('../lib/allow-chat-core.js');   // 연구수당 도우미 — 연구수당 계산 탭의 같은 채팅, POST /allow (2026-10-21): 프롬프트·작업·스키마만 다르고 실행은 staffChat.run(…, { core })
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.KRX_HELP_PORT) || 8106;
@@ -299,19 +301,20 @@ async function classifyRequest(body) {
   } finally { classifyDone(); }
 }
 
-/* 참여연구원 변경 도우미 한 번 — 자동 분류와 같은 자리를 나눠 쓴다. 서버는 계획을 바꾸지도 저장하지도 않고 콘솔에 작업 수만 적는다(이름·금액 없음) */
-async function staffRequest(body) {
+/* 참여연구원 변경 도우미(kind 'staff') · 연구수당 도우미(kind 'allow' — 같은 실행, 프롬프트 모듈만 lib/allow-chat-core.js) 한 번 — 자동 분류와 같은 자리를 나눠 쓴다. 서버는 계획·계산을 바꾸지도 저장하지도 않고 콘솔에 작업 수만 적는다(이름·금액 없음) */
+async function staffRequest(body, kind) {
+  const core = kind === 'allow' ? allowChat : null, label = kind === 'allow' ? '연구수당 채팅' : '참여연구원 채팅';
   let input;
-  try { input = staffChat.clean(body); } catch (e) { return { status: 400, body: { ok: false, kind: 'empty', error: String((e && e.message) || e) } }; }
+  try { input = (core || staffChat).clean(body); } catch (e) { return { status: 400, body: { ok: false, kind: 'empty', error: String((e && e.message) || e) } }; }
   if (!(await classifySlot())) return { status: 429, body: { ok: false, kind: 'busy', error: '요청이 밀려 있습니다 — 잠시 뒤 다시' } };
   const t0 = Date.now();
   try {
-    const out = await staffChat.run(input, { bins: claudeBins(), model: STAFF_MODEL, fallback: STAFF_MODEL === MODEL ? '' : MODEL, env: childEnv(), timeoutMs: STAFF_MS, kill: killTree });
+    const out = await staffChat.run(input, { bins: claudeBins(), model: STAFF_MODEL, fallback: STAFF_MODEL === MODEL ? '' : MODEL, env: childEnv(), timeoutMs: STAFF_MS, kill: killTree, core });
     const ms = Date.now() - t0;
-    console.log(`[${new Date().toLocaleTimeString()}] 참여연구원 채팅 ${Math.round(ms / 100) / 10}초${out.cost ? ` $${out.cost.toFixed(3)}` : ''}: 작업 ${out.ops.length}개${out.dropped ? ` (버림 ${out.dropped})` : ''}${out.ops.length ? '' : ' · 답만'}`);
+    console.log(`[${new Date().toLocaleTimeString()}] ${label} ${Math.round(ms / 100) / 10}초${out.cost ? ` ${out.cost.toFixed(3)}` : ''}: 작업 ${out.ops.length}개${out.dropped ? ` (버림 ${out.dropped})` : ''}${out.ops.length ? '' : ' · 답만'}`);
     return { status: 200, body: { ok: true, model: STAFF_MODEL, ms, reply: out.reply, ops: out.ops, dropped: out.dropped } };
   } catch (e) {
-    console.log(`[${new Date().toLocaleTimeString()}] 참여연구원 채팅 실패: ${oneLine(e && e.message, 200)}`);
+    console.log(`[${new Date().toLocaleTimeString()}] ${label} 실패: ${oneLine(e && e.message, 200)}`);
     return { status: 502, body: { ok: false, kind: 'claude', error: oneLine((e && e.message) || e, 300) } };
   } finally { classifyDone(); }
 }
@@ -323,7 +326,7 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
     if (req.method === 'GET' && u.pathname === '/health') {
       return send(res, 200, { ok: true, name: 'krx-help', version: manifestVersion(), repo: ROOT, model: MODEL, cli: cliVersion, busy: running ? running.job.id : '',
-        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), classify: FAST_MODEL, classifyPtcl: true, staff: STAFF_MODEL, staffFiles: true,
+        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), classify: FAST_MODEL, classifyPtcl: true, staff: STAFF_MODEL, staffFiles: true, allow: STAFF_MODEL,
         fetch: siteFetch.available() ? '' : FETCH_MODEL, fetchNote: siteFetch.available(), fetchBusy: siteFetch.busy() });
     }
     if (u.pathname === '/fetch' || u.pathname.startsWith('/fetch/')) return fetchRoute(req, res, u);   // 증빙 찾아오기 (site-fetch/)
@@ -346,8 +349,8 @@ const server = http.createServer(async (req, res) => {
       const r = await classifyRequest(await readBody(req, CLASSIFY_BODY));
       return send(res, r.status, r.body);
     }
-    if (req.method === 'POST' && u.pathname === '/staff') {   // 참여연구원 변경 도우미 (popup/staff-chat.js) — Help Chat 작업과 따로 돈다
-      const r = await staffRequest(await readBody(req, STAFF_BODY));
+    if (req.method === 'POST' && (u.pathname === '/staff' || u.pathname === '/allow')) {   // 참여연구원 변경 도우미 · 연구수당 도우미 (popup/staff-chat.js) — Help Chat 작업과 따로 돈다
+      const r = await staffRequest(await readBody(req, STAFF_BODY), u.pathname === '/allow' ? 'allow' : 'staff');
       return send(res, r.status, r.body);
     }
     if (req.method === 'POST' && u.pathname === '/cancel') {

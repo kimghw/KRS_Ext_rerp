@@ -55,7 +55,8 @@
      그 밖의 모드에서는 .krext-row 가 display:contents 라 기존 세로 배치(패널 · Help Chat 줄 · 공유 줄 · 툴바) 그대로 */
   .krext-row { display: contents; }
   .staff-chat { display: none; }
-  html.krext-tab.krext-only body:has(> .krext-row > .staff-chat:not([hidden])) { max-width: 1640px; }   /* 채팅(400px)이 열리면 본문이 1200px 를 지키도록 — 위 1200px 규칙보다 구체적이어야 이김(전에는 져서 본문이 800px 로 눌림 — 2026-10-20 사용자 "좌우 배치 맞게") */
+  html.krext-tab.krext-only body:has(> .krext-row > .staff-chat:not([hidden])) { max-width: 1640px; }
+  html.krext-tab.krext-only body:has(.krext-al-card):has(> .krext-row > .staff-chat:not([hidden])) { max-width: 1840px; }   /* 연구수당 계산 탭(1440px)에서 연구수당 도우미 채팅이 열리면 1440 + 400 (2026-10-21) */   /* 채팅(400px)이 열리면 본문이 1200px 를 지키도록 — 위 1200px 규칙보다 구체적이어야 이김(전에는 져서 본문이 800px 로 눌림 — 2026-10-20 사용자 "좌우 배치 맞게") */
   html.krext-only .krext-row { display: flex; flex: 1 1 auto; min-height: 0; }
   html.krext-only .krext-row > .krext-panel.krext-popup { flex: 1 1 auto; min-width: 0; }
   html.krext-only .staff-chat { display: flex; flex-direction: column; flex: 0 0 400px; min-width: 0; min-height: 0; border-left: 1px solid #dfe6ee; background: #fff; color: #273b55; font-size: 14px; }
@@ -196,10 +197,10 @@
 <body>
 <div class="krext-row" id="krextRow"><!-- 참여연구원 변경 탭(html.krext-only)에서만 본문과 변경 도우미 채팅을 나란히 — 그 밖에는 display:contents -->
 <div id="krext-panel" class="krext-panel krext-popup"></div>
-<aside id="staffChat" class="staff-chat" hidden aria-label="참여연구원 변경 도우미">
+<aside id="staffChat" class="staff-chat" hidden aria-label="도우미 채팅"><!-- 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 — 같은 틀, popup/staff-chat.js 가 모드(staff · allow)에 따라 제목·규칙·예시 글만 바꿈 (2026-10-21) -->
   <div class="sc-head">
-    <div class="sc-heading"><span class="sc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5v5A2.5 2.5 0 0 1 17.5 19H9l-5 3V6.5A2.5 2.5 0 0 1 6.5 4H12M16 2l1.5 4.5L22 8l-4.5 1.5L16 14l-1.5-4.5L10 8l4.5-1.5Z"/></svg></span><div><strong>변경 도우미</strong><span id="scStatus" class="sc-status" role="status"></span></div></div>
-    <div class="sc-tools"><button type="button" id="scRules" class="sc-rules-btn" aria-pressed="false" title="예산 규칙 — 요청마다 Claude 에 함께 보내는 참고 글">규칙</button><button type="button" id="scProbe" title="도우미 연결을 다시 확인합니다">연결 확인</button><button type="button" id="scNew" title="대화 기록을 지웁니다 (계획은 그대로)">새 대화</button><button type="button" id="scClose" class="sc-close" aria-label="변경 도우미 닫기" title="도우미 닫기"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></div>
+    <div class="sc-heading"><span class="sc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5v5A2.5 2.5 0 0 1 17.5 19H9l-5 3V6.5A2.5 2.5 0 0 1 6.5 4H12M16 2l1.5 4.5L22 8l-4.5 1.5L16 14l-1.5-4.5L10 8l4.5-1.5Z"/></svg></span><div><strong id="scTitle">변경 도우미</strong><span id="scStatus" class="sc-status" role="status"></span></div></div>
+    <div class="sc-tools"><button type="button" id="scRules" class="sc-rules-btn" aria-pressed="false" title="예산 규칙 — 요청마다 Claude 에 함께 보내는 참고 글">규칙</button><button type="button" id="scConn" aria-pressed="false" title="연결 카드 열기/닫기 — Claude API 키를 바꾸거나 지우고, 서버 실행 안내를 봅니다">연결</button><button type="button" id="scProbe" title="도우미 연결을 다시 확인합니다">연결 확인</button><button type="button" id="scNew" title="대화 기록을 지웁니다 (계획은 그대로)">새 대화</button><button type="button" id="scClose" class="sc-close" aria-label="변경 도우미 닫기" title="도우미 닫기"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></div>
   </div>
   <div id="scConnection" class="sc-connection" hidden><!-- 연결 안내 카드(고정 틀 — popup/staff-chat.js renderConnection 이 글·숨김만 바꿈): 기본 연결 Claude CLI(Help 서버) 실행 방법 · 설정 프롬프트 복사 · Claude API 키 칸 (0.8.9) -->
     <div class="sc-connect-card" id="scConnCard"><span class="sc-connect-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4m6-4v4M7 7h10v4a5 5 0 0 1-10 0V7Zm5 9v5"/></svg></span><div class="sc-connect-copy"><strong id="scConnTitle"></strong><p id="scConnText"></p>
@@ -208,8 +209,8 @@
     </div></div>
   </div>
   <div id="scRulesBox" class="sc-rules" hidden><!-- 예산 규칙(변경 도우미의 CLAUDE.md 구실) — [규칙]으로 열고, [저장]은 storage.local.staffRules, [기본값]은 lib/staff-chat-core.js DEFAULT_RULES -->
-    <div class="sc-rules-head"><strong>예산 규칙</strong><span>요청마다 Claude 에 함께 보내는 참고 글이에요. 모든 과제에 같이 쓰이고 이 브라우저에만 저장돼요. 비우고 저장하면 보내지 않아요.</span></div>
-    <textarea id="scRulesText" maxlength="3000" spellcheck="false" aria-label="예산 규칙"></textarea>
+    <div class="sc-rules-head"><strong id="scRulesTitle">예산 규칙</strong><span id="scRulesDesc">요청마다 Claude 에 함께 보내는 참고 글이에요. 모든 과제에 같이 쓰이고 이 브라우저에만 저장돼요. 비우고 저장하면 보내지 않아요.</span></div>
+    <textarea id="scRulesText" maxlength="3000" spellcheck="false" aria-label="규칙"></textarea>
     <div class="sc-rules-acts"><span id="scRulesStatus" class="sc-rules-status" role="status"></span><button type="button" id="scRulesDefault" title="기본 글을 입력란에 넣습니다 (저장을 눌러야 반영)">기본값</button><button type="button" id="scRulesSave" class="sc-primary" title="이 글을 저장합니다 — 다음 요청부터 함께 보냄">저장</button></div>
   </div>
   <div id="scLog" class="sc-log" role="log" aria-label="변경 도우미 대화" aria-live="polite" aria-relevant="additions text"></div>
@@ -262,7 +263,8 @@
 <script src="../lib/claude-api.js"></script><!-- Claude API 직접 호출 — 변경 도우미가 Help 서버 없이 API 키로 보낼 때 (0.8.9) -->
 <script src="../lib/doc-text.js"></script><!-- 변경 도우미 첨부(xlsx · docx · hwpx · hwp · txt)의 글 뽑기 — 의존 없음 (0.8.9) -->
 <script src="../lib/staff-chat-core.js"></script><!-- 참여연구원 변경 도우미의 공용 부분(프롬프트·스키마·검사·작업 한 줄 글 — Help 서버와 Claude API 길이 같이 씀) (0.8.8) -->
-<script src="staff-chat.js"></script><!-- 참여연구원 변경 탭의 오른쪽 변경 도우미 채팅 — LLM(Help 서버) 연결 때만 (0.8.8) -->
+<script src="../lib/allow-chat-core.js"></script><!-- 연구수당 도우미의 공용 부분(10-53 지침 프롬프트·작업·스키마 — staff-chat-core 의 글 정리를 씀, 그 뒤에) (2026-10-21) -->
+<script src="staff-chat.js"></script><!-- 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 채팅(같은 틀, 모드만 다름) — LLM(Help 서버) 연결 때만 (0.8.8 · 2026-10-21) -->
 <script src="../lib/render.js"></script>
 <script src="capture.js"></script>
 <script src="popup.js"></script>

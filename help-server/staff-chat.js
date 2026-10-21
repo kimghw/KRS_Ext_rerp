@@ -5,7 +5,8 @@
  * 시스템 프롬프트는 build().system — SYSTEM 뒤에 사용자의 예산 규칙(채팅 머리 [규칙], 2026-10-20).
  * 첨부(0.8.9, 2026-10-21 사용자 "엑셀, 워드, PDF, HWP/X, 이미지를 첨부"): 글은 확장이 lib/doc-text.js 로 미리 뽑아 files[].text 로 보내고, PDF·이미지만 base64(files[].data)로 온다 — 요청마다 새 작업 폴더에 써 두고(stageFiles) 그때만 --tools Read(--permission-mode dontAsk)로
  *   Claude 가 읽게 한다(이미지는 글자를 읽는 OCR 구실). 끝나면 폴더를 지운다. 첨부가 없으면 전처럼 도구 없음.
- * claude.exe 가 시작하다 결과 없이 바로 죽는 일(exit 0xC0000409, 2026-10-21 한 번 봄 — API 호출 전이라 비용 없음)이 있어 RETRY_MS 안에 결과 없이 끝나면 한 번 더 돌린다 */
+ * claude.exe 가 시작하다 결과 없이 바로 죽는 일(exit 0xC0000409, 2026-10-21 한 번 봄 — API 호출 전이라 비용 없음)이 있어 RETRY_MS 안에 결과 없이 끝나면 한 번 더 돌린다.
+ * 연구수당 도우미(POST /allow, 2026-10-21 — 연구수당 계산 탭의 같은 채팅): 서버는 같은 run 을 opts.core = lib/allow-chat-core.js 로 돌린다(프롬프트·작업·스키마만 다름 — 지침이 시스템 프롬프트 뒤에 붙음) */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -36,11 +37,12 @@ function stageFiles(input) {
   return { dir, cleanup() { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} } };
 }
 
-/* claude -p 한 번. input = clean(본문), opts: { bins: [실행 파일 후보], model, fallback, env, timeoutMs, kill(child) } → Promise<{ reply, ops, dropped, cost, apiMs }> */
+/* claude -p 한 번. input = clean(본문), opts: { bins: [실행 파일 후보], model, fallback, env, timeoutMs, kill(child), core(프롬프트·스키마·검사 모듈 — 기본 lib/staff-chat-core.js, 연구수당 도우미(POST /allow)는 lib/allow-chat-core.js) } → Promise<{ reply, ops, dropped, cost, apiMs }> */
 function run(input, opts) {
   try { fs.mkdirSync(WORK_DIR, { recursive: true }); } catch (e) {}
+  const C = opts.core || core;
   const staged = stageFiles(input);
-  const { text, schema, system } = build(input);   // system = SYSTEM + 사용자의 예산 규칙, text 에 첨부의 글·경로
+  const { text, schema, system } = C.build(input);   // system = SYSTEM + 사용자의 규칙(예산 규칙 · 연구수당 지침), text 에 첨부의 글·경로
   const tools = (input.files || []).some((f) => f && f.path) ? 'Read' : '';
   const args = ['-p', '--model', opts.model, '--safe-mode', '--tools', tools, '--no-session-persistence', '--strict-mcp-config',
     '--system-prompt', system, '--output-format', 'stream-json', '--verbose', '--json-schema', JSON.stringify(schema)];
@@ -76,7 +78,7 @@ function run(input, opts) {
         let out = result.structured_output;
         if (!out) { try { out = JSON.parse(String(result.result || '').replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch (e) { out = null; } }
         if (!out) return end(new Error('Claude 의 답을 읽지 못했습니다'));
-        end(null, Object.assign(parse(input, out), { cost: result.total_cost_usd, apiMs: result.duration_api_ms }));
+        end(null, Object.assign(C.parse(input, out), { cost: result.total_cost_usd, apiMs: result.duration_api_ms }));
       });
     };
     attempt(opts.bins, false);
