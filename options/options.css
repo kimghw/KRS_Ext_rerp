@@ -25,26 +25,25 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 16
 .tab-badge.err { background: #fdeceb; color: #b3261e; }
 .tab-badge.warn { background: #fff4e0; color: #9a5b00; }
 .tab-badge:empty { display: none; }
-/* LLM 설정 탭 (options.js probeLlm · renderLlm): 연결 상태 · 기능별 칩 · 연결 안 됐을 때 기능 구역(#llmFeatures — 증빙 찾아오기·가맹점 등록 포함)을 흐리게 */
+/* LLM 설정 탭 (options.js probeLlm · renderLlm): 연결 상태 · 연결 안 됐을 때 기능 구역(#llmFeatures — 증빙 찾아오기·가맹점 등록 포함)을 흐리게 */
 .llm-state { margin-left: auto; padding: 3px 9px; border-radius: 7px; background: #f0f4fa; font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .llm-state.on { color: #1a7f37; }
 .llm-state.err { color: #b3261e; }
 .llm-conn h2 .desc-toggle { margin-left: 0; }
+/* Claude 연결 방식 (#llmWayCard — help.api.use 라디오) */
+.way-list { display: grid; gap: 8px; }
+.way { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; font-size: 13px; line-height: 1.55; }
+.way input { margin-top: 2px; }
+.way:has(input:checked) { border-color: var(--accent); background: #f3f7ff; }
 .llm-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 18px; margin: 10px 0 0; padding: 14px; border-radius: 8px; background: var(--surface); font-size: 12px; color: var(--muted); }
 .llm-detail:empty { display: none; }
 .llm-detail .err { color: #b3261e; grid-column: 1 / -1; }
 .llm-detail code { font-size: 12px; }
-.llm-chip { display: inline-block; max-width: 100%; padding: 5px 10px; border-radius: 7px; background: #eef1f5; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.6; }
-.llm-chip:empty { display: none; }
-.llm-chip.on { background: #e3f3e8; color: #1a7f37; }
-.llm-chip.warn { background: #fff4e0; color: #9a5b00; }
-.llm-chip.off { background: #fdeceb; color: #b3261e; }
 .llm-notice { margin: 0 0 16px; padding: 13px 16px; border: 1px solid #f0d9ad; border-radius: 9px; background: #fff9ed; color: #8a5a18; font-size: 13px; }
 .card p.llm-notice { margin: 8px 0 0; }
-.card.llm-off, #fetchBody.llm-off { opacity: .55; pointer-events: none; user-select: none; }   /* 카드마다 (options.js renderLlm — 자동 분류는 Claude API 로도 켜짐) */
+.card.llm-off, #fetchBody.llm-off { opacity: .55; pointer-events: none; user-select: none; }   /* 서버도 Claude API 도 안 될 때만 (options.js renderLlm, 2026-10-21) */
 .api-grid { margin-top: 14px; }
 .section-description { margin: -6px 0 17px; color: var(--muted); font-size: 13px; }
-.feature-status { margin: -4px 0 12px; }
 .connection-form { display: flex; align-items: flex-end; gap: 10px; }
 .connection-form label { flex: 1; min-width: 0; margin: 0; }
 .connection-form input { margin-top: 6px; }
@@ -61,7 +60,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 16
 .desc-toggle.on { border-color: #1f4e9c; color: #fff; background: #1f4e9c; }
 details.card > summary h2 .desc-toggle { flex: none; }
 section.card, details.card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; margin-bottom: 16px; box-shadow: 0 2px 4px #25385503; }
-section.card.llm-conn { border-top: 3px solid #5684d5; }
+section.card.llm-conn, details.card.llm-conn { border-top: 3px solid #5684d5; }
 .help { color: #5b6470; font-size: 12.5px; margin: 4px 0 10px; }
 .muted { color: var(--muted); font-weight: 400; font-size: 12px; letter-spacing: 0; }
 label { display: block; margin: 6px 0; font-size: 13px; }
@@ -204,21 +203,38 @@ details.card[open] > summary { margin-bottom: 8px; }
 .share-acts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .share-acts .btn { min-height: 26px; padding: 2px 8px; font-size: 11.5px; }
 #plusPagesStatus { margin-top: 2px; }
-/* LLM 설정 탭 › 증빙 찾아오기 · 자주 사용 가맹점 (options.js renderFetchSites) */
-.fetch-site { border: 1px solid #dce4f0; border-radius: 11px; background: #fafbfd; padding: 18px; margin: 14px 0; scroll-margin-top: 85px; }
+/* LLM 설정 탭 › 증빙 찾아오기 · 자주 사용 가맹점 (options.js renderFetchSites): 가맹점마다 접는 칸(details) — 머리 줄은 이름 · 종류 · 마지막 결과, 단추는 펼쳤을 때만. 칸은 3열로 촘촘하게 (2026-10-22) */
+.fetch-site { border: 1px solid #dce4f0; border-radius: 10px; background: #fafbfd; margin: 6px 0; scroll-margin-top: 85px; }
 .fetch-site.fetch-new { border-color: #7fbf95; box-shadow: 0 0 0 2px rgba(63,154,100,.15); }
-.fetch-site-head { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 15px; padding-bottom: 14px; border-bottom: 1px solid #e3e9f2; }
-.fetch-site-identity { flex: 1 1 240px; min-width: 0; }
-.fetch-site-name { display: block; font-size: 15px; font-weight: 700; word-break: keep-all; }
-.fetch-site-head .muted { display: block; margin-top: 4px; font-weight: 400; line-height: 1.7; }
-.fetch-site-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.fetch-site-head .btn { flex: none; min-height: 32px; padding: 5px 10px; font-size: 12px; }
-.fetch-docs .fetch-own { flex-basis: 100%; color: #555; }
+.fetch-site > summary.fetch-site-head { list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 8px 12px; color: inherit; font-size: 13px; user-select: none; }
+.fetch-site > summary::-webkit-details-marker { display: none; }
+.fetch-site > summary::before { content: '▸'; color: #8a919c; width: 10px; flex: none; }
+.fetch-site[open] > summary::before { content: '▾'; }
+.fetch-site[open] > summary { border-bottom: 1px solid #e3e9f2; }
+.fetch-site:not([open]) > summary:hover .fetch-site-name { color: #1f4e9c; }
+.fetch-site-name { font-size: 14px; font-weight: 700; word-break: keep-all; }
+.fetch-site-last { flex: 1 1 160px; min-width: 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fetch-site-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.fetch-site:not([open]) .fetch-site-actions { display: none; }
+.fetch-site-head .btn { flex: none; min-height: 28px; padding: 3px 9px; font-size: 12px; }
+.fetch-site > .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; padding: 10px 12px 12px; }
+.fetch-site label { margin: 0; font-size: 12.5px; }
+.fetch-site .grid label > :is(input, textarea, select) { margin-top: 3px; }
+.fetch-site :is(input[type=text], input[type=url], input[type=password], select, textarea) { min-height: 32px; padding: 5px 9px; }
+.fetch-docs-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; }
+.fetch-docs .fetch-own { color: #555; margin-right: 4px; }
 .fetch-docs input:disabled + span { color: #888; }
-.fetch-docs { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; }
+.fetch-docs { display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .fetch-docs label { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; }
 .fetch-site textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; }
-/* LLM 설정 탭 › 증빙 찾아오기 · 사이트 만들기 채팅 (options/fetch-chat.js — 팝업 Help Chat 줄과 같은 모양) */
+.fetch-issue { display: flex; align-items: flex-end; gap: 8px; }
+.fetch-issue label { flex: 1; min-width: 0; }
+.fetch-issue .btn { flex: none; min-height: 32px; padding: 5px 10px; font-size: 12px; }
+/* LLM 설정 탭 › 증빙 찾아오기 · 자주 사용 가맹점의 찾는 방법 익히기 (options/fetch-chat.js — 팝업 Help Chat 줄과 같은 모양, 가맹점 칸들 위의 옅은 파랑 상자) */
+.fetch-chat { border: 1px solid #d5e2fb; border-radius: 11px; background: #f5f8ff; padding: 14px 16px; margin: 0 0 14px; scroll-margin-top: 85px; }
+.fetch-chat .fc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 10px; }
+.fetch-chat .fc-head strong { font-size: 14px; }
+.fetch-chat .fc-head span { color: var(--muted); font-size: 12.5px; }
 .fetch-chat .fc-form { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
 .fetch-chat .fc-form select { width: 100%; min-width: 0; }
 .fetch-chat .fc-form input[type=text] { min-width: 0; }
@@ -237,8 +253,6 @@ details.card[open] > summary { margin-bottom: 8px; }
 .fetch-chat .help-line.err, .fetch-chat .help-line.warn { color: #b3261e; }
 .fetch-chat .help-line.say { color: #2b2b46; }
 .fetch-chat .help-detail { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e1e6ee; white-space: pre-wrap; word-break: break-word; color: #2b2b46; }
-.fetch-chat .row { margin: 8px 0 0; }
-.fetch-chat .row .btn { padding: 3px 10px; font-size: 12px; }
 
 @media (max-width: 760px) {
   body { padding: 24px 20px 112px; }
@@ -246,6 +260,7 @@ details.card[open] > summary { margin-bottom: 8px; }
   .tabs .tab { flex: 1; padding: 8px 10px; }
   .fetch-chat .fc-form { grid-template-columns: minmax(0, 1fr) auto; }
   .fetch-chat .fc-form select { grid-column: 1 / -1; }
+  .fetch-site > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .row.sticky { padding: 14px 20px; }
 }
 @media (max-width: 540px) {
@@ -264,8 +279,10 @@ details.card[open] > summary { margin-bottom: 8px; }
   .llm-state { margin-left: 0; }
   .connection-form { flex-wrap: wrap; }
   .connection-form label { flex-basis: 100%; }
-  .fetch-site { padding: 14px; }
+  .fetch-chat { padding: 14px; }
+  .fetch-site > .grid { grid-template-columns: minmax(0, 1fr); }
   .fetch-site-actions { width: 100%; }
+  .fetch-issue { flex-wrap: wrap; }
   .row.sticky { padding: 12px; gap: 8px; }
   .save-hint { flex-basis: 100%; margin: 0; font-size: 11px; }
   .row > input, .row > select { max-width: 100%; min-width: 0; }

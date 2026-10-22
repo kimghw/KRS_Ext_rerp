@@ -1411,7 +1411,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepMeetingInfo': return await meetingInfo(String(msg.prjNo || '').trim(), String(msg.date || ''), !!msg.force);   // 회의록 카드: 과제 참여인력 목록 + 회의록 규칙 + 회의사전신청 목록 + 휴일 여부 (1시간 캐시)
       case 'prepPersonSearch': try { return { ok: true, list: await KRX_API.searchPerson(msg.name) }; } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message }; }   // 내부참석자 검색
       case 'prepAddFiles': return { ok: true, entry: await KRX_PREP_STORE.addFiles(String(msg.key || ''), msg.meta || {}, msg.files || []) };
-      case 'prepAuto': return await KRX_PREP_AI.run(String(msg.key || ''), msg.meta || {});   // Claude 자동 분류 (Help 서버 연결 시): 청구종류 · 첨부 파일 종류 (lib/prep-ai.js)
+      case 'prepAuto': return await KRX_PREP_AI.run(String(msg.key || ''), msg.meta || {}, msg.force ? { force: true } : null);   // Claude 자동 분류 (Help 서버 연결 시): 청구종류 · 첨부 파일 종류 (lib/prep-ai.js). force = 청구내역 옆 [AI] 단추(꼭 다시 씀)
+      case 'prepFile': { const f = await KRX_PREP_STORE.fileB64(String(msg.id || '')); return f ? Object.assign({ ok: true }, f) : { ok: false, error: '파일이 없습니다 (지워졌거나 다른 브라우저에 저장됨)' }; }   // popup/file.html 이 보여 줄 파일 하나
+      case 'prepFileOpen': await chrome.tabs.create({ url: chrome.runtime.getURL(`popup/file.html#${encodeURIComponent(String(msg.id || ''))}`) }); return { ok: true };   // 파일 칩 이름 클릭 → 새 탭에서 보기 (eClass 패널·사이드 패널·팝업 모두 여기로)
       case 'teamsProbe': return await KRX_TEAMS.probe(msg.url || ((await KRX_SETTINGS.load()).teams || {}).mcpUrl, !!msg.force);   // 팀즈 MCP 연결 확인 — 설정 페이지 · 참여연구원 변경 탭. 결과는 storage.local.teamsStatus
       case 'llmProbe': return await KRX_LLM.probe(msg.url, !!msg.force);   // LLM(Help 서버) 연결 확인 — 설정 페이지 LLM 설정 탭(연결 확인 · 주기 확인). 결과는 storage.local.llmStatus 에도 (lib/llm.js)
       case 'prepSetFileKind': return { ok: true, entry: await KRX_PREP_STORE.setFileKind(String(msg.key || ''), String(msg.id || ''), String(msg.kind || '')) };   // 첨부 파일 종류 → 이름 바꾸기

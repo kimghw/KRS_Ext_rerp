@@ -87,7 +87,7 @@ test('화면 — 과제 칩 · 과제 카드 · 연차 칩 · 예산 카드 · �
   assert.ok(html.includes('data-act="st-proj" data-prj="2026-0063-01"') && html.includes('krext-ws-proj krext-on" data-act="st-proj" data-prj="2026-0063-01"') && html.includes('>SSCB</button>') && html.includes('>선박용 수소 엔진-연…</button>'), '칩: 별칭 · 과제명 앞부분');
   assert.ok(html.includes('data-stprj="2026-0063-01" data-styr="1"') && html.includes('<b class="krext-ws-name" title="MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발">SSCB</b>') && html.includes('과제 정보') && html.includes('data-act="st-alias"'));
   assert.ok(html.includes('data-act="st-year" data-year="1"') && html.includes('<small>현재</small>') && html.includes('data-year="2"') && html.includes('data-act="st-year-add" data-year="3"'), '연차 칩: 1(현재) · 2 · ＋ 3');
-  assert.ok(html.includes('<b>1차년도</b> · <input type="month" data-stp="from" value="2026-04"') && html.includes('R&amp;D ERP 현재 연차'));
+  assert.ok(html.includes('<b>1차년도</b> · <span title="1차년도 계획 기간 — R&amp;D ERP 의 연차 기간">2026-04 ~ 2026-12</span>') && html.includes('R&amp;D ERP 현재 연차'));
   assert.ok(html.includes('data-card="budget"') && html.includes('계획 107,425 · 집행 30,913 (29%)') && html.includes('data-stb="name" data-i="0" value="인건비"') && html.includes('data-stb="plan" data-i="0" value="31,425"'), '예산 카드 머리·칸');
   assert.ok(html.includes('data-stinc="unbilled" checked') && html.includes('data-act="st-bcopy"') && html.includes('rERP 자금현황(원) · 예산 107,425,000') && html.includes('data-act="st-bdel" data-i="3"') && html.includes('data-act="st-badd"'));
   assert.ok(html.includes('<div class="krext-ws-budget-scroll" tabindex="0" role="region" aria-label="비목별 예산 표"><div class="krext-ws-budget-grid"><div class="krext-ws-bhead">'), '예산 금액이 좁은 패널에서도 잘리지 않도록 키보드 스크롤 구역');
@@ -259,7 +259,7 @@ test('참여율 칸 끌기 — 누른 칸에서 손가락 밑 칸(elementFromPoi
 test('참여인력 변경 탭 — section({ only: "staff" }): 과제 칩·과제 카드(과제명 · 과제번호 · 기간 칸)·예산·변경이력·요약 세 칸 없이 제목 줄 뒤 별칭 · 과제 정보 링크, 연차 칩, 접히지 않는 참여인력 카드(머리 한 줄에 요약 + 단추 줄)만(2026-10-19 "너무 공간을 많이 차지함"), [참여연구원 변경] 단추는 보통 화면의 펼친 카드에만; bind().focus 는 주소의 과제·연차를 보는 상태로 두고 화면을 연다(저장된 staffView 가 뒤늦게 읽혀도 덮지 않음) · openTab 은 백그라운드 openExtTab 에 #tab&page=staff&only=staff&prj&year 주소를 보낸다', () => {
   const st = mk({ staffView: { years: {}, extra: {}, inc: { unbilled: true, plan: true }, fold: { staff: true } } });
   const folded = U.section(d, {}, st, '', EDIT);
-  assert.ok(!folded.includes('data-act="st-tab"') && folded.includes('data-act="st-fold" data-card="staff"'), '접힌 카드: 단추는 몸통에 있으므로 없음');
+  assert.ok(!folded.includes('krext-st-tab" data-act="st-tab"') && folded.includes('<div class="krext-ws-cardhead krext-ws-headrow"><button type="button" class="krext-ws-fold" data-act="st-fold" data-card="staff" aria-expanded="false"') && folded.includes('</button><button type="button" class="krext-ws-hicon" data-act="st-tab" title="참여연구원 변경 — 이 과제 1차년도 의') && folded.includes('class="krext-ws-hicon" data-act="st-allow-tab" title="연구수당 계산 — 이 과제 1차년도 의') && folded.includes('<i class="krext-ws-chev krext-closed" data-act="st-fold" data-card="staff"'), '접힌 카드: 몸통의 큰 단추는 없고 머리의 참여·수당 칩만(2026-10-21)');
   st.staffView.fold = {};
   const opened = U.section(d, {}, st, '', EDIT);
   assert.ok(opened.includes('data-act="st-tab" title="참여연구원 변경 — 이 과제 1차년도 의 참여연구원 계획(') && opened.includes('>참여연구원 변경 <svg'), '펼친 카드의 단추 — 참여연구원 변경');
@@ -268,7 +268,7 @@ test('참여인력 변경 탭 — section({ only: "staff" }): 과제 칩·과제
   assert.ok(only.includes('krext-st-focus') && only.includes('krext-st-only" data-stprj="2026-0063-01" data-styr="1"') && only.includes('<b>T</b>'));
   assert.ok(!only.includes('data-act="st-proj"') && !only.includes('data-card="budget"') && !only.includes('data-card="changes"') && !only.includes('data-card="project"') && !only.includes('data-act="st-tab"') && !only.includes('data-act="st-fold"') && !only.includes('data-act="st-alias"'), '과제 칩 · 과제 카드 접기·별칭 · 예산 · 변경이력 · 단추 없음');
   assert.ok(!only.includes('krext-ws-head') && !only.includes('data-stp=') && !only.includes('과제번호 ') && !only.includes('krext-st-overview') && !only.includes('계획 1개') && !only.includes('계획 2개') && !only.includes('계획 3개'), '과제 카드(과제명 · 과제번호 · 기간 칸) · 요약 세 칸 · 계획 수 없음');
-  assert.ok(opened.includes('data-stp="from" value="2026-04"'), '기간 칸은 사업비 관리의 과제 카드에만');
+  assert.ok(opened.includes('>2026-04 ~ 2026-12</span>') && !opened.includes('data-stp='), '기간 줄(글)은 사업비 관리의 과제 카드에만 — 달 칸 없음');
   assert.ok(only.includes('<span class="krext-st-focus-prj" title="MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발 · 2026-0063-01 · 책임자 김거화">') && only.includes('</span><a class="krext-ws-focus-link"') && only.includes('>과제 정보 '), '제목 줄 뒤 과제 이름(별칭이 없으면 과제명 앞부분 — 과제명·과제번호·책임자는 툴팁) · 과제 정보 링크');
   st.staffAliases = { [P.prjNo]: 'SSCB' };
   assert.ok(U.section(d, {}, st, '', { edit: true, only: 'staff' }).includes('책임자 김거화">SSCB</span><a class="krext-ws-focus-link"'), '별칭이 있으면 별칭만');
@@ -313,14 +313,14 @@ test('참여인력 탭 인건비 요약 — 예산과 같음·초과·부족·�
 test('2차년도 기본 기간·계획서 예산, 직접 적은 줄, 접기, 별칭 폼, rERP 조회 상태, 더하기 폼', () => {
   const st = mk({ research: { [rec2.id]: rec2 } });
   let html = U.section(d, {}, st, '', EDIT);
-  assert.ok(html.includes('data-act="st-alias"') && html.includes('data-stp="from" value="2026-04"') && html.includes('data-stp="to" value="2026-12"'));
+  assert.ok(html.includes('data-act="st-alias"') && html.includes('>2026-04 ~ 2026-12</span>'));
   assert.ok(html.includes('data-act="st-year-add" data-year="3"') && html.includes('(2028-01 ~ 2028-12)'));
   assert.ok(html.includes('data-stb="name" data-i="0" value="인건비"') && html.includes('data-stb="plan" data-i="0" value="31,425"') && html.includes('data-act="st-bdel" data-i="3"') && html.includes('data-act="st-badd"') && !html.includes('data-act="st-breset"'), '예산 칸·×·＋ 비목 (기본값이라 되돌리기 없음)');
   assert.ok(html.includes('data-act="st-tab"') && !html.includes('data-act="st-add"') && html.includes('rERP 참여인력을 아직 조회하지 않았습니다') && html.includes('<b>참여연구원 변경</b>에서 rERP 현재로'), '패널 카드: 편집 단추 없이 참여연구원 변경 안내');
   assert.ok(U.section(d, {}, st, '', TAB).includes('data-act="st-init-erp"') && U.section(d, {}, st, '', TAB).includes('data-act="st-add"'), '탭: 편집 단추');
   st.staffView.years[P.prjNo] = 2;
   html = U.section(d, {}, st, '', EDIT);
-  assert.ok(html.includes('data-styr="2"') && html.includes('data-stp="from" value="2027-01"') && html.includes('data-stb="plan" data-i="0" value="35,900"') && html.includes('계획: 연구개발계획서 2차년도 r2') && html.includes('rERP 자금현황은 현재 연차(1차년도)만'), '2차년도: 12달 뒤 기간, 계획서 예산');
+  assert.ok(html.includes('data-styr="2"') && html.includes('title="2차년도 계획 기간 — 현재 연차 기간에서 12달씩 셈한 기간">2027-01 ~ 2027-12</span>') && html.includes('data-stb="plan" data-i="0" value="35,900"') && html.includes('계획: 연구개발계획서 2차년도 r2') && html.includes('rERP 자금현황은 현재 연차(1차년도)만'), '2차년도: 12달 뒤 기간, 계획서 예산');
   st.staffPlans[K2] = { prjNo: P.prjNo, year: 2, budget: [{ name: '인건비', plan: 40000000 }], people: [] };
   html = U.section(d, {}, st, '', EDIT);
   assert.ok(html.includes('data-act="st-breset"') && html.includes('계획: 직접 적은 계획') && !html.includes('2차년도 지우기') && U.section(d, {}, st, '', TAB).includes('2차년도 지우기'), '지우기는 탭에만');
@@ -352,12 +352,13 @@ test('Workspace 과제 머리 — 기본 접힘, 펼치면 메타·링크, 별�
   assert.ok(/<\/button><button type="button" class="krext-ws-edit"/.test(html), '별칭 단추는 접기 단추와 형제');
   st.staffAliasEdit = P.prjNo;
   html = U.section(d, {}, st, '', EDIT);
-  assert.ok(html.includes('data-stalias') && html.includes('data-act="st-year"') && html.includes('data-stp="from"') && !html.includes('krext-ws-project-meta'));
+  assert.ok(html.includes('data-stalias') && html.includes('data-act="st-year"') && html.includes('>2026-04 ~ 2026-12</span>') && !html.includes('krext-ws-project-meta'));
   st.staffView.fold.project = false;
   html = U.section(d, {}, st, '', EDIT);
   assert.ok(html.includes('data-card="project" aria-expanded="true"') && html.includes('<dt>과제명</dt><dd>MW급 10kV 고전압 직류 시스템용 반도체 차단기 개발</dd><dt>과제번호</dt><dd>2026-0063-01</dd><dt>책임자</dt><dd>김거화</dd>'));
   assert.ok(html.includes('krext-ws-project-info') && html.includes('krext-ws-links'));
-  for (const card of ['budget', 'staff', 'changes']) assert.ok(new RegExp(`<button type="button" class="krext-ws-cardhead" data-act="st-fold" data-card="${card}" aria-expanded="(?:true|false)"`).test(html), '기본 단추의 키보드 접기/펴기');
+  for (const card of ['budget', 'changes']) assert.ok(new RegExp(`<button type="button" class="krext-ws-cardhead" data-act="st-fold" data-card="${card}" aria-expanded="(?:true|false)"`).test(html), '기본 단추의 키보드 접기/펴기');
+  assert.ok(/<div class="krext-ws-cardhead krext-ws-headrow"><button type="button" class="krext-ws-fold" data-act="st-fold" data-card="staff" aria-expanded="(?:true|false)"/.test(html), '참여인력 카드 머리는 div 안의 접기 단추 + 참여·수당 칩');
 });
 test('참여인력 계획이 있으면 — 카드 머리(연구자 n명 · 초과/부족), 패널 표는 보기만(성명 · 역할 책임/참여 · 월급여 · 참여 · 지급 합 · 참여율 · 월 최대 — WORKSPACE 와 같은 꼴), 탭 표는 칸·역할 선택·✎ ×, 달마다의 지급, rERP 등록(같음/다름), 알림, 예산 칸 인건비 줄의 참여연구원 합 메모', () => {
   const rows = S.rowsOfErp(REC);

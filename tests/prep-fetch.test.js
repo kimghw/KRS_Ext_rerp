@@ -80,6 +80,9 @@ test('저장 전 검사: 주소·가맹점 글자가 없으면 거절, 종류가
   assert.deepStrictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com', kind: 'lecture' }).docs, [], '서류를 안 고르면 [] = 종류 기본을 따름');
   assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com', browser: '  SUB 전용  ' }).browser, 'SUB 전용', '로그인해 둔 Chrome(바로가기 이름·포트·주소)');
   assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com' }).browser, '');
+  assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com', issue: '  견적서가 없으면\r\n상세 화면 캡처  ' }).issue, '견적서가 없으면\n상세 화면 캡처', '개선점은 줄 바꿈을 살려 저장');
+  assert.strictEqual(SITES.sanitize({ match: '인프랩', url: 'https://a.com' }).issue, '');
+  assert.deepStrictEqual([SITES.extraOf({ kind: 'lecture', docs: [] }, null), SITES.extraOf({ kind: 'lecture', docs: ['수료증', '강의내용'] }, null), SITES.extraOf({ kind: 'subscription', docs: [] }, null)], [['수료증'], [], []], '있으면 받는 서류: 강의 = 수료증 (따로 고른 필요 서류에 있으면 뺌, 구독은 없음)');
   assert.strictEqual(SITES.defaultsFor('주식회사 인프랩').browser, '');
 });
 test('찾는 곳 메모는 업체별: 알려진 가맹점은 그 업체의 메뉴 경로, 예전 등록의 빈 메모도 읽을 때 채우고 저장한 뒤 비운 칸은 그대로', async () => {
@@ -123,6 +126,9 @@ test('만들기 프롬프트: 가맹점 값·필요 서류를 채우고 fetch-si
   assert.ok(blank.includes('- 이름: ＿＿') && blank.includes('필요 서류: ＿＿') && !blank.includes('＿＿ 칸은'));
   const ask = SITES.buildPrompt(null, null, null, '  유데미 https://www.udemy.com/dashboard/purchase-history/ 강의  사이트를 붙여 줘 ');
   assert.ok(ask.includes('요청: 유데미 https://www.udemy.com/dashboard/purchase-history/ 강의 사이트를 붙여 줘') && ask.includes('＿＿ 칸은 아래 요청 글'), ask);
+  const iss = SITES.buildPrompt({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [], issue: '수강증은 캡처 말고\n수료증 pdf 를 내려받아 줘' });
+  assert.ok(iss.includes('- 개선점(') && iss.includes('수강증은 캡처 말고 수료증 pdf 를 내려받아 줘') && iss.includes('요청: 개선점대로 고쳐 줘'), '개선점이 있으면 가맹점 블록에 넣고 요청 한 줄이 없으면 그것이 요청: ' + iss);
+  assert.ok(SITES.buildPrompt({ label: '인프런', match: '인프랩', url: 'https://a.com', kind: 'lecture', docs: [], issue: '수료증 받아 줘' }, null, null, '안내 고쳐').includes('요청: 안내 고쳐'), '요청 한 줄이 있으면 그것이 요청');
 });
 test('채팅 답변의 howto: 줄 → 기억한 찾는 방법 (굵게·머리표·따옴표도), 안내 복사 글은 등록 값 + howto + 서버의 안내 파일 원문', () => {
   assert.strictEqual(SITES.howtoOf('인프런 안내를 만들었습니다\nhowto: 마이페이지 > 구매 내역에서 행 찾기 → /orders/<번호>/billing 을 pdf\nguide: site-fetch/sites/inflearn.md'), '마이페이지 > 구매 내역에서 행 찾기 → /orders/<번호>/billing 을 pdf');
@@ -132,6 +138,29 @@ test('채팅 답변의 howto: 줄 → 기억한 찾는 방법 (굵게·머리표
   const g = SITES.guideText({ label: '인프런', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: [], hint: '마이페이지', howto: '구매 내역 → billing' }, null, [{ name: 'site-fetch/sites/inflearn.md', text: 'hosts: inflearn.com\n[인프런] 출처…\n- 로그인: …' }]);
   assert.ok(g.startsWith('[인프런] 증빙 찾아오기 안내') && g.includes('- 기억한 찾는 방법: 구매 내역 → billing') && g.includes('- 찾는 곳 메모: 마이페이지') && g.includes('--- site-fetch/sites/inflearn.md ---\nhosts: inflearn.com'), g);
   assert.ok(SITES.guideText({ label: 'X', kind: 'subscription' }, null, []).includes('- 기억한 찾는 방법: (없음)'));
+});
+test('가맹점 파일: 내보내기는 등록 값만(아이디·비밀번호·id·마지막 결과·개선점 없음), YAML·JSON 왕복, 배열·{ sites } 도 받고 남의 파일·빈 주소는 거절, 같은 가맹점 알아보기', async () => {
+  const site = { id: 'abc', label: 'Claude', match: 'anthropic, claude.ai', url: 'https://claude.ai/settings/billing', kind: 'subscription', docs: [], browser: 'KRS 전용(9333)', hint: '설정 › 결제', howto: 'eval 로 /api/…/invoices', issue: '영수증도', loginId: 'me@x.com', loginPw: 'pw', last: { ts: 1, state: 'done', n: 2 } };
+  const f = SITES.toFile(site);
+  assert.strictEqual(f.format, SITES.FORMAT);
+  for (const k of ['id', 'loginId', 'loginPw', 'last', 'issue', 'pw']) assert.ok(!(k in f), `${k} 는 내보내지 않음`);
+  assert.deepStrictEqual([f.label, f.match, f.kind, f.docs, f.browser, f.howto], ['Claude', 'anthropic, claude.ai', 'subscription', [], 'KRS 전용(9333)', 'eval 로 /api/…/invoices']);
+  const { pathToFileURL } = require('url');
+  const YAML = await import(pathToFileURL(path.join(root, 'vendor/yaml/index.js')).href);
+  const back = SITES.fromFile(YAML.parse('# 머리 주석\n' + YAML.stringify(f, { lineWidth: 0 })));
+  assert.deepStrictEqual(back, [{ label: 'Claude', match: 'anthropic, claude.ai', url: 'https://claude.ai/settings/billing', kind: 'subscription', docs: [], browser: 'KRS 전용(9333)', hint: '설정 › 결제', howto: 'eval 로 /api/…/invoices' }], 'YAML 왕복');
+  assert.deepStrictEqual(SITES.fromFile(JSON.parse(JSON.stringify(f))), back, 'JSON 왕복');
+  const two = SITES.fromFile({ sites: [f, { match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture', docs: ['수강증'] }] });
+  assert.deepStrictEqual([two.length, two[1].label, two[1].docs, two[1].hint], [2, '인프랩', ['수강증'], ''], '{ sites } 와 format 없는 항목, 이름 없으면 가맹점 글자');
+  assert.strictEqual(SITES.fromFile([f]).length, 1, '배열');
+  assert.strictEqual(SITES.fromFile(Object.assign({}, f, { kind: 'weird' }))[0].kind, 'other');
+  assert.throws(() => SITES.fromFile({ format: 'krx-plan', match: 'x', url: 'https://a.com' }), /가맹점 파일이 아닙니다/);
+  assert.throws(() => SITES.fromFile(Object.assign({}, f, { url: '' })), /Claude: 사이트 주소/);
+  assert.throws(() => SITES.fromFile('글'), /가맹점 파일이 아닙니다/);
+  assert.throws(() => SITES.fromFile([]), /가맹점이 없습니다/);
+  assert.ok(SITES.sameSite({ match: 'Anthropic' }, { match: 'openai, anthropic' }), '가맹점 글자 하나가 같으면');
+  assert.ok(SITES.sameSite({ label: 'Claude', match: 'x1' }, { label: 'claude', match: 'y2' }), '이름이 같으면');
+  assert.ok(!SITES.sameSite({ label: '', match: '인프랩' }, { label: '', match: 'udemy' }));
 });
 
 /* ---------- site-fetch/prompt.js ---------- */
@@ -231,7 +260,7 @@ test('찾아오기: 시작 → 진행 줄 → 끝나면 서류를 받아 첨부�
     if (/\/fetch\/job/.test(url)) {
       polls++;
       if (polls === 1) return { status: 200, json: { ok: true, job: { id: 'J1', state: 'running' }, lines: [{ k: 'tool', s: '브라우저 look' }, { k: 'say', s: '로그인하겠습니다.' }], next: 2 } };
-      return { status: 200, json: { ok: true, job: { id: 'J1', state: 'done', summary: '3개 저장', item: 'LLM 강의', matched: '2026-10-06 ₩43,560', howto: '/my/orders → 거래명세서', files: [{ name: '거래명세서_inflearn.com_1.pdf', base: 'capture_inflearn.com_1.pdf', kind: '거래명세서', mime: 'application/pdf', note: '주문 4030982' }], missing: [{ kind: '수강증', reason: '미발급' }] }, lines: [{ k: 'ok', s: '완료 — 3개 저장' }], next: 3 } };
+      return { status: 200, json: { ok: true, job: { id: 'J1', state: 'done', summary: '3개 저장', item: 'LLM 강의', matched: '2026-10-06 ₩43,560', howto: '/my/orders → 거래명세서', files: [{ name: '거래명세서_inflearn.com_1.pdf', base: 'capture_inflearn.com_1.pdf', kind: '거래명세서', mime: 'application/pdf', note: '주문 4030982', url: 'https://www.inflearn.com/orders/4030982/billing', title: '거래명세서 - 인프런' }], missing: [{ kind: '수강증', reason: '미발급' }] }, lines: [{ k: 'ok', s: '완료 — 3개 저장' }], next: 3 } };
     }
     if (/\/fetch\/file/.test(url)) return { status: 200, blob: new Blob(['%PDF-1.4'], { type: 'application/pdf' }) };
     return { status: 404, json: {} };
@@ -241,8 +270,8 @@ test('찾아오기: 시작 → 진행 줄 → 끝나면 서류를 받아 첨부�
   assert.ok(r.ok, JSON.stringify(r));
   assert.deepStrictEqual(posted.cred, { id: 'me@x.com', pw: 'pw!' });
   assert.strictEqual(posted.site.browser, 'SUB 전용', '로그인해 둔 Chrome 이 요청에 감');
-  assert.deepStrictEqual(posted.site.docs, ['강의내용', '견적서', '수강증'], '종류 기본 = 강의의 필요 서류');
-  assert.deepStrictEqual(r.docs, ['강의내용', '견적서', '수강증']);
+  assert.deepStrictEqual(posted.site.docs, ['강의내용', '견적서', '수강증', '수료증'], '종류 기본 = 강의의 필요 서류 + 있으면 받는 서류(수료증)');
+  assert.deepStrictEqual([r.docs, posted.site.optional], [['강의내용', '견적서', '수강증', '수료증'], ['수료증']], '있으면 서류는 optional 로 같이 감');
   assert.strictEqual(posted.tx.amount, 43560);
   assert.strictEqual(posted.tx.usedDate, '2026-10-06 09:53:35', '사용일 + 사용시각');
   assert.strictEqual(posted.tx.abroad, false);
@@ -257,6 +286,7 @@ test('찾아오기: 시작 → 진행 줄 → 끝나면 서류를 받아 첨부�
   const e = store.claimPrep['39202010|4126'];
   assert.strictEqual(e.files[0].kind, '거래명세서');
   assert.strictEqual(e.files[0].kindBy, 'fetch');
+  assert.strictEqual(e.files[0].url, 'https://www.inflearn.com/orders/4030982/billing'); assert.strictEqual(e.files[0].title, '거래명세서 - 인프런');   // 출처 (파일 칩 ↗ · Claude 청구내역 참고)
   assert.strictEqual(store.fetchSites[0].howto, '/my/orders → 거래명세서');
   assert.strictEqual(store.fetchSites[0].last.state, 'done');
   assert.deepStrictEqual(aiCalls, ['39202010|4126'], '청구종류 자동 분류를 한 번');
@@ -276,11 +306,15 @@ test('찾아오기: 필요 서류 중 이미 첨부 파일 종류로 있는 것�
   const meta = { appr: '1', card4: '2', shop: '주식회사 인프랩', amount: 1000, usedDate: '20261006' };
   store.claimPrep = { '1|2': Object.assign({ key: '1|2', type: '', ptcl: '', ts: 1, attached: null, files: [{ id: 'x', name: '수강증_a.png', kind: '수강증', mime: 'image/png', size: 1, ts: 1 }] }, meta) };
   assert.ok((await PF.start('1|2', meta)).ok);
-  assert.deepStrictEqual(posts[0].site.docs, ['강의내용', '견적서']);
+  assert.deepStrictEqual(posts[0].site.docs, ['강의내용', '견적서', '수료증'], '없는 필요 서류 + 아직 없는 있으면 서류');
   await PF.cancel('1|2');
   store.claimPrep['1|2'].files.push({ id: 'y', name: 'a.pdf', kind: '강의내용' }, { id: 'z', name: 'b.pdf', kind: '견적서' });
   assert.ok((await PF.start('1|2', meta)).ok);
-  assert.deepStrictEqual(posts[1].site.docs, ['강의내용', '견적서', '수강증'], '다 있으면 다시 찾아 달라는 것');
+  assert.deepStrictEqual(posts[1].site.docs, ['수료증'], '필요 서류가 다 있고 있으면 서류(수료증)만 없으면 그것만');
+  await PF.cancel('1|2');
+  store.claimPrep['1|2'].files.push({ id: 'w', name: 'c.pdf', kind: '수료증' });
+  assert.ok((await PF.start('1|2', meta)).ok);
+  assert.deepStrictEqual(posts[2].site.docs, ['강의내용', '견적서', '수강증', '수료증'], '다 있으면 다시 찾아 달라는 것');
   await PF.cancel('1|2');
 });
 
@@ -292,6 +326,8 @@ test('브라우저 지정: 바로가기 이름·포트·주소를 가르고, .ln
   assert.strictEqual(C.parseSpec('127.0.0.1:9333').http, 'http://127.0.0.1:9333');
   assert.deepStrictEqual(C.parseSpec('http://127.0.0.1:9444/'), { kind: 'url', http: 'http://127.0.0.1:9444', label: 'http://127.0.0.1:9444' });
   assert.deepStrictEqual(C.parseSpec('SUB 전용.lnk'), { kind: 'name', name: 'SUB 전용', label: 'SUB 전용' });
+  assert.deepStrictEqual([C.parseSpec('크롬 9444포트에 자동연결되어 있음').http, C.parseSpec('port: 9333 의 KR 크롬').http, C.parseSpec('9444번 포트').port], ['http://127.0.0.1:9444', 'http://127.0.0.1:9333', 9444], '문장 안의 포트도 포트로 (2026-10-22)');
+  assert.deepStrictEqual(C.parseSpec('KRS 전용(9333)'), { kind: 'port', port: 9333, http: 'http://127.0.0.1:9333', label: 'KRS 전용(9333)' }, '"이름(포트)" 꼴(오류 글의 바로가기 목록 그대로)은 포트로');
   assert.deepStrictEqual(C.parseLnkArgs('--remote-debugging-port=9444 --user-data-dir="E:\\a b\\SUB" x'), { port: 9444, profile: 'E:\\a b\\SUB' });
   assert.deepStrictEqual(C.parseLnkArgs('--profile-directory="Default"'), { port: 0, profile: '' });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'krx-lnk-test-'));
@@ -307,8 +343,10 @@ test('브라우저 지정: 바로가기 이름·포트·주소를 가르고, .ln
     assert.strictEqual(C.readLnk(path.join(dir, 'bad.lnk')), null);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   server = () => { throw new Error('연결 거부'); };   // chrome.js alive() 가 쓰는 fetch 도 위의 가짜 — 브라우저가 없는 것처럼
-  await assert.rejects(C.ensureBrowser('http://127.0.0.1:9'), /연결할 수 없습니다/, '주소는 떠 있어야 함');
-  await assert.rejects(C.ensureBrowser('없는 바로가기 이름 xyz'), /바로가기가 없습니다/, '바탕화면에 없는 바로가기');
+  const r1 = await C.ensureBrowser('http://127.0.0.1:9').catch((e) => e);   // 2026-10-22: 못 붙으면 다른 Chrome(서버 기본·바탕화면 바로가기)으로 — 이 PC 에 떠 있는 게 없으면 원래 이유로 거절
+  assert.ok(r1 instanceof Error ? /연결할 수 없습니다/.test(r1.message) : /연결할 수 없습니다/.test(r1.fallback) && r1.external, '주소에 못 붙으면 다른 Chrome 으로, 없으면 이유: ' + (r1.message || JSON.stringify(r1)));
+  const r2 = await C.ensureBrowser('없는 바로가기 이름 xyz').catch((e) => e);
+  assert.ok(r2 instanceof Error ? /바로가기가 없습니다/.test(r2.message) : /바로가기가 없습니다/.test(r2.fallback), '없는 바로가기도 같음: ' + (r2.message || JSON.stringify(r2)));
 });
 
 /* ---------- site-fetch/cdp.mjs ---------- */

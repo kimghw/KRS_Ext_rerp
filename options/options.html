@@ -320,10 +320,46 @@
   </div>
 
   <!-- LLM 설정 탭: 이 PC 의 Help 서버(Claude Code CLI) 연결과 그것으로 하는 기능. 연결 상태는 background lib/llm.js(storage.local.llmStatus) — options.js probeLlm 이 열 때·30초마다·연결 확인 버튼으로 확인하고,
-       연결돼 있을 때만 아래 #llmFeatures(자동 분류 · Help Chat · 증빙 찾아오기와 가맹점 등록)가 켜진다(.llm-off 로 흐리게 + 안내). 기능마다 제목 옆 .llm-chip 에 그 기능이 되는 서버인지(자동 분류 모델 · 찾아오기 모델 · claude CLI) -->
+       연결돼 있을 때만 아래 #llmFeatures(자동 분류 · Help Chat · 증빙 찾아오기와 가맹점 등록)가 켜진다(.llm-off 로 흐리게 + 안내). 연결 상태 표시는 LLM 연결 칸 제목 옆 #llmState 와 탭 이름 옆 #llmBadge 하나뿐 — 기능마다 칩은 두지 않는다(2026-10-21 사용자 "어딘 연결이 되고 어딘 LLM이 연결이 안되어 있네.. 이거 하나로 통일하자"; 서버 없이 Claude API 로 되는 것은 #llmNotice 가 말함) -->
   <div class="tab-panel" id="panel-llm" role="tabpanel" aria-labelledby="tab-llm" data-panel="llm" hidden>
-  <section class="card llm-conn" data-help-key="LLM 연결 (Help 서버)">
-    <h2>LLM 연결 <span id="llmState" class="llm-state">확인 중…</span></h2>
+  <!-- 연결 방식 (2026-10-21 사용자 "api 로 할지 cli 로 할지 결정하게 해주세요. cli 는 서버를 설치해야함"): help.api.use 를 라디오로 — always = Claude API(키만, 서버 없음) · auto = Claude CLI(Help 서버, 안 될 때 API 키로) · off = CLI 만. 읽기·쓰기는 options.js apiUseVal -->
+  <section class="card" id="llmWayCard" data-help-key="Claude 연결 방식">
+    <h2>Claude 연결 방식</h2>
+    <p class="section-description">Claude 로 하는 기능을 어느 길로 쓸지 고릅니다. API 는 키만 있으면 되고, CLI 는 이 PC 에 Help 서버를 설치해야 합니다.</p>
+    <div class="way-list">
+      <label class="way"><input type="radio" name="apiUse" value="always"><span><b>Claude API</b> — Anthropic API 키만 넣으면 됩니다(아래 Claude API 카드). 서버 설치 없음. 청구 준비 자동화 · 변경 도우미 · 연구수당 도우미가 되고, Help Chat · 증빙 찾아오기는 쓸 때 Help 서버가 있어야 합니다. 사용료는 키의 Anthropic 계정에 청구됩니다.</span></label>
+      <label class="way"><input type="radio" name="apiUse" value="auto"><span><b>Claude CLI (Help 서버)</b> — 이 PC 에 Help 서버를 설치해 띄워야 합니다(<code>node help-server/server.js</code> · Claude Code CLI 로그인 — 아래 LLM 연결 카드). 모든 기능이 됩니다. 서버가 안 될 때는 Claude API 키가 있으면 그 키로 대신합니다. (기본)</span></label>
+      <label class="way"><input type="radio" name="apiUse" value="off"><span><b>Claude CLI 만</b> — Help 서버만 쓰고, Claude API 키가 있어도 쓰지 않습니다.</span></label>
+    </div>
+    <span id="wayStatus" class="status" role="status"></span>
+  </section>
+
+  <!-- Claude API (0.8.6, lib/claude-api.js): Anthropic API 키로 이 브라우저에서 api.anthropic.com 을 직접 불러 Help 서버 없이도 청구 준비 자동 분류·청구내역 작성(#classifyCard)을 켠다.
+       키는 storage.local.claudeApiKey(저장 버튼으로 함께, 동기화 안 함) · 사용 방식·모델은 help.api · 상태는 storage.local.llmApi([API 확인] = GET /v1/models/{model}, 비용 없음 — 자동 분류의 결과도 갱신).
+       Help Chat · 증빙 찾아오기는 Claude Code 가 파일·작업용 Chrome 을 다뤄야 해서 Help 서버로만 (options.js renderLlm) -->
+  <details class="card llm-conn" id="apiCard" data-help-key="Claude API (API 키)" data-collapse="api" open>
+    <summary><h2>Claude API <span id="apiState" class="llm-state">키 없음</span></h2></summary>
+    <p class="section-description">Anthropic API 키를 넣으면 Help 서버 없이도 청구 준비 자동화를 사용합니다.</p>
+    <p class="help">API 키가 있으면 확장이 이 브라우저에서 <b>Claude API</b>(<code>api.anthropic.com</code>)를 직접 불러 <b>첨부 서류 읽기 · 자동 분류</b>와 <b>청구내역 자동 작성</b>을 합니다 — Help 서버와 같은 프롬프트(<code>lib/classify-core.js</code>)로, 이 PC 에 서버를 띄우지 않아도 됩니다.
+      <b>Help Chat</b>과 <b>증빙 찾아오기</b>는 Claude Code 가 확장 파일과 작업용 Chrome 을 직접 다뤄야 해서 계속 Help 서버가 있어야 합니다.
+      위 연결 방식이 <b>Claude CLI (Help 서버)</b>면 서버가 연결돼 있을 때는 서버(Claude Code 로그인 계정)로 묻고, 서버가 없거나 실패할 때만 이 키를 씁니다. <b>Claude API</b>면 서버가 있어도 이 키로 묻습니다.
+      API 사용료는 이 키의 Anthropic 계정에 청구됩니다(Haiku 5.5 는 한 번에 보통 몇 원, 기본 Opus 5.5 는 그 수십 배, Fable 5.1 은 Opus 의 2.5배 — 첨부 이미지·PDF 가 많으면 더). 키는 Claude Console(<code>console.anthropic.com</code>) › API Keys 에서 만듭니다.
+      키는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 Anthropic 으로만 보냅니다. 여럿이 쓰는 PC 에서는 넣지 마세요. 키를 바꾸면 <b>저장</b>을 눌러야 자동 분류에 반영됩니다.</p>
+    <div class="connection-form">
+      <label>API 키 <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-api03-…" aria-describedby="apiKeyHint"></label>
+      <button type="button" id="btnApiKeyShow" class="btn" aria-pressed="false" title="입력한 키를 보이거나 가립니다">보기</button>
+      <button type="button" id="btnApiProbe" class="btn" title="이 키로 고른 모델을 쓸 수 있는지 확인합니다 (GET /v1/models — 토큰 비용 없음)">API 확인</button>
+    </div>
+    <p class="field-hint" id="apiKeyHint">이 브라우저에만 저장하며 동기화하지 않습니다. 비우고 저장하면 지웁니다.</p>
+    <div class="connection-form"><label>워크스페이스 ID <input type="text" id="apiWs" autocomplete="off" spellcheck="false" placeholder="wrkspc_… (워크스페이스에 묶이지 않은 키만)" aria-describedby="apiWsHint"></label></div>
+    <p class="field-hint" id="apiWsHint">키가 워크스페이스에 묶여 있지 않으면(<code>sk-ant-usr-…</code> — API 확인이 “워크스페이스 ID 가 있어야 합니다 (400)”) Claude Console › Settings › Workspaces 의 ID 를 넣습니다. 보통의 키(<code>sk-ant-api03-…</code>)는 비워 둡니다. 키와 같이 이 브라우저에만 저장하고 모든 Claude API 호출(자동 분류 · 변경 도우미 · 연구수당 도우미)에 붙습니다.</p>
+    <span id="apiProbeStatus" class="status" role="status"></span>
+    <div class="grid api-grid"><label>모델 <select id="apiModel"></select></label></div>
+    <details class="connection-details"><summary>API 상세 정보</summary><div id="apiDetail" class="llm-detail"></div></details>
+  </details>
+
+  <details class="card llm-conn" data-help-key="LLM 연결 (Help 서버)" data-collapse="llm" open>
+    <summary><h2>LLM 연결 <span id="llmState" class="llm-state">확인 중…</span></h2></summary>
     <p class="section-description">이 PC의 Help 서버에 연결해 Claude 자동화 기능을 사용합니다.</p>
     <p class="help">이 PC 에서 도는 <b>Help 서버</b>(<code>node help-server/server.js</code>, 기본 <code>http://127.0.0.1:8106</code>)가 <b>Claude Code CLI</b>(헤드리스 — 기본 모델 <code>claude-opus-5-5</code>, 빠른 분류는 <code>claude-haiku-5-5</code>)를 이 확장 폴더에서 돌립니다.
       아래 기능 — <b>첨부 서류 읽기(OCR)·청구내역 작성</b>, <b>증빙 찾아오기</b>, <b>Help Chat</b> — 은 모두 이 서버가 <b>연결돼 있을 때만</b> 동작하고, 연결되면 저절로 켜집니다. 패널 청구 준비 줄의 <b>찾아오기</b> 버튼도 연결돼 있을 때만 보입니다.
@@ -335,13 +371,14 @@
     </div>
     <p class="field-hint" id="helpUrlHint">이 PC의 localhost 또는 127.0.0.1 주소를 사용합니다.</p>
     <span id="helpProbeStatus" class="status" role="status"></span>
-    <div class="row" id="llmSetupRow" hidden><button type="button" id="btnLlmSetup" class="btn" title="Help 서버를 아직 못 붙인 PC 용: 준비물 확인(Node · git · Claude Code CLI · 로그인) · 포트 확인 · 별도 터미널에서 서버 실행 · /health 확인을 Claude Code 에 시키는 글(lib/help-setup.js)을 복사합니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으세요">Claude Code 설정 프롬프트 복사</button> <span id="llmSetupStatus" class="status"></span></div>
+    <div class="row" id="llmSetupRow" hidden><button type="button" id="btnLlmSetup" class="btn" title="Help 서버를 아직 못 붙인 PC 용: 준비물 확인(Node · git · Claude Code CLI · 로그인) · 포트 확인 · 별도 터미널에서 서버 실행 · /health 확인을 Claude Code 에 시키는 글(lib/help-setup.js)을 복사합니다 — 저장소 폴더(확장을 로드한 폴더)에서 연 Claude Code 에 붙여 넣으세요">Claude Code 설정 프롬프트 복사</button> <span id="llmSetupStatus" class="status"></span>
+      <span class="field-hint">브릿지(Help 서버) 한 번에 준비 — 패널 제목 줄의 <b>B</b> 아이콘이 여기로 옵니다. ① <kbd>Win</kbd>+<kbd>R</kbd> ② 확장 폴더 경로(chrome://extensions 의 이 확장 카드에 보이는 경로) 뒤에 <code>\help-server\setup.cmd</code> 를 붙여 입력하고 Enter ③ 뜨는 창에서 Claude Code CLI 설치(없으면)/최신화 · <code>git pull</code> · Help 서버 실행이 차례로 되고, 창을 열어 둔 동안 연결됩니다. 로그인이 안 돼 있으면 다른 터미널에서 <code>claude</code> → <code>/login</code>.</span></div>
     <details class="connection-details"><summary>연결 상세 정보</summary><div id="llmDetail" class="llm-detail"></div></details>
-  </section>
+  </details>
 
   <!-- 팀즈 MCP (0.8.9): 참여연구원 자료 요청의 팀즈 글을 창 없이 보내는 이 PC 의 KR_MS365_mcp teams 서버(lib/teams-mcp.js · lib/mcp-client.js, 상태 storage.local.teamsStatus). 연결이 안 되면 참여연구원 변경 탭은 딥 링크(새 탭)만 보인다 -->
-  <section class="card llm-conn" id="teamsCard" data-help-key="팀즈 MCP">
-    <h2>팀즈 MCP <span id="teamsState" class="llm-state">확인 중…</span></h2>
+  <details class="card llm-conn" id="teamsCard" data-help-key="팀즈 MCP" data-collapse="teams" open>
+    <summary><h2>팀즈 MCP <span id="teamsState" class="llm-state">확인 중…</span></h2></summary>
     <p class="section-description">참여연구원 자료 요청의 팀즈 글을 창 없이 바로 보냅니다 — 이 PC 의 KR_MS365_mcp teams 서버(로그인은 그 서버 몫).</p>
     <div class="connection-form">
       <label>팀즈 MCP 주소 <input type="url" id="teamsMcpUrl" placeholder="http://localhost:5003/mcp" aria-describedby="teamsUrlHint"></label>
@@ -352,45 +389,13 @@
     <!-- 팀즈 글 템플릿(teams.template — lib/collect.js defaultMessage 가 자리표를 채움). 비우면 기본 템플릿(placeholder 에 보임). 요청마다 탭의 팀즈 글 칸에서 다시 고칠 수 있음 -->
     <label>팀즈 글 템플릿 <textarea id="teamsTemplate" rows="6" maxlength="600" spellcheck="false" aria-describedby="teamsTemplateHint"></textarea></label>
     <p class="field-hint" id="teamsTemplateHint">자료 요청의 팀즈 글. 비우면 기본 글. 자리표: <code>{과제}</code>(별칭 — 과제명) · <code>{별칭}</code> · <code>{과제명}</code> · <code>{과제번호}</code> · <code>{연차}</code> · <code>{기간}</code>(시작 ~ 끝) · <code>{시작}</code> · <code>{끝}</code> · <code>{항목}</code>(참여 기간과 양식에 둔 칸) · <code>{양식}</code>(양식 주소 — 팀즈 MCP 로 보내면 눌리는 링크) · <code>{보낸사람}</code>. 빈 줄은 문단을 띄웁니다. 요청마다 참여연구원 변경 탭의 팀즈 글 칸에서 다시 고칠 수 있습니다.</p>
-  </section>
-
-  <!-- Claude API (0.8.6, lib/claude-api.js): Anthropic API 키로 이 브라우저에서 api.anthropic.com 을 직접 불러 Help 서버 없이도 청구 준비 자동 분류·청구내역 작성(#classifyCard)을 켠다.
-       키는 storage.local.claudeApiKey(저장 버튼으로 함께, 동기화 안 함) · 사용 방식·모델은 help.api · 상태는 storage.local.llmApi([API 확인] = GET /v1/models/{model}, 비용 없음 — 자동 분류의 결과도 갱신).
-       Help Chat · 증빙 찾아오기는 Claude Code 가 파일·작업용 Chrome 을 다뤄야 해서 Help 서버로만 (options.js renderLlm) -->
-  <section class="card llm-conn" id="apiCard" data-help-key="Claude API (API 키)">
-    <h2>Claude API <span id="apiState" class="llm-state">키 없음</span></h2>
-    <p class="section-description">Anthropic API 키를 넣으면 Help 서버 없이도 청구 준비 자동화를 사용합니다.</p>
-    <p class="help">API 키가 있으면 확장이 이 브라우저에서 <b>Claude API</b>(<code>api.anthropic.com</code>)를 직접 불러 <b>첨부 서류 읽기 · 자동 분류</b>와 <b>청구내역 자동 작성</b>을 합니다 — Help 서버와 같은 프롬프트(<code>lib/classify-core.js</code>)로, 이 PC 에 서버를 띄우지 않아도 됩니다.
-      <b>Help Chat</b>과 <b>증빙 찾아오기</b>는 Claude Code 가 확장 파일과 작업용 Chrome 을 직접 다뤄야 해서 계속 Help 서버가 있어야 합니다.
-      사용 방식이 <b>Help 서버가 안 될 때만</b>(기본)이면 서버가 연결돼 있을 때는 서버(Claude Code 로그인 계정)로 묻고, 서버가 없거나 실패할 때만 API 를 씁니다. <b>항상 Claude API</b>면 서버가 있어도 API 로 묻습니다.
-      API 사용료는 이 키의 Anthropic 계정에 청구됩니다(기본 Haiku 5.5 는 한 번에 보통 몇 원 — 첨부 이미지·PDF 가 많거나 Sonnet·Opus 를 고르면 더). 키는 Claude Console(<code>console.anthropic.com</code>) › API Keys 에서 만듭니다.
-      키는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 Anthropic 으로만 보냅니다. 여럿이 쓰는 PC 에서는 넣지 마세요. 키를 바꾸면 <b>저장</b>을 눌러야 자동 분류에 반영됩니다.</p>
-    <div class="connection-form">
-      <label>API 키 <input type="password" id="apiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-api03-…" aria-describedby="apiKeyHint"></label>
-      <button type="button" id="btnApiKeyShow" class="btn" aria-pressed="false" title="입력한 키를 보이거나 가립니다">보기</button>
-      <button type="button" id="btnApiProbe" class="btn" title="이 키로 고른 모델을 쓸 수 있는지 확인합니다 (GET /v1/models — 토큰 비용 없음)">API 확인</button>
-    </div>
-    <p class="field-hint" id="apiKeyHint">이 브라우저에만 저장하며 동기화하지 않습니다. 비우고 저장하면 지웁니다.</p>
-    <span id="apiProbeStatus" class="status" role="status"></span>
-    <div class="grid api-grid">
-      <label>사용 방식
-        <select id="apiUse">
-          <option value="auto">Help 서버가 안 될 때만 (기본)</option>
-          <option value="always">항상 Claude API</option>
-          <option value="off">사용 안 함</option>
-        </select>
-      </label>
-      <label>모델 <select id="apiModel"></select></label>
-    </div>
-    <details class="connection-details"><summary>API 상세 정보</summary><div id="apiDetail" class="llm-detail"></div></details>
-  </section>
+  </details>
 
   <div id="llmFeatures">
     <p id="llmNotice" class="llm-notice" hidden></p>
     <section class="card" id="classifyCard" data-help-key="청구 준비 자동 분류 — 첨부 서류 읽기(OCR) · 청구내역 작성">
       <h2>청구 준비 자동화</h2>
       <p class="section-description">첨부 서류를 읽고 청구종류와 청구내역 작성을 도와줍니다.</p>
-      <div class="feature-status"><span class="llm-chip" data-llm="classify"></span></div>
       <p class="help">거래의 청구 준비 줄을 열 때, 파일(끌어다 놓기·화면 캡처·찾아온 서류)을 넣은 뒤, 청구내역을 고친 뒤 이 PC 의 Help 서버(<code>POST /classify</code>)가 빠른 모델(기본 <code>claude-haiku-5-5</code>, 서버 환경 변수 <code>KRX_HELP_FAST_MODEL</code>)로 한 번 묻습니다 — 보통 몇 초, 줄에 “Claude 분류 중…”이 보입니다.
         위 <b>Claude API</b> 에 키를 넣었으면 서버가 없거나 실패할 때(또는 늘) 같은 질문을 Claude API 로 직접 보내고, 결과 안내가 “Claude API: …”로 보입니다.
         가맹점·금액·사용일·과제명·청구내역·파일 이름과, 아직 종류를 안 정한 이미지·PDF 의 <b>내용</b>(이미지는 줄여서 — 영수증·캡처를 읽는 OCR 구실)이 Claude 로 갑니다. Claude 가 고른 값에는 점선 테두리와 <b>AI</b> 표시(툴팁에 이유)가 붙고, <b>직접 고른 값은 바꾸지 않습니다</b>. 서버도 API 키도 없으면 아무 일도 하지 않습니다.</p>
@@ -406,53 +411,29 @@
     <section class="card" id="chatCard" data-help-key="Help Chat: Claude Code 로 확장 고치기">
       <h2>Help Chat</h2>
       <p class="section-description">Claude Code에 요청해 확장 기능을 수정합니다.</p>
-      <div class="feature-status"><span class="llm-chip" data-llm="chat"></span></div>
       <p class="help">툴바 팝업·사이드 패널의 <b>Help Chat</b> 줄에 고칠 점이나 이상한 결과를 한 줄로 보내면, Help 서버가 Claude Code CLI 를 이 확장 폴더에서 돌려 코드를 고칩니다. 팝업에는 진행·완료 여부가 한 줄 로그로 보이고, 끝나면 <b>적용</b>으로 확장을 다시 불러옵니다.
         Claude 는 파일만 고치고 커밋하지 않으며, R&amp;D ERP 에 쓰는 동작(신청·저장·삭제)은 하지 않습니다(<code>help-server/rules.md</code>). 이 줄은 다른 부분이 깨졌을 때 고쳐 달라고 하는 창구라, 서버가 꺼져 있어도 숨기지 않고 보낼 때 연결 안 됨을 알려 줍니다.</p>
       <label class="check setting-toggle"><input type="checkbox" id="helpEnabled"><span class="setting-copy"><strong>Help Chat 표시</strong><span>팝업과 사이드 패널에서 바로 요청할 수 있습니다.</span></span></label>
     </section>
 
-    <!-- 증빙 찾아오기 (LLM 기능): 켜기 · 종류별 필요 서류 · 자주 사용 가맹점 · 사이트 만들기 채팅. 패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=… 가 여기로 온다. 서버가 연결은 됐는데 찾아오기가 없는(이전 버전·Node 22 미만) 서버면 #fetchLlmNotice -->
+    <!-- 증빙 찾아오기 (LLM 기능): 켜기 · 종류별 필요 서류 · 자주 사용 가맹점(맨 위에 찾는 방법 익히기).패널의 ⚙ #fetch=<id> · 자주 사용 등록 #fetch-new=… 가 여기로 온다. 서버가 연결은 됐는데 찾아오기가 없는(이전 버전·Node 22 미만) 서버면 #fetchLlmNotice -->
     <section class="card" id="fetchCard">
       <h2>증빙 찾아오기 <span id="fetchSummary" class="muted"></span></h2>
       <p class="section-description">등록한 가맹점에서 거래에 필요한 증빙 서류를 찾아옵니다.</p>
-      <div class="feature-status"><span class="llm-chip" data-llm="fetch"></span></div>
       <p class="help">패널 청구 준비 줄의 <b>찾아오기</b>는 카드 가맹점 이름에 아래 <b>가맹점 글자</b>가 든 거래를 그 사이트에서 찾아 <b>거래명세서</b>(강의면 <b>수강증·강의내용</b>도)를 첨부 파일로 넣습니다.
         Help 서버가 <b>작업용 Chrome 창</b>(별도 프로필 — 평소 브라우저·회사 시스템 세션과 따로)을 열어 Claude Code 로 로그인 → 구매내역에서 <b>사용일·금액</b>으로 주문 찾기 → 서류를 PDF·이미지로 저장합니다(보통 2~7분). 문자·메일 인증이나 캡차가 나오면 그 창에서 직접 하세요 — 로그인은 그 프로필에 남아 다음에는 바로 갑니다. 가맹점마다 <b>로그인해 둔 Chrome</b>(바탕화면 Chrome 바로가기 이름 · 디버그 포트 · 주소 — 예: <code>SUB 전용</code>, <code>9444</code>)을 적으면 작업용 창 대신 그 Chrome(새 창)에서 찾아 로그인이 필요 없고, 안 떠 있으면 그 바로가기로 띄웁니다.
         아이디·비밀번호는 <b>이 브라우저의 확장 저장소에만</b>(암호화 없음, 다른 PC 로 동기화하지 않음) 저장되고 찾아올 때 이 PC 의 Help 서버로만 갑니다. Claude 에는 보이지 않고 브라우저 손잡이가 로그인 칸에 넣습니다. 여럿이 쓰는 PC 에서는 넣지 마세요.
-        아무것도 사거나 바꾸지 않으며(조회·영수증 보기/내려받기만) 회사 시스템(R&amp;D ERP·eClass·RCMS)으로는 가지 않습니다. 다른 웹 사이트에 가는 부분은 저장소의 <code>site-fetch/</code> 폴더에 따로 있습니다(인프런·ChatGPT·Claude·Azure 는 화면 안내 포함). Help 서버를 띄운 Node 가 22 이상이어야 합니다(제목 옆 칩에 이유가 보임). 가맹점·필요 서류는 아래 <b>저장</b>을 눌러야 반영됩니다(저장 버튼은 두 탭 공통).</p>
+        아무것도 사거나 바꾸지 않으며(조회·영수증 보기/내려받기만) 회사 시스템(R&amp;D ERP·eClass·RCMS)으로는 가지 않습니다. 다른 웹 사이트에 가는 부분은 저장소의 <code>site-fetch/</code> 폴더에 따로 있습니다(인프런·ChatGPT·Claude·Azure 는 화면 안내 포함). Help 서버를 띄운 Node 가 22 이상이어야 합니다(아래 안내에 이유가 보임). 가맹점·필요 서류는 아래 <b>저장</b>을 눌러야 반영됩니다(저장 버튼은 두 탭 공통).</p>
       <label class="check setting-toggle"><input type="checkbox" id="helpFetch"><span class="setting-copy"><strong>찾아오기 · 자주 사용 등록 표시</strong><span>LLM 연결 시 청구 준비 줄에서 사용할 수 있습니다.</span></span></label>
       <p id="fetchLlmNotice" class="llm-notice" hidden></p>
     </section>
 
   <div id="fetchBody">
-  <!-- 사이트 만들기 채팅 (options/fetch-chat.js): Help 서버 /ask 로 Claude Code 를 돌려 fetch-site 스킬대로 사이트 안내·기억한 찾는 방법·시험 서류를 만들게 함. 설정 페이지의 큰 form 안이라 form 을 겹치지 않고 Enter 는 스크립트가 받음 -->
-  <section class="card fetch-chat" id="fetchChat">
-    <h2>사이트 만들기 채팅</h2>
-    <p class="section-description">가맹점을 고르고 요청하면 사이트 안내와 찾는 방법을 만듭니다.</p>
-    <p class="help">가맹점을 고르고(또는 새 사이트) 한 줄 적어 보내면 이 PC 의 Help 서버(<code>node help-server/server.js</code>)가 Claude Code 를 이 확장 폴더에서 돌려 <b>fetch-site 스킬</b>(<code>.claude/skills/fetch-site/SKILL.md</code>)의 절차대로 — 확장을 건드리지 않는 단독 실행(<code>node site-fetch/run.js</code>, 작업용 Chrome 창이 열림)으로 그 사이트를 시험하며
-      사이트 안내(<code>site-fetch/sites/&lt;이름&gt;.md</code> — 다음 찾아오기부터 바로 붙음), <b>기억한 찾는 방법</b>(끝나면 아래 그 가맹점 칸에 채워지니 <b>저장</b>을 누르세요), 시험으로 받은 서류(<code>site-fetch-out/&lt;이름&gt;/</code>)를 만듭니다.
-      팝업 Help Chat 과 같은 서버 줄이라 한 번에 하나이고, 아이디·비밀번호는 보내지 않으니 로그인은 <b>로그인해 둔 Chrome</b>이나 열린 창에서. 커밋은 하지 않습니다. 대화형 Claude Code 에서는 <code>/fetch-site</code>.</p>
-    <div class="fc-form">
-      <select id="fcSite" aria-label="요청할 가맹점" title="어느 가맹점 사이트를 붙일지 (등록 값이 요청에 붙음)"></select>
-      <input type="text" id="fcText" aria-label="사이트 만들기 요청" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="예) 10/06 43,560원 거래로 안내를 만들어 줘" title="비우면 선택한 가맹점의 등록 값으로 요청합니다. Enter로 보내기">
-      <button type="button" id="fcSend" class="btn primary" title="보내기 (Enter)">보내기</button>
-    </div>
-    <div class="help-row" id="fcRow" hidden>
-      <span id="fcStatus" class="help-status" role="status"></span>
-      <button type="button" id="fcApply" class="btn" hidden title="확장을 다시 불러와 바뀐 코드를 적용합니다 (이 페이지는 닫힙니다)">적용</button>
-      <button type="button" id="fcStop" class="btn" hidden>중지</button>
-      <button type="button" id="fcNew" class="btn" hidden title="이 결과를 지우고, 다음 요청을 이전 대화와 잇지 않습니다">새 대화</button>
-    </div>
-    <div id="fcLines" class="help-lines" hidden></div>
-    <div class="row"><button type="button" id="btnFcSkill" class="btn" title="fetch-site 스킬 원문(.claude/skills/fetch-site/SKILL.md)을 Help 서버에서 받아 복사합니다 — 다른 저장소·PC 의 .claude/skills/fetch-site/SKILL.md 로 두면 거기서도 /fetch-site 로 씁니다">스킬 복사</button> <span id="fcCopyStatus" class="status"></span></div>
-  </section>
-
   <section class="card">
     <h2>종류별 필요 서류</h2>
     <p class="section-description">청구에 필요한 서류를 쉼표로 구분해 입력하세요.</p>
     <p class="help">가맹점을 등록할 때 고르는 <b>종류</b>마다 청구에 갖춰야 할 첨부 서류입니다(쉼표로 구분, 6개까지). 가맹점이 <b>종류 기본</b>이면 청구 준비 줄에 <b>필요 서류</b>가 첨부 파일 종류로 다 있는지 ✓/✗ 로 보이고,
-      <b>찾아오기</b>는 아직 없는 서류만 찾습니다. 서류 이름은 첨부 파일 종류(설정 탭 › 청구서(카드) 입력 도우미의 첨부 파일 종류)와 같게 쓰세요 — 그 이름이 파일 이름 앞에 붙어 ERP 에 올라갑니다. 가맹점마다 다르게 하려면 아래 그 가맹점에서 <b>종류 기본</b>을 끄고 고릅니다.</p>
+      <b>찾아오기</b>는 아직 없는 서류만 찾습니다. 강의의 수료증은 "있으면 받는 서류"라 적지 않아도 늘 함께 찾되 없어도 ✗ 가 아닙니다(○). 서류 이름은 첨부 파일 종류(설정 탭 › 청구서(카드) 입력 도우미의 첨부 파일 종류)와 같게 쓰세요 — 그 이름이 파일 이름 앞에 붙어 ERP 에 올라갑니다. 가맹점마다 다르게 하려면 아래 그 가맹점에서 <b>종류 기본</b>을 끄고 고릅니다.</p>
     <div class="grid fetch-kind-docs">
       <label>강의 <input type="text" id="fetchDocs_lecture" placeholder="강의내용, 견적서, 수강증"></label>
       <label>구독 <input type="text" id="fetchDocs_subscription" placeholder="거래명세서"></label>
@@ -463,8 +444,27 @@
   <section class="card">
     <h2>자주 사용 가맹점</h2>
     <p class="section-description">자주 찾는 사이트와 로그인 정보, 필요한 서류를 관리합니다.</p>
+    <!-- 찾는 방법 익히기 (options/fetch-chat.js — 2026-10-22 따로 있던 "사이트 만들기 채팅" 카드를 이 카드 맨 위로, 사용자 "이게 자주 사용 가맹점에 있어야 할거 같은데"): Help 서버 /ask 로 Claude Code 를 돌려 fetch-site 스킬대로 사이트 안내·기억한 찾는 방법·시험 서류를 만들게 함. 설정 페이지의 큰 form 안이라 form 을 겹치지 않고 Enter 는 스크립트가 받음 -->
+    <div class="fetch-chat" id="fetchChat">
+      <div class="fc-head"><strong>찾는 방법 익히기</strong><span>가맹점을 고르고 거래 하나로 시험하면 Claude 가 사이트 안내와 기억한 찾는 방법을 만듭니다.</span></div>
+      <div class="fc-form">
+        <select id="fcSite" aria-label="요청할 가맹점" title="어느 가맹점 사이트를 붙일지 (등록 값이 요청에 붙음)"></select>
+        <input type="text" id="fcText" aria-label="찾는 방법 익히기 요청" maxlength="2000" autocomplete="off" spellcheck="false" placeholder="예) 10/06 43,560원 거래로 안내를 만들어 줘" title="비우면 선택한 가맹점의 등록 값으로 요청합니다. Enter로 보내기">
+        <button type="button" id="fcSend" class="btn primary" title="보내기 (Enter)">보내기</button>
+      </div>
+      <div class="help-row" id="fcRow" hidden>
+        <span id="fcStatus" class="help-status" role="status"></span>
+        <button type="button" id="fcApply" class="btn" hidden title="확장을 다시 불러와 바뀐 코드를 적용합니다 (이 페이지는 닫힙니다)">적용</button>
+        <button type="button" id="fcStop" class="btn" hidden>중지</button>
+        <button type="button" id="fcNew" class="btn" hidden title="이 결과를 지우고, 다음 요청을 이전 대화와 잇지 않습니다">새 대화</button>
+      </div>
+      <div id="fcLines" class="help-lines" hidden></div>
+    </div>
+    <p class="help"><b>찾는 방법 익히기</b>: 가맹점을 고르고(또는 새 사이트) 한 줄 적어 보내면 이 PC 의 Help 서버(<code>node help-server/server.js</code>)가 Claude Code 를 이 확장 폴더에서 돌려 <b>fetch-site 스킬</b>(<code>.claude/skills/fetch-site/SKILL.md</code>)의 절차대로 — 확장을 건드리지 않는 단독 실행(<code>node site-fetch/run.js</code>, 작업용 Chrome 창이 열림)으로 그 사이트를 시험하며
+      사이트 안내(<code>site-fetch/sites/&lt;이름&gt;.md</code> — 다음 찾아오기부터 바로 붙음), <b>기억한 찾는 방법</b>(끝나면 아래 그 가맹점 칸에 채워지니 <b>저장</b>을 누르세요), 시험으로 받은 서류(<code>site-fetch-out/&lt;이름&gt;/</code>)를 만듭니다.
+      팝업 Help Chat 과 같은 서버 줄이라 한 번에 하나이고, 아이디·비밀번호는 보내지 않으니 로그인은 <b>로그인해 둔 Chrome</b>이나 열린 창에서. 커밋은 하지 않습니다. 대화형 Claude Code 에서는 <code>/fetch-site</code>.</p>
     <div id="fetchSites"></div>
-    <div class="row"><button type="button" id="btnFetchAdd" class="btn">가맹점 추가</button> <button type="button" id="btnFetchPrompt" class="btn" title="새 사이트를 찾아오기에 붙이는 Claude Code 프롬프트(빈 칸 틀)를 복사합니다 — 이 확장 폴더에서 Claude Code 에 붙여 넣고 빈 칸을 채우세요. 등록한 가맹점은 그 가맹점의 [만들기 프롬프트 복사]가 값을 채워 줍니다">새 사이트 만들기 프롬프트 복사</button> <span id="fetchStatus" class="status"></span></div>
+    <div class="row"><button type="button" id="btnFetchAdd" class="btn">가맹점 추가</button> <button type="button" id="btnFetchImport" class="btn" title="가맹점 칸의 [내보내기]로 받은 .yaml · .json 파일을 넣습니다(여러 개 골라도 됨) — 같은 가맹점이 있으면 그 칸을 고치고(아이디·비밀번호는 그대로), 없으면 새로 추가합니다. 저장을 눌러야 반영">가져오기</button><input type="file" id="fetchImportFile" accept=".yaml,.yml,.json,application/json" multiple hidden> <button type="button" id="btnFetchPrompt" class="btn" title="새 사이트를 찾아오기에 붙이는 Claude Code 프롬프트(빈 칸 틀)를 복사합니다 — 이 확장 폴더에서 Claude Code 에 붙여 넣고 빈 칸을 채우세요. 등록한 가맹점은 그 가맹점의 [만들기 프롬프트 복사]가 값을 채워 줍니다">새 사이트 만들기 프롬프트 복사</button> <button type="button" id="btnFcSkill" class="btn" title="fetch-site 스킬 원문(.claude/skills/fetch-site/SKILL.md)을 Help 서버에서 받아 복사합니다 — 다른 저장소·PC 의 .claude/skills/fetch-site/SKILL.md 로 두면 거기서도 /fetch-site 로 씁니다">스킬 복사</button> <span id="fetchStatus" class="status"></span></div>
     <p class="help"><b>만들기 프롬프트 복사</b>: 찾아오기가 헤매거나 안내가 없는 사이트는, 복사한 프롬프트를 이 확장 폴더(<code>E:\dev\kr_ext_rerp</code>)에서 연 Claude Code 에 붙여 넣으세요. Claude 가 확장을 건드리지 않는 단독 실행(<code>node site-fetch/run.js</code>)으로 사이트를 시험하며
       사이트 안내(<code>site-fetch/sites/&lt;이름&gt;.md</code> — 로그인·구매 내역·서류마다 저장하는 곳·함정)를 만들고, 다음 찾아오기부터 그 안내가 붙습니다. 커밋은 하지 않으니 확인 뒤 직접 커밋하세요.</p>
   </section>

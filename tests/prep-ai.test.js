@@ -232,6 +232,29 @@ test('run: 청구종류를 바꾸면 Claude 가 쓴 청구내역만 다시 쓰�
   await AI.run(KEY, META);
   assert.strictEqual(store.claimPrep[KEY].ptcl, '연구실 운영비 글'); assert.strictEqual(calls.length, 3);
 });
+test('run force([AI] 단추): 사용자가 적은 글·같은 입력·자동 분류 꺼짐이어도 청구내역을 다시 쓰고, 찾아온 상품 이름(prepFetch item)·파일 출처 제목을 보냄 · 임시저장된 거래는 안 바꿈', async () => {
+  reset(); settings.help.url = 'http://127.0.0.1:8304'; settings.help.autoPick = false;
+  withFiles(['강의내용_inflearn.com_1.pdf'], { ptcl: '내가 쓴 글', ptclBy: 'user' });
+  store.claimPrep[KEY].files[0].kind = '강의내용'; store.claimPrep[KEY].files[0].kindBy = 'fetch'; store.claimPrep[KEY].files[0].title = 'LLM 평가 하네스 엔지니어링 강의 | 인프런'; store.claimPrep[KEY].files[0].url = 'https://www.inflearn.com/course/x';
+  store.prepFetch = { [KEY]: { state: 'done', item: '실리콘밸리 개발자가 알려주는 LLM 평가 하네스 엔지니어링' } };
+  reply = { ok: true, type: null, ptcl: { value: 'LLM 평가 하네스 강의 수강 - 규정 분석', reason: '찾아온 주문' }, files: [] };
+  assert.strictEqual((await AI.run(KEY, META)).skipped, 'off', '설정이 꺼져 있으면 보통 요청은 건너뜀');
+  const r = await AI.run(KEY, META, { force: true });
+  assert.strictEqual(r.ptcl.value, 'LLM 평가 하네스 강의 수강 - 규정 분석');
+  assert.strictEqual(calls.length, 1); assert.strictEqual(calls[0].wantPtcl, true); assert.strictEqual(calls[0].wantType, true, '청구종류는 비어 있으니 보통대로 묻기');
+  assert.strictEqual(calls[0].tx.item, '실리콘밸리 개발자가 알려주는 LLM 평가 하네스 엔지니어링');
+  assert.strictEqual(calls[0].files[0].title, 'LLM 평가 하네스 엔지니어링 강의 | 인프런');
+  const e = store.claimPrep[KEY];
+  assert.strictEqual(e.ptcl, 'LLM 평가 하네스 강의 수강 - 규정 분석'); assert.strictEqual(e.ptclBy, 'auto', '다시 쓴 글은 Claude 것 — 그 뒤 서류가 바뀌면 또 다시 씀');
+  const prompt = classify.build(classify.clean(calls[0])).content.map((b) => b.text || '').join('\n');
+  assert.ok(/구매한 상품·강의.*하네스 엔지니어링/.test(prompt) && /출처 페이지 "LLM 평가 하네스 엔지니어링 강의 \| 인프런"/.test(prompt), '프롬프트에 상품 이름과 출처 제목');
+  await AI.run(KEY, META, { force: true });
+  assert.strictEqual(calls.length, 2, 'force 는 같은 입력이어도 다시 묻는다');
+  store.claimPrep[KEY].run = { state: 'saved' };   // (e 는 앞 run 의 저장으로 바뀐 옛 객체)
+  reply = { ok: true, type: null, ptcl: { value: '새 글', reason: '' }, files: [] };
+  const r3 = await AI.run(KEY, META, { force: true });
+  assert.strictEqual(r3.ptcl, null); assert.strictEqual(store.claimPrep[KEY].ptcl, 'LLM 평가 하네스 강의 수강 - 규정 분석', '임시저장된 거래의 청구내역은 force 여도 안 바꿈');
+});
 test('run: 못 쓰면(빈 값) 같은 입력으로 다시 묻지 않고, 청구내역을 못 쓰는 옛 서버면 청구내역만 건너뜀', async () => {
   reset(); settings.help.url = 'http://127.0.0.1:8303';
   withFiles([], { type: '회의비', typeBy: 'user' });
@@ -275,7 +298,23 @@ test('Claude API check: GET /v1/models/{모델} 을 키·버전·브라우저 �
   const bad = await API.check({ key: 'sk-bad', model: 'claude-haiku-5-5' });
   assert.strictEqual(bad.ok, false); assert.ok(bad.error.includes('401'), bad.error); assert.strictEqual(store.llmApi.ok, false);
   assert.strictEqual(apiCalls.length, 2);
-  assert.strictEqual(API.modelOf('이상한 값'), 'claude-haiku-5-5'); assert.strictEqual(API.mask(TEST_KEY), 'sk-ant-…WXYZ');
+  assert.strictEqual(API.modelOf('이상한 값'), 'claude-opus-5-5'); assert.strictEqual(API.mask(TEST_KEY), 'sk-ant-…WXYZ');
+});
+test('Claude API 워크스페이스 ID: 워크스페이스에 묶이지 않은 키의 400 은 설정 안내로, check 는 입력란 값(o.ws)·그 밖은 저장된 claudeApiWorkspace 를 anthropic-workspace-id 헤더로', async () => {
+  reset();
+  apiReply = { status: 400, body: { type: 'error', error: { type: 'invalid_request_error', message: 'This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use. Add the header, or use an API key that is scoped to a workspace.' } } };
+  const bad = await API.check({ key: 'sk-ant-usr-x', model: 'claude-haiku-5-5' });
+  assert.strictEqual(bad.ok, false); assert.ok(/워크스페이스 ID/.test(bad.error) && bad.error.includes('400'), bad.error);
+  assert.strictEqual(apiCalls[0].headers['anthropic-workspace-id'], undefined, '저장된 것도 입력도 없으면 헤더 없음');
+  apiReply = { status: 200, body: { id: 'claude-haiku-5-5', display_name: 'Claude Haiku 5.5' } };
+  const ok = await API.check({ key: 'sk-ant-usr-x', model: 'claude-haiku-5-5', ws: ' wrkspc_abc ' });
+  assert.strictEqual(ok.ok, true); assert.strictEqual(apiCalls[1].headers['anthropic-workspace-id'], 'wrkspc_abc', 'check 는 입력란 값(저장 전)을 씀');
+  store.claudeApiWorkspace = 'wrkspc_saved'; store.claudeApiKey = TEST_KEY;
+  const input = classify.clean({ tx: { shop: 'X' }, wantType: true, picks: [{ label: 'A' }], kinds: [], files: [] });
+  apiReply = () => apiMsg({ type: { value: 'A', reason: '' } });
+  await API.classify(input, {});
+  assert.strictEqual(apiCalls[2].headers['anthropic-workspace-id'], 'wrkspc_saved', '저장된 워크스페이스 ID 는 모든 호출에');
+  assert.strictEqual(apiCalls[2].headers['x-api-key'], TEST_KEY);
 });
 test('Claude API classify: Help 서버와 같은 프롬프트·스키마로 구조화 출력(effort low) — Haiku 는 대체 모델 없음 · Opus 는 fallbacks "default" + 베타 헤더', async () => {
   reset(); store.claudeApiKey = TEST_KEY;
@@ -314,7 +353,7 @@ test('run: Help 서버가 없으면 Claude API 키로 직접 묻고(via api), �
   const r = await AI.run('api|1', META);
   assert.strictEqual(r.via, 'api'); assert.strictEqual(r.type.value, '연구활동비 기타비용'); assert.strictEqual(r.ptcl.value, '온라인 강의 수강 - 연구');
   assert.strictEqual(calls.length, 0); assert.strictEqual(apiCalls.length, 1);
-  assert.strictEqual(apiCalls[0].body.model, 'claude-haiku-5-5', '모델 설정이 없으면 기본');
+  assert.strictEqual(apiCalls[0].body.model, 'claude-opus-5-5', '모델 설정이 없으면 기본 Opus 5.5');
   assert.strictEqual(store.claimPrep['api|1'].typeBy, 'auto'); assert.strictEqual(store.claimPrep['api|1'].ptclBy, 'auto');
 
   reset(); settings.help.url = 'http://127.0.0.1:8402'; store.claudeApiKey = TEST_KEY; apiReply = ok;

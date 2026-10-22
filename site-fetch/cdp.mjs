@@ -33,7 +33,7 @@ const HELP = `node cdp.mjs <명령>
   select <번호> <보이는 글 또는 값>     scroll <down|up|top|bottom|번호>     back
   tabs / tab <번호>       이 작업의 탭 목록 / 옮기기 (close 로 지금 탭 닫기)
   dialog <ok|cancel>     떠 있는 확인창(confirm) 닫기
-  wait <초>              (60초까지)      waitfor <글자> [초]   화면에 그 글자가 나올 때까지 (추가 인증을 기다릴 때, 300초까지)
+  wait <초>              (60초까지 — 1000 이상이면 밀리초로 봄)      waitfor <글자> [초]   화면에 그 글자가 나올 때까지 (추가 인증을 기다릴 때, 300초까지 — 화면 밖에서 돌던 창을 이때 사용자 화면에 띄움)
   eval <JS 식>           페이지에서 평가한 값 (읽기 전용으로만 — 조회 fetch 는 됨)
   pdf <종류> [메모]       지금 페이지를 PDF 로 저장 (PDF 를 보여 주는 탭이면 그 PDF 를 그대로)
   capture <종류> [메모]   지금 페이지 전체를 이미지로 저장 (pdf 가 깨질 때)
@@ -44,6 +44,24 @@ const HELP = `node cdp.mjs <명령>
 /* ---------- 상태 · 비밀 · 가림 ---------- */
 function readJson(f, dflt) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return dflt; } }
 const state = readJson(STATE, null);
+/* 작업 창은 화면 밖에서(state.hidden — 2026-10-21 사용자 "찾아오기 할 때 백그라운드에서 작업"): 최소화하면 Page.captureScreenshot 이 멎지만(실험) 화면 밖(20000,20000) 창은 화면 사진·PDF·클릭·입력이 다 된다.
+ * 탭마다 제 창(newWindow)을 열어 Target.activateTarget(사용자 창의 포커스를 뺏음) 없이도 그 탭이 제 창의 앞 탭이라 화면 사진이 된다. 사용자가 봐야 할 때(waitfor · end keep)만 showWindow 로 화면 안에 */
+const OFF = { left: 20000, top: 20000 }, WIN = { width: 1280, height: 900 };
+const hidden = () => !!(state && state.hidden);
+async function newTarget(url, background) {
+  const p = hidden() ? Object.assign({ url, newWindow: true, background: true }, WIN, OFF) : { url, newWindow: !!state.external && !state.tabs.length, background: !!background };
+  const { targetId } = await C.send('Target.createTarget', p);
+  return targetId;
+}
+async function showWindow(targetId) {   // 화면 밖·최소화된 창을 화면 안으로 옮기고 앞으로 (사용자가 로그인·추가 인증을 직접 할 때)
+  try {
+    const w = await C.send('Browser.getWindowForTarget', { targetId });
+    const b = (w && w.bounds) || {};
+    if (b.windowState === 'minimized') await C.send('Browser.setWindowBounds', { windowId: w.windowId, bounds: { windowState: 'normal' } });
+    if (b.left >= 10000 || b.top >= 10000) await C.send('Browser.setWindowBounds', { windowId: w.windowId, bounds: { left: 80, top: 60 } });
+    await C.send('Target.activateTarget', { targetId });
+  } catch (e) {}
+}
 if (!state || !state.cdp) { console.log('오류: 작업 상태(state.json)가 없습니다 — site-fetch 가 만든 작업 폴더에서만 씁니다'); process.exit(1); }
 state.tabs = Array.isArray(state.tabs) ? state.tabs : [];
 state.refFrame = state.refFrame && typeof state.refFrame === 'object' ? state.refFrame : {};
@@ -124,6 +142,7 @@ async function attach(targetId) {
     if (p.type === 'alert' || p.type === 'beforeunload') C.send('Page.handleJavaScriptDialog', { accept: true }, S).catch(() => {});
   }, S);
   await C.send('Page.enable', {}, S).catch(() => {});
+  if (hidden()) await C.send('Emulation.setFocusEmulationEnabled', { enabled: true }, S).catch(() => {});   // 화면 밖 창도 페이지가 포커스를 가진 것처럼 (document.hasFocus · focus 이벤트 — 입력칸 스크립트가 포커스를 보는 사이트)
   // 다른 출처 iframe(OOPIF)에 붙기 — 이벤트로 세션이 온다(그 안의 iframe 도 한 단계 더)
   const onAttach = (p) => {
     const ti = p.targetInfo || {};
@@ -382,7 +401,7 @@ async function navigate(url) {
 async function cmdOpen(url) {
   url = checkUrl(url);
   await myTabs();
-  const { targetId } = await C.send('Target.createTarget', { url: 'about:blank', newWindow: !!state.external && !state.tabs.length, background: false });
+  const targetId = await newTarget('about:blank', false);
   state.tabs.push(targetId); state.cur = targetId; saveState();
   await attach(targetId);
   if (url !== 'about:blank') await navigate(url);
@@ -446,7 +465,7 @@ async function clickRef(ref) {
     if (o && vp && x >= 0 && y >= 0 && x <= vp.w && y <= vp.h) { await mouseClick(x, y); return ''; }
   }
   if (!inFrame && /^https?:/i.test(r.href || '') && !blockedUrl(r.href)) {   // 덮인 링크(마우스를 올리면 뜨는 미리보기 카드 등): 그 주소로 바로 — 새 탭 링크면 새 탭으로
-    if (r.blank && !state.external) { const { targetId } = await C.send('Target.createTarget', { url: r.href, background: false }); state.tabs.push(targetId); state.cur = targetId; saveState(); await attach(targetId); }   // 평소 브라우저(external)에서는 새 탭이 사용자 창에 열리지 않게 지금 탭에서
+    if (r.blank && !state.external) { const targetId = await newTarget(r.href, false); state.tabs.push(targetId); state.cur = targetId; saveState(); await attach(targetId); }   // 평소 브라우저(external)에서는 새 탭이 사용자 창에 열리지 않게 지금 탭에서
     else if (r.blank) await C.send('Page.navigate', { url: r.href }, S, 30000);
     else await C.send('Page.navigate', { url: r.href }, S, 30000);
     return '(다른 요소에 덮여 있어 링크 주소로 바로 엶)';
@@ -528,7 +547,7 @@ async function cmdTab(n) {
   if (!t) die(`${n}번 탭이 없습니다 (tabs 로 목록)`);
   state.cur = t.targetId; saveState();
   await attach(t.targetId);
-  await C.send('Target.activateTarget', { targetId: t.targetId }).catch(() => {});
+  if (!hidden()) await C.send('Target.activateTarget', { targetId: t.targetId }).catch(() => {});   // 화면 밖 모드는 탭마다 제 창이라 앞으로 올릴 필요가 없고, 올리면 사용자 창의 포커스를 뺏는다
   await report('→ ');
 }
 async function cmdCloseTab() {
@@ -544,11 +563,7 @@ async function cmdWaitFor(text, sec) {
   const want = String(text || '').toLowerCase();
   if (!want) die('기다릴 글자를 주세요');
   const until = Date.now() + Math.min(300, Math.max(5, Number(sec) || 120)) * 1000;
-  try {   // 사용자가 그 창에서 인증해야 하니 탭을 앞으로, 창이 최소화돼 있으면 되살림
-    await C.send('Target.activateTarget', { targetId: state.cur });
-    const w = await C.send('Browser.getWindowForTarget', { targetId: state.cur });
-    if (w && w.bounds && w.bounds.windowState === 'minimized') await C.send('Browser.setWindowBounds', { windowId: w.windowId, bounds: { windowState: 'normal' } });
-  } catch (e) {}
+  await showWindow(state.cur);   // 사용자가 그 창에서 인증해야 하니 화면 밖·최소화된 창을 화면 안으로, 탭을 앞으로
   const has = (w) => (document.body ? document.body.innerText : '').toLowerCase().includes(w) || location.href.toLowerCase().includes(w);
   while (Date.now() < until) {
     await myTabs();
@@ -629,7 +644,7 @@ async function viaDownload(kind, trigger, note) {
     const name = String(begin.suggestedFilename || 'download');
     const ext = ((/\.([a-z0-9]{2,5})$/i.exec(name) || [])[1] || 'bin').toLowerCase();
     if (BAD_EXT.test(ext)) { try { fs.unlinkSync(src); } catch (e) {} die(`첨부할 수 없는 파일 종류입니다: ${name}`); }
-    const x = record(kind, fs.readFileSync(src), ext === 'jpeg' ? 'jpg' : ext, { how: 'download', url: begin.url, page, title: name, base: name, note });
+    const x = record(kind, fs.readFileSync(src), ext === 'jpeg' ? 'jpg' : ext, { how: 'download', url: /^blob:/i.test(begin.url) ? page : begin.url, page, title: name, base: name, note });   // blob: 주소(인프런 수료증 pdf 등)는 다시 열 수 없으니 출처는 그 화면으로
     try { fs.unlinkSync(src); } catch (e) {}
     say(`저장: ${x.file} (${kb(x.bytes)}, 받은 파일 ${name})`);
     return true;
@@ -656,7 +671,7 @@ async function cmdSaveUrl(kind, url) {
     return;
   }
   // 새 탭에서 그 주소를 연다: 내려받기면 받은 파일을, PDF 를 보여 주면 그 PDF 를 저장
-  const { targetId } = await C.send('Target.createTarget', { url: 'about:blank', background: true });
+  const targetId = await newTarget('about:blank', true);
   state.tabs.push(targetId); saveState();
   const prevCur = state.cur;
   await attach(targetId);
@@ -686,7 +701,7 @@ function cmdDrop(file) {
 async function cmdEnd(keep) {
   const tabs = await myTabs();
   await C.send('Browser.setDownloadBehavior', { behavior: 'default' }).catch(() => {});
-  if (keep) { say(`탭 ${tabs.length}개를 남겨 둠`); return; }
+  if (keep) { for (const t of tabs) await showWindow(t.targetId); say(`탭 ${tabs.length}개를 남겨 둠`); return; }   // 남겨 둔 창은 사용자가 로그인·인증을 직접 하게 화면 안으로
   for (const t of tabs) await C.send('Target.closeTarget', { targetId: t.targetId }).catch(() => {});
   state.tabs = []; state.cur = ''; saveState();
   say(`탭 ${tabs.length}개를 닫음`);
@@ -716,7 +731,7 @@ async function main() {
       case 'tab': await cmdTab(args[0]); break;
       case 'close': await cmdCloseTab(); break;
       case 'dialog': { await current(); await C.send('Page.handleJavaScriptDialog', { accept: !/^(cancel|no|취소)$/i.test(args[0] || '') }, S).catch((e) => die(`떠 있는 확인창이 없습니다 (${clip(e.message, 80)})`)); await settle(8000); await report('창 닫음 → '); break; }
-      case 'wait': await sleep(Math.min(60, Math.max(0, Number(args[0]) || 2)) * 1000); await current(); await report(); break;
+      case 'wait': { const n = Number(args[0]) || 2; await sleep(Math.min(60, Math.max(0, n >= 1000 ? n / 1000 : n)) * 1000); await current(); await report(); break; }   // "wait 5000" 처럼 밀리초로 적은 것을 60초로 기다리던 일(2026-10-22 Azure 102초 중 60초) — 1000 이상은 밀리초
       case 'waitfor': await cmdWaitFor((lastNum ? args.slice(0, -1) : args).join(' '), lastNum ? args[args.length - 1] : 0); break;
       case 'eval': await cmdEval(args.join(' ')); break;
       case 'pdf': await cmdPdf(args[0], args.slice(1).join(' ')); break;

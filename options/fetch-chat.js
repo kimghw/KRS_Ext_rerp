@@ -1,10 +1,10 @@
-/* 설정 페이지 › LLM 설정 › 증빙 찾아오기의 사이트 만들기 채팅 — 가맹점을 고르고(또는 새 사이트) 한 줄 적어 보내면 이 PC 의 Help 서버(help-server/server.js, 팝업 Help Chat 과 같은 POST /ask)가
+/* 설정 페이지 › LLM 설정 › 자주 사용 가맹점의 찾는 방법 익히기 — 가맹점을 고르고(또는 새 사이트) 한 줄 적어 보내면 이 PC 의 Help 서버(help-server/server.js, 팝업 Help Chat 과 같은 POST /ask)가
  * Claude Code 를 이 확장 폴더에서 돌려 fetch-site 스킬(.claude/skills/fetch-site/SKILL.md)대로 사이트를 시험(node site-fetch/run.js, 작업용 Chrome 창)하고 사이트 안내(site-fetch/sites/<이름>.md)·
  * 기억한 찾는 방법(howto)·시험으로 받은 서류(site-fetch-out/)를 만들게 한다. 보내는 글은 lib/fetch-sites.js buildPrompt(가맹점 값 + 요청 한 줄) — 아이디·비밀번호는 넣지 않는다.
  * 진행·결과는 popup/help.js 와 같은 한 줄 로그(GET /job 폴링, 줄을 누르면 펼침). 끝나면 답변의 `howto:` 줄을 그 가맹점의 "기억한 찾는 방법" 칸에 넣고(options.js 가 채우고 저장은 사용자),
  * 확장 파일(lib/fetch-sites.js KNOWN 등)이 바뀌었으면 "적용"(chrome.runtime.reload — 이 페이지는 닫힘). 서버·site-fetch/·문서만 바뀌었으면 적용이 필요 없다(서버는 sites/*.md 를 다음 요청부터 바로 읽음).
  * 마지막 요청은 storage.local.fetchChat = { id, text, at, state, summary, error, files, checks, endedAt, applied, mine, siteId, siteLabel, howtoDone } (쓰던 글은 fetchChatDraft) — 팝업의 helpChat 과 따로.
- * options.js 가 KRX_FETCH_CHAT.init({ base(), sites(), docsMap(), onHowto(siteId, label, howto) }) 로 잇고, 가맹점 목록이 바뀌면 refresh() */
+ * options.js 가 KRX_FETCH_CHAT.init({ base(), sites(), docsMap(), onHowto(siteId, label, howto), onDone(siteId, label, ok — 내 요청이 끝남, 개선점 칸 비우기) }) 로 잇고, 가맹점 목록이 바뀌면 refresh(). 가맹점 칸의 [Help 에 개선 요청]은 request(i, ask) 로 그 가맹점을 골라 바로 보낸다(2026-10-21) */
 (() => {
   const KEY = 'fetchChat', DRAFT = 'fetchChatDraft', FROM = '설정 페이지 › 증빙 찾아오기';
   const $ = (id) => document.getElementById(id);
@@ -86,6 +86,7 @@
         if (cur.state === 'done' && cur.mine && !cur.howtoDone) {   // 내가 보낸 요청이 끝남 → 답변의 howto: 줄을 그 가맹점의 기억한 찾는 방법 칸에
           const h = self.KRX_SITES ? KRX_SITES.howtoOf(detail) : '';
           cur.howtoDone = true;
+          if (H.onDone) { try { H.onDone(cur.siteId, cur.siteLabel, true); } catch (e) {} }   // 개선점 칸 비우기 (options.js issueDone)
           if (h && H.onHowto) { try { cur.howto = !!H.onHowto(cur.siteId, cur.siteLabel, h); } catch (e) {} }
         }
         if (was !== cur.state) await save();
@@ -145,5 +146,14 @@
     render();
     if (cur && cur.id) watch();   // 진행 중이면 이어서 보고, 끝난 것도 로그를 다시 받아 둔다
   }
-  self.KRX_FETCH_CHAT = { init, refresh };
+  /* 패널 찾아오기 줄의 💬(#fetch-chat=<id>&why=…, options.js fetchFromHash): 그 가맹점을 고르고, 글이 비어 있으면 draft(못 찾은 이유)를 넣은 뒤 이 칸으로 */
+  function pick(id, draft) {
+    const i = (H ? H.sites() : []).findIndex((s) => s.id === id);
+    sel.value = i >= 0 ? String(i) : '';
+    if (draft && !input.value.trim()) { input.value = draft; try { chrome.storage.local.set({ [DRAFT]: draft }); } catch (e) {} }
+    box.scrollIntoView({ block: 'center' }); input.focus();
+  }
+  /* 가맹점 칸의 [Help 에 개선 요청](options.js): 그 가맹점을 고르고 한 줄을 넣어 바로 보냄 — 개선점 글은 lib/fetch-sites.js buildPrompt 가 가맹점 블록에 넣는다 */
+  function request(i, ask) { sel.value = String(i); input.value = ask || ''; box.scrollIntoView({ block: 'center' }); return send(); }
+  self.KRX_FETCH_CHAT = { init, refresh, pick, request };
 })();

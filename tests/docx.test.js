@@ -48,4 +48,15 @@ test('문단·표 — 제목(16pt 굵게 가운데) · 줄바꿈 · 위첨자 ·
   assert.ok(xml.includes('<w:tblLayout w:type="fixed"/>') && xml.includes('<w:tblW w:w="15398" w:type="dxa"/>'));
 });
 
+test('쪽 나눔 규칙 — 세로 병합 묶음(한 사람)은 keepNext 로 한 쪽에, 줄은 cantSplit, 칸의 pageBreakBefore 로 그 줄부터 새 쪽(부서별)', () => {
+  const xml = get(D.build({ blocks: [{ type: 'table', widths: [1, 1], rows: [['h1', 'h2'], [{ text: 'a', rowSpan: 3 }, '1'], [{ skip: true }, '2'], [{ skip: true }, '3'], [{ text: 'b', pageBreakBefore: true }, '4']] }] }), 'word/document.xml');
+  const trs = xml.match(/<w:tr>.*?<\/w:tr>/g);
+  assert.strictEqual(trs.length, 5);
+  assert.deepStrictEqual(trs.map((tr) => (tr.match(/<w:keepNext\/>/g) || []).length), [2, 2, 2, 0, 0], '머리 줄과, a 의 세 줄 중 앞 두 줄의 모든 칸(이어지는 병합 칸 포함)이 다음 줄과 붙음');
+  assert.ok(trs.every((tr) => tr.includes('<w:trPr><w:cantSplit/><w:trHeight')), '줄 안에서 쪽이 나뉘지 않음');
+  assert.ok(trs[4].includes('<w:tc><w:tcPr><w:tcW w:w="7699" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr><w:p><w:pPr><w:pageBreakBefore/><w:spacing') && (xml.match(/<w:pageBreakBefore\/>/g) || []).length === 1, '이어지는 병합 칸에는 쪽 나눔 없음');
+  const x3 = get(D.build({ blocks: [{ type: 'p', text: '2. 평가', style: 'h' }, { type: 'p', text: '본문' }] }), 'word/document.xml');
+  assert.ok(x3.includes('<w:p><w:pPr><w:keepNext/><w:spacing w:before="120"') && (x3.match(/<w:keepNext\/>/g) || []).length === 1, "'h' 제목 문단은 다음 문단·표와 붙음");
+});
+
 console.log(`\n${n} passed, ${failed} failed`);

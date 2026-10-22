@@ -113,10 +113,10 @@ function start(input, opts) {
 async function run(job, input, opts) {
   const browser = await chrome.ensureBrowser(input.site.browser);   // 가맹점이 고른 Chrome(바로가기 이름·포트·주소) → 없으면 local.json·환경 변수·기본 작업용 프로필
   if (job.state !== 'running') return;
-  log(job, 'info', browser.external ? `브라우저 ${browser.label || browser.http} 에 연결${browser.launched ? ' (바로가기로 띄움)' : ''}` : browser.launched ? '작업용 Chrome 을 띄움' : '작업용 Chrome 에 연결');
+  log(job, 'info', browser.external ? `브라우저 ${browser.label || browser.http} 에 연결${browser.launched ? ' (바로가기로 띄움)' : ''}${browser.fallback ? ` — ${browser.fallback}` : ''}` : browser.launched ? '작업용 Chrome 을 띄움' : '작업용 Chrome 에 연결');
   fs.mkdirSync(path.join(job.dir, 'out'), { recursive: true });
   fs.copyFileSync(HELPER, path.join(job.dir, 'cdp.mjs'));
-  fs.writeFileSync(path.join(job.dir, 'state.json'), JSON.stringify({ cdp: browser.http, external: !!browser.external, site: input.site.url, tabs: [], cur: '' }));
+  fs.writeFileSync(path.join(job.dir, 'state.json'), JSON.stringify({ cdp: browser.http, external: !!browser.external, hidden: !chrome.SHOW, site: input.site.url, tabs: [], cur: '' }));   // hidden: 작업 창을 화면 밖에서 (cdp.mjs newTarget · showWindow, KRX_FETCH_SHOW=1 이면 보이게)
   const env = Object.assign({}, opts.env);
   delete env.KRX_FETCH_SECRET;
   if (input.cred.id || input.cred.pw) {

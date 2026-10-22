@@ -59,8 +59,11 @@
   html.krext-tab.krext-only body:has(.krext-al-card):has(> .krext-row > .staff-chat:not([hidden])) { max-width: 1840px; }   /* 연구수당 계산 탭(1440px)에서 연구수당 도우미 채팅이 열리면 1440 + 400 (2026-10-21) */   /* 채팅(400px)이 열리면 본문이 1200px 를 지키도록 — 위 1200px 규칙보다 구체적이어야 이김(전에는 져서 본문이 800px 로 눌림 — 2026-10-20 사용자 "좌우 배치 맞게") */
   html.krext-only .krext-row { display: flex; flex: 1 1 auto; min-height: 0; }
   html.krext-only .krext-row > .krext-panel.krext-popup { flex: 1 1 auto; min-width: 0; }
-  html.krext-only .staff-chat { display: flex; flex-direction: column; flex: 0 0 400px; min-width: 0; min-height: 0; border-left: 1px solid #dfe6ee; background: #fff; color: #273b55; font-size: 14px; }
+  html.krext-only .staff-chat { position: relative; display: flex; flex-direction: column; flex: 0 0 var(--sc-w, 400px); min-width: 0; min-height: 0; border-left: 1px solid #dfe6ee; background: #fff; color: #273b55; font-size: 14px; }
   html.krext-only .staff-chat[hidden] { display: none; }
+  .staff-chat .sc-resize { position: absolute; top: 0; bottom: 0; left: -4px; width: 8px; cursor: col-resize; touch-action: none; z-index: 2; }   /* 왼쪽 가장자리를 끌어 폭 조절(popup/staff-chat.js size — html 의 --sc-w, storage.local.staffChatSize; 두 번 누르면 기본 폭). 제목 줄의 2:1 · 1:1 · 1:2 는 lib/render.js (2026-10-21 사용자 "에이전트 폭을 조절할 수 있으면 좋겠어") */
+  .staff-chat .sc-resize:hover, body.sc-resizing .staff-chat .sc-resize { background: rgba(37, 99, 196, .35); }
+  body.sc-resizing { cursor: col-resize; user-select: none; }
   .staff-chat * { box-sizing: border-box; }
   .staff-chat .sc-head { flex: none; display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 16px; border-bottom: 1px solid #e8edf4; background: #fff; }
   .staff-chat .sc-heading { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
@@ -182,9 +185,10 @@
   html.krext-only .krext-st-agent { margin-left: 8px; cursor: pointer; }   /* 제목 줄 [에이전트] — 눌리면 파랑 (lib/staff-ui.js focusTitle, popup.js st-agent → KRX_STAFF_CHAT.toggle) */
   html.krext-only .krext-st-agent[aria-pressed="true"] { background: #2563c4; border-color: #2563c4; color: #fff; }
   html.krext-only .krext-st-agent[aria-pressed="true"]:hover { background: #1f56ad; }
-  @media (max-width: 1180px) {   /* 좁은 창: 채팅을 본문 아래에 */
-    html.krext-only .krext-row { flex-direction: column; }
-    html.krext-only .staff-chat { flex: 0 0 56vh; height: 56vh; max-height: 620px; border-left: 0; border-top: 1px solid #dfe6ee; }
+  @media (max-width: 1180px) {   /* 좁은 창에서도 채팅은 오른쪽 열 그대로(본문이 줄어듦), 채팅만 조금 좁게 — 2026-10-21 사용자 "에이전트를 우측 사이드 열로 빼라니깐 왜 자꾸 아래로 내려보내냐.. 안보이잖아" */
+    html.krext-only .staff-chat { flex: 0 0 var(--sc-w, 340px); }
+    .staff-chat .sc-head { flex-wrap: wrap; gap: 6px 10px; }
+    .staff-chat .sc-heading { flex: 1 1 180px; }
     .staff-chat .sc-log { padding: 14px 16px; }
     .staff-chat .sc-empty { padding: 6px 0; }
     .staff-chat .sc-empty-icon { display: none; }
@@ -197,7 +201,7 @@
 <body>
 <div class="krext-row" id="krextRow"><!-- 참여연구원 변경 탭(html.krext-only)에서만 본문과 변경 도우미 채팅을 나란히 — 그 밖에는 display:contents -->
 <div id="krext-panel" class="krext-panel krext-popup"></div>
-<aside id="staffChat" class="staff-chat" hidden aria-label="도우미 채팅"><!-- 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 — 같은 틀, popup/staff-chat.js 가 모드(staff · allow)에 따라 제목·규칙·예시 글만 바꿈 (2026-10-21) -->
+<aside id="staffChat" class="staff-chat" hidden aria-label="도우미 채팅"><div class="sc-resize" id="scResize" title="끌어서 도우미 폭 조절 — 두 번 누르면 기본 폭" aria-hidden="true"></div><!-- 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 — 같은 틀, popup/staff-chat.js 가 모드(staff · allow)에 따라 제목·규칙·예시 글만 바꿈 (2026-10-21) -->
   <div class="sc-head">
     <div class="sc-heading"><span class="sc-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5v5A2.5 2.5 0 0 1 17.5 19H9l-5 3V6.5A2.5 2.5 0 0 1 6.5 4H12M16 2l1.5 4.5L22 8l-4.5 1.5L16 14l-1.5-4.5L10 8l4.5-1.5Z"/></svg></span><div><strong id="scTitle">변경 도우미</strong><span id="scStatus" class="sc-status" role="status"></span></div></div>
     <div class="sc-tools"><button type="button" id="scRules" class="sc-rules-btn" aria-pressed="false" title="예산 규칙 — 요청마다 Claude 에 함께 보내는 참고 글">규칙</button><button type="button" id="scConn" aria-pressed="false" title="연결 카드 열기/닫기 — Claude API 키를 바꾸거나 지우고, 서버 실행 안내를 봅니다">연결</button><button type="button" id="scProbe" title="도우미 연결을 다시 확인합니다">연결 확인</button><button type="button" id="scNew" title="대화 기록을 지웁니다 (계획은 그대로)">새 대화</button><button type="button" id="scClose" class="sc-close" aria-label="변경 도우미 닫기" title="도우미 닫기"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></div>
@@ -267,6 +271,7 @@
 <script src="staff-chat.js"></script><!-- 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 채팅(같은 틀, 모드만 다름) — LLM(Help 서버) 연결 때만 (0.8.8 · 2026-10-21) -->
 <script src="../lib/render.js"></script>
 <script src="capture.js"></script>
+<script src="prep-chat.js"></script><!-- 청구 준비 줄 💬 → 바로 아래 찾는 방법 익히기 채팅 (2026-10-22) -->
 <script src="popup.js"></script>
 </body>
 </html>

@@ -22,6 +22,7 @@ const PROFILE = process.env.KRX_FETCH_PROFILE || LOCAL.profile || path.join(proc
 const PORT = Number(process.env.KRX_FETCH_PORT || LOCAL.port) || 0;   // 0 = Chrome 이 빈 포트를 고름
 const EXTERNAL = String(process.env.KRX_FETCH_CDP || LOCAL.cdp || '').trim().replace(/\/+$/, '');
 const HEADLESS = /^(1|true|yes)$/i.test(String(process.env.KRX_FETCH_HEADLESS || LOCAL.headless || ''));
+const SHOW = /^(1|true|yes)$/i.test(String(process.env.KRX_FETCH_SHOW || LOCAL.show || ''));   // 1 이면 예전처럼 작업 창을 화면에 보이며(지켜볼 때). 기본은 화면 밖에서(cdp.mjs state.hidden — 2026-10-21 "백그라운드에서 작업")
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function alive(http) {
@@ -44,6 +45,8 @@ function parseSpec(spec) {
   let m;
   if ((m = /^https?:\/\/[^/\s?#]+/i.exec(s))) return { kind: 'url', http: m[0], label: m[0] };
   if ((m = /^(?:(?:localhost|127\.0\.0\.1)?:)?(\d{2,5})$/i.exec(s))) { const port = Number(m[1]); if (port > 0 && port < 65536) return { kind: 'port', port, http: `http://127.0.0.1:${port}`, label: `포트 ${port}` }; }
+  if ((m = /(?:포트|port)\s*[:：]?\s*(\d{2,5})(?!\d)|(?<!\d)(\d{2,5})\s*번?\s*포트/i.exec(s))) { const port = Number(m[1] || m[2]); if (port > 0 && port < 65536) return { kind: 'port', port, http: `http://127.0.0.1:${port}`, label: `포트 ${port}` }; }   // "크롬 9444포트에 자동연결되어 있음" 처럼 문장으로 적어도 포트로 (2026-10-22 사용자 등록 값이 바로가기 이름으로 읽혀 실패)
+  if ((m = /^(.+?)\s*\((\d{2,5})\)$/.exec(s))) { const port = Number(m[2]); if (port > 0 && port < 65536) return { kind: 'port', port, http: `http://127.0.0.1:${port}`, label: `${m[1].trim()}(${port})` }; }   // "KRS 전용(9333)" — 오류 글·README 가 바로가기를 이렇게 적어 그대로 붙여 넣는 사용자가 있음(2026-10-22): 포트로 붙고 이름은 표시용
   const name = s.replace(/\.lnk$/i, '').trim();
   return { kind: 'name', name, label: name };
 }
@@ -145,11 +148,34 @@ async function attachTo(want) {
   throw new Error(`"${lnk.name}" 바로가기로 띄운 Chrome 이 20초 안에 뜨지 않았습니다 — 같은 프로필의 Chrome 창이 디버그 포트 없이 열려 있으면 모두 닫고 다시`);
 }
 
+/* 고른 Chrome 에 못 붙었을 때 다른 Chrome 을 차례로(2026-10-22 사용자 "안 열리면 다른 크롬 다 열어보라고 해"): 서버 기본(EXTERNAL) → 바탕화면의 디버그 포트 바로가기 중 떠 있는 것 → 없으면 그 바로가기들을 하나씩 띄워 봄. 다 안 되면 null */
+async function anyOther(want) {
+  const seen = new Set([want.http || '']), cands = [];
+  const add = (http, label, lnk) => { if (!http || seen.has(http)) return; seen.add(http); cands.push({ http, label, lnk }); };
+  if (EXTERNAL) add(EXTERNAL, `서버 기본(${EXTERNAL})`, null);
+  for (const x of await shortcuts(true)) if (x.port) add(`http://127.0.0.1:${x.port}`, `${x.name}(${x.port})`, x);
+  for (const c of cands) if (await alive(c.http)) return { http: c.http, external: true, label: c.label };
+  if (process.platform !== 'win32') return null;
+  for (const c of cands) {
+    if (!c.lnk) continue;
+    launchLnk(c.lnk.file);
+    for (let i = 0; i < 80; i++) { await sleep(250); if (await alive(c.http)) return { http: c.http, external: true, label: c.label, launched: true }; }
+  }
+  return null;
+}
+
 let launching = null;
 /* spec = 가맹점이 고른 브라우저(없으면 local.json·환경 변수·기본 작업용 프로필) → { http: 'http://127.0.0.1:<포트>', external, launched?, label? } (못 쓰면 throw) */
 async function ensureBrowser(spec) {
   const want = parseSpec(spec);
-  if (want) return attachTo(want);
+  if (want) {
+    try { return await attachTo(want); }
+    catch (e) {   // 고른 Chrome 에 못 붙음 → 다른 Chrome 으로 (anyOther), 그것도 없으면 원래 이유
+      const r = await anyOther(want);
+      if (r) return Object.assign(r, { fallback: `${want.label} 에 못 붙어 대신 연결 (${String(e.message || e).replace(/\s+/g, ' ').slice(0, 120)})` });
+      throw e;
+    }
+  }
   if (EXTERNAL) {
     if (await alive(EXTERNAL)) return { http: EXTERNAL, external: true };
     throw new Error(`${process.env.KRX_FETCH_CDP ? 'KRX_FETCH_CDP' : 'site-fetch/local.json 의 cdp'}(${EXTERNAL}) Chrome 에 연결할 수 없습니다 — 그 Chrome(디버그 포트로 연 창)을 먼저 여세요`);
@@ -167,6 +193,7 @@ async function ensureBrowser(spec) {
     try { fs.unlinkSync(portFile); } catch (e) {}
     const args = [`--user-data-dir=${PROFILE}`, `--remote-debugging-port=${PORT}`, '--no-first-run', '--no-default-browser-check', '--disable-default-apps', '--window-size=1280,960'];
     if (HEADLESS) args.push('--headless=new');
+    else if (!SHOW) args.push('--window-position=20000,20000');   // 띄운 Chrome 의 첫 창도 화면 밖에 (작업 탭은 cdp.mjs 가 화면 밖 새 창에 열고, 사용자가 봐야 할 때만 화면 안으로)
     args.push('about:blank');
     const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
     child.on('error', () => {});
@@ -181,4 +208,4 @@ async function ensureBrowser(spec) {
   return launching;
 }
 
-module.exports = { ensureBrowser, chromeExe, alive, parseSpec, parseLnkArgs, readLnk, desktopDirs, shortcuts, PROFILE, PORT, EXTERNAL };
+module.exports = { ensureBrowser, anyOther, chromeExe, alive, parseSpec, parseLnkArgs, readLnk, desktopDirs, shortcuts, PROFILE, PORT, EXTERNAL, SHOW };

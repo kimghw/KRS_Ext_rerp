@@ -33,7 +33,7 @@ async function harness(options = {}) {
     return elements.get(id);
   };
   const data = clone({ staffChat: { turns: [], open: true }, llmStatus: options.status || online, ...options.data });
-  const calls = { fetch: [], apply: [], allowApply: [], probe: [], api: [], clip: [] };
+  const calls = { fetch: [], apply: [], allowApply: [], probe: [], api: [], clip: [], check: [] };
   const changes = [];
   const state = {};
   const globals = {
@@ -58,7 +58,7 @@ async function harness(options = {}) {
       return options.fetch ? options.fetch(url, init) : { json: async () => ({ ok: true, reply: '반영했습니다.', ops: [] }) };
     }
   };
-  if (options.api) globals.KRX_CLAUDE_API = { mask: (k) => `…${String(k).slice(-4)}`, staff: async (input, o) => { calls.api.push({ input: clone(input), model: o.model, blocks: o.blocks, core: o.core }); return clone(options.apiResult || { reply: 'API 답', ops: [], dropped: 0, model: 'claude-opus-5-5' }); } };
+  if (options.api) globals.KRX_CLAUDE_API = { mask: (k) => `…${String(k).slice(-4)}`, keyTag: (k) => String(k).slice(-4), check: async (o) => { calls.check.push(clone(o)); return clone(options.apiCheck || { ok: true, model: o.model, name: 'Opus', error: '' }); }, staff: async (input, o) => { calls.api.push({ input: clone(input), model: o.model, blocks: o.blocks, core: o.core }); if (options.apiError) throw new Error(options.apiError); return clone(options.apiResult || { reply: 'API 답', ops: [], dropped: 0, model: 'claude-opus-5-5' }); } };   // check: 키 확인(2026-10-21 — API 길은 확인된 키만 연결)
   const context = vm.createContext(globals);
   context.self = context;
   vm.runInContext(source, context, { filename: 'popup/staff-chat.js' });
@@ -347,6 +347,41 @@ test('allow 모드(연구수당 계산 탭): 같은 틀에서 제목·[지침]·
   assert.equal(old.chat.mode(), 'staff');
   assert.equal(old.get('scTitle').textContent, '변경 도우미');
   assert.equal(old.chat.route(), 'server');
+});
+
+/* 2026-10-21 사용자 "에이전트는 claude 연결이 안되어 있으면 입력이 안되게 해줘" · "왜 에이전트가 이 모양으로 나오냐"(키는 있는데 400 워크스페이스 ID 오류로 보내기마다 실패) — 키가 있어도 확인(check)이 실패하면 연결로 보지 않는다 */
+test('Claude API 키가 확인(check)에 실패하면 연결 아님 — 입력란·보내기 막힘, 상태 "Claude API 키 오류", 연결 카드에 까닭; 저장된 확인 결과(llmApi)가 ok 면 다시 묻지 않고 연결; 보내기가 API 오류로 실패하면 다시 확인해 끊는다', async () => {
+  const err = '이 키는 워크스페이스 ID 가 있어야 합니다 (400) — 설정 › LLM 설정 › Claude API 의 워크스페이스 ID(Claude Console › Settings › Workspaces 의 wrkspc_…)를 넣고 저장하세요';
+  const bad = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-api03-bad-0001' }, apiCheck: { ok: false, error: err } });
+  assert.equal(bad.chat.route(), '');
+  assert.equal(bad.get('scText').disabled, true);
+  assert.equal(bad.get('scSend').disabled, true);
+  assert.equal(bad.get('scStatus').textContent, 'Claude API 키 오류');
+  assert.equal(bad.get('scConnection').hidden, false);
+  assert.ok(bad.get('scConnTitle').textContent.includes('API 키 오류') && bad.get('scConnText').textContent.includes('워크스페이스 ID') && bad.get('scApiNote').textContent.includes('워크스페이스 ID'));
+  assert.equal(bad.calls.check[0].key, 'sk-ant-api03-bad-0001');
+  bad.example(); await bad.chat.send();
+  assert.equal(bad.calls.api.length, 0);
+  const cached = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-test-1234', llmApi: { ok: true, keyTag: '1234', at: Date.now(), model: 'claude-opus-5-5' } } });
+  assert.equal(cached.chat.route(), 'api');
+  assert.equal(cached.calls.check.length, 0, 'TTL 안의 같은 키는 다시 확인하지 않음');
+  const opts = { status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-test-1234' }, apiError: 'Claude API: ' + err };
+  const h = await harness(opts);
+  assert.equal(h.chat.route(), 'api');
+  opts.apiCheck = { ok: false, error: err };
+  h.example(); await h.chat.send(); await tick(); await tick();
+  assert.equal(h.calls.api.length, 1);
+  assert.ok(h.data.staffChat.turns[1].error && h.data.staffChat.turns[1].text.includes('워크스페이스'));
+  assert.equal(h.chat.route(), '', '거절된 키는 다시 확인해 끊는다');
+  assert.equal(h.get('scText').disabled, true);
+  // sk-ant-usr-… 키(워크스페이스에 안 묶인 키)는 워크스페이스 ID 가 없으면 묻지 않고 연결 아님(GET /v1/models 는 통과해도 /v1/messages 가 400 — 2026-10-21 실측), ID 를 넣으면 확인 뒤 연결
+  const usr = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-usr-abcd-0001', llmApi: { ok: true, keyTag: '0001', at: Date.now() } } });
+  assert.equal(usr.chat.route(), '');
+  assert.equal(usr.calls.check.length, 0);
+  assert.ok(usr.get('scConnText').textContent.includes('워크스페이스 ID') && usr.get('scStatus').textContent === 'Claude API 키 오류');
+  const usrWs = await harness({ status: { ok: false, url: online.url }, api: true, data: { claudeApiKey: 'sk-ant-usr-abcd-0001', claudeApiWorkspace: 'wrkspc_01' } });
+  assert.equal(usrWs.chat.route(), 'api');
+  assert.equal(usrWs.calls.check.length, 1);
 });
 
 (async () => {

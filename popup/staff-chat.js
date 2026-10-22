@@ -3,7 +3,7 @@
  * 보고 있는 과제·연차 계획의 요약(lib/staff-ui.js bind().agent.snapshot — 이름·역할·월급여·월별 지급·참여율·예산·부족금·rERP 등록·알림)과 이전 대화 몇 줄을 붙여 보내면, Claude 가 답 한두 문장(reply)과 작업 목록(ops)을 돌려주고
  * 이 스크립트가 agent.apply(ops) 로 화면의 계획에 차례대로 반영한다(계산·저장·변경이력·공유 요청은 표의 칸·✎ 폼과 같은 길). 답과 반영 결과(작업마다 ✔/✖ 와 메시지 한 줄)를 말풍선으로 보인다. 프롬프트·스키마·검사는 lib/staff-chat-core.js.
  * 연결(0.8.9, 2026-10-21 사용자 "에이전트에는 Claude CLI 를 기본 연결할 수 있게 설정해주고 연결되지 않을 경우 연결 방법에 대한 프롬프트를 추가해주고. API 키를 넣는 설정칸도 넣어줘"):
- *   기본은 **Claude CLI** — storage.local.llmStatus(lib/llm.js — 백그라운드 'llmProbe')가 ok 이고 그 서버에 /staff 가 있을 때(/health 의 staff 모델). 열 때·[연결 확인]·서버 연결 실패 뒤에 확인하고 llmStatus 가 바뀌면 따라간다.
+ *   기본은 **Claude CLI** — storage.local.llmStatus(lib/llm.js — 백그라운드 'llmProbe')가 ok 이고 그 서버에 /staff 가 있을 때(/health 의 staff 모델). 열 때·[연결 확인]·서버 연결 실패 뒤에 확인하고 llmStatus 가 바뀌면 따라간다. 2026-10-21 사용자 "claude 연결이 안되어 있으면 입력이 안되게": Claude API 키는 lib/claude-api.js check()(GET /v1/models — storage.local.llmApi) 로 확인된 것만 연결로 본다(400 워크스페이스 ID 없음 · 401 이면 "Claude API 키 오류" — 입력란 잠김, 연결 카드에 까닭). 보내기가 API 오류로 실패해도 다시 확인한다.
  *   안 붙으면 안내 카드에 서버 실행 방법 · [설정 프롬프트 복사](lib/help-setup.js — 저장소 폴더에서 연 Claude Code 에 붙여 넣는 글) · **Claude API 키** 칸(storage.local.claudeApiKey — 설정 페이지 › LLM 설정 › Claude API 와 같은 키)을 둔다.
  *   키가 있고 설정 help.api.use 가 off 가 아니면 서버 없이 lib/claude-api.js staff()(모델 API_MODEL — 서버 기본과 같음)로 보낸다(always 면 서버가 있어도 API 먼저). 상태 줄에 어느 길인지 보인다(연결됨 · Claude CLI / Claude API).
  * 첨부(0.8.9, 2026-10-21 사용자 "엑셀, 워드, PDF, HWP/X, 이미지를 첨부할 수 있게 해줘. HWP 인 경우 HWPX 로 변환해야 할거 같고.. 이미지는 OCR 를 하면 될거 같아"): 📎 단추·끌어다 놓기로 FILE_MAX 개까지 —
@@ -52,8 +52,10 @@
   const btnConn = $('scConn');   // [연결] — 연결된 뒤에도 연결 카드(Claude API 키 칸)를 열고 닫음(2026-10-21 사용자 "이거 다시 쓰려는데 바뀌는 곳이 없네... 에이전트에서")
   if (!box || !form || !input || !logEl) return;
   let H = null, base = DEFAULT_URL, llm = null, turns = [], busy = false, probing = false, avail = false /* 참여연구원 변경 탭(only=staff)인가 */, open = false /* [에이전트] 로 열었나 */, rules /* storage.local.staffRules — undefined 면 기본 글 */, rulesOpen = false;
+  let width = '' /* 채팅 폭 — storage.local.staffChatSize: '2:1' · '1:1' · '1:2'(본문:채팅 — 제목 줄 단추, lib/render.js) 또는 끌어 정한 '420px'. '' 는 기본(400px · 1180px 아래 340px). html 의 --sc-w 로 CSS 가 flex-basis 에 씀 (2026-10-21 사용자 "에이전트 폭을 조절할 수 있으면 … 비율을 2:1 또는 1:1, 1:2로 아이콘으로") */;
+  const RATIO = { '2:1': '33.3333%', '1:1': '50%', '1:2': '66.6667%' };
   let connOpen = false /* [연결]로 연 연결 카드 — 연결돼 있어도 보임 */, lastRoute = '' /* 마지막으로 그린 연결 길 — 바뀌면 탭(H.draw)도 다시(연구수당 계산 카드의 연구내용 항목·[연구내용 분류]가 연결 여부를 봄, 2026-10-21) */;
-  let apiUse = 'auto' /* 설정 help.api.use: auto(서버가 없을 때만) · always · off */, apiKey = '' /* storage.local.claudeApiKey */, pending = [] /* 보낼 첨부 File[] */, note = '' /* 입력란 밑 한 줄(첨부 안내) */, setupNote = '', apiNote = '';
+  let apiUse = 'auto' /* 설정 help.api.use: auto(서버가 없을 때만) · always · off */, apiKey = '' /* storage.local.claudeApiKey */, pending = [] /* 보낼 첨부 File[] */, note = '' /* 입력란 밑 한 줄(첨부 안내) */, setupNote = '', apiNote = '', apiStat = null /* storage.local.llmApi — lib/claude-api.js check() 결과(키·모델이 되는지, keyTag 로 어느 키인지). API 길은 이것이 ok 일 때만 연결로 본다(2026-10-21 사용자 "claude 연결이 안되어 있으면 입력이 안되게") */, apiModel = '' /* 설정 help.api.model — 확인에 쓸 모델 */, apiWs = '' /* storage.local.claudeApiWorkspace — sk-ant-usr-… 키는 이것이 있어야 /v1/messages 가 됨(GET /v1/models 는 없어도 통과하므로 check 만으로는 모름 — 2026-10-21 실측 400) */;
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const hhmm = (t) => { const d = new Date(t || Date.now()); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -62,7 +64,21 @@
   const docText = () => self.KRX_DOC_TEXT || null;
   const claudeApi = () => (typeof KRX_CLAUDE_API !== 'undefined' ? KRX_CLAUDE_API : null);   // lib/claude-api.js 는 최상위 const — self.KRX_CLAUDE_API 로는 안 보임(2026-10-21 실측)
   const serverOn = () => !!(llm && llm.ok && llm.url === base && llm[M().health]);
-  const apiOn = () => !!(apiKey && apiUse !== 'off' && claudeApi());
+  const API_TTL = 600000;   // API 키 확인 결과를 다시 쓰는 시간(10분)
+  const tagOf = (k) => { const C = claudeApi(); return C && C.keyTag ? C.keyTag(k) : String(k || '').slice(-4); };
+  const apiOk = () => !!(apiStat && apiStat.ok && apiStat.keyTag === tagOf(apiKey));   // 확인된 키만 — 400(워크스페이스 ID 없음)·401 인 키로는 입력란을 열지 않는다
+  const apiFail = () => (apiKey && apiUse !== 'off' && apiStat && !apiStat.ok && apiStat.keyTag === tagOf(apiKey) ? apiStat.error || 'Claude API 키를 확인하지 못했어요' : '');
+  const apiOn = () => !!(apiKey && apiUse !== 'off' && claudeApi() && apiOk());
+  /* API 키 확인 — lib/claude-api.js check(): GET /v1/models/{model}(토큰 안 씀), 결과는 storage.local.llmApi 에도(설정 페이지의 [API 확인]과 같음). TTL 안의 같은 키는 다시 묻지 않음 */
+  async function probeApi(force) {
+    const C = claudeApi();
+    if (!C || !apiKey || apiUse === 'off' || typeof C.check !== 'function') return;
+    const tag = tagOf(apiKey);
+    if (/^sk-ant-usr-/i.test(apiKey) && !apiWs) { apiStat = { at: Date.now(), ok: false, keyTag: tag, error: '이 키(sk-ant-usr-…)는 워크스페이스에 묶이지 않아 워크스페이스 ID 가 있어야 합니다 — 설정 › LLM 설정 › Claude API 의 워크스페이스 ID(Claude Console › Settings › Workspaces 의 wrkspc_…)를 넣고 저장하세요' }; return; }
+    if (!force && apiStat && apiStat.keyTag === tag && Date.now() - (apiStat.at || 0) < API_TTL) return;
+    try { apiStat = Object.assign({ at: Date.now(), keyTag: tag }, await C.check({ key: apiKey, model: apiModel || API_MODEL })); }
+    catch (e) { apiStat = { at: Date.now(), ok: false, keyTag: tag, error: String((e && e.message) || e) }; }
+  }
   /* 어느 길로 보내나: 'server'(Claude CLI — 기본) · 'api'(Claude API 키 — 서버가 없거나 설정이 "항상") · ''(연결 없음) */
   const route = () => (apiUse === 'always' && apiOn() ? 'api' : serverOn() ? 'server' : apiOn() ? 'api' : '');
   const connected = () => !!route();
@@ -74,6 +90,15 @@
   const mask = (k) => { try { if (claudeApi() && claudeApi().mask) return claudeApi().mask(k); } catch (e) {} return k ? `…${String(k).slice(-4)}` : ''; };
   const save = () => { try { chrome.storage.local.set({ [M().key]: { turns: turns.slice(-MAX_TURNS), open } }); } catch (e) {} };
   const saveDraft = () => { try { chrome.storage.local.set({ [M().draft]: input.value }); } catch (e) {} };
+  /* 채팅 폭 — v 없이 부르면 지금 값. '2:1' 같은 비율이나 '420px'(끌기), 그 밖은 기본(''). keep 이면 저장하지 않음(끄는 동안·시작 때) */
+  function size(v, keep) {
+    if (v === undefined) return width;
+    width = RATIO[v] ? v : /^\d+px$/.test(String(v)) ? String(v) : '';
+    try { document.documentElement.style.setProperty('--sc-w', RATIO[width] || width || ''); } catch (e) {}
+    try { document.querySelectorAll('[data-act="sc-ratio"]').forEach((b) => { const on = b.dataset.ratio === width; b.classList.toggle('krext-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }); } catch (e) {}
+    if (!keep) { try { chrome.storage.local.set({ staffChatSize: width }); } catch (e) {} }
+    return width;
+  }
   /* 보이기 — 이 탭에서 쓸 수 있고(avail) [에이전트] 로 열었을 때(open)만. 단추의 눌림 표시는 state.staffChatOpen 으로(바뀌었을 때만 다시 그림) */
   function paint() {
     box.hidden = !(avail && open);
@@ -113,6 +138,7 @@
     if (r === 'server') return { text: '연결됨 · Claude CLI', cls: 'ok' };
     if (r === 'api') return { text: `연결됨 · Claude API${serverOn() ? '' : ' (CLI 미연결)'}`, cls: 'ok' };
     if (llm && llm.ok && llm.url === base && !llm[M().health]) return { text: '업데이트 필요', cls: 'err' };
+    if (apiFail()) return { text: 'Claude API 키 오류', cls: 'err' };
     return { text: '연결 필요', cls: 'err' };
   }
   function helpOf() {
@@ -120,6 +146,7 @@
     if (r === 'server') return `요청마다 ${m.sent}과 최근 대화가 Help 서버(Claude CLI)를 거쳐 Claude 로 갑니다. ${m.common}`;
     if (r === 'api') return `Help 서버(Claude CLI)가 없어 저장된 Claude API 키로 api.anthropic.com 에 직접 보냅니다(모델 ${API_MODEL}, 사용량은 그 키에 과금). ${m.common}`;
     if (llm && llm.ok && llm.url === base && !llm[m.health]) return `Help 서버가 ${m.title}가 생기기 전 버전입니다 — 서버를 끄고 다시 node help-server/server.js 를 실행한 뒤 [연결 확인].`;
+    if (apiFail()) return `저장된 Claude API 키로는 보낼 수 없습니다 — ${apiFail()} 키를 고치거나 Help 서버(Claude CLI)를 실행하세요.`;
     return `기본 연결은 이 PC 의 Claude Code CLI(Help 서버)입니다 — 저장소 폴더에서 node help-server/server.js 를 실행한 뒤 [연결 확인] (${base}). 준비물은 CLAUDE.md, 처음이면 [설정 프롬프트 복사]. 서버 없이 쓰려면 위 칸에 Claude API 키를 저장하세요.`;
   }
   /* Claude Code 에 붙여 넣는 설정 프롬프트 (popup/help.js 와 같은 글 — lib/help-setup.js 가 없으면 짧게) */
@@ -136,12 +163,12 @@
     const oldServer = llm && llm.ok && llm.url === base && !llm[M().health], on = connected() && !probing;   // on: 연결된 채 [연결]로 연 카드 — 키 바꾸기 안내
     if (btnConn && btnConn.setAttribute) btnConn.setAttribute('aria-pressed', connOpen && on ? 'true' : 'false');   // 테스트의 가짜 요소에는 setAttribute 가 없음
     if (connCard) connCard.className = `sc-connect-card${probing ? ' checking' : ''}`;
-    if (connTitle) connTitle.textContent = probing ? '도우미 연결을 확인하고 있어요' : on ? (route() === 'api' ? 'Claude API 키로 연결돼 있어요' : 'Claude CLI(Help 서버)에 연결돼 있어요') : oldServer ? 'Help 서버를 업데이트해 주세요' : 'Claude CLI(Help 서버)에 연결되지 않았어요';
+    if (connTitle) connTitle.textContent = probing ? '도우미 연결을 확인하고 있어요' : on ? (route() === 'api' ? 'Claude API 키로 연결돼 있어요' : 'Claude CLI(Help 서버)에 연결돼 있어요') : oldServer ? 'Help 서버를 업데이트해 주세요' : apiFail() ? 'Claude 에 연결되지 않았어요 — API 키 오류' : 'Claude CLI(Help 서버)에 연결되지 않았어요';
     if (connText) connText.textContent = probing ? '잠시만 기다려 주세요.' : on ? `API 키를 바꾸려면 아래에 새 키를 넣고 [저장], 지우려면 비우고 [저장]하세요 (설정 › LLM 설정 › Claude API 와 같은 키 — Anthropic 콘솔의 sk-ant-api03-… 키). 서버(Claude CLI)를 쓰려면 저장소 폴더에서 node help-server/server.js 를 실행한 뒤 [연결 확인] (${base}).` : oldServer ? '서버를 끄고 저장소 폴더에서 다시 node help-server/server.js 를 실행한 뒤 위 [연결 확인]을 누르세요.'
-      : `기본 연결은 이 PC 의 Claude Code CLI 예요. 저장소 폴더에서 터미널을 열고 node help-server/server.js 를 실행한 뒤 위 [연결 확인]을 누르세요 (${base}). 처음이면 [설정 프롬프트 복사]를 저장소 폴더에서 연 Claude Code 에 붙여 넣으면 준비물 확인부터 서버 실행까지 안내해요.`;
+      : `${apiFail() ? `저장된 API 키로는 보낼 수 없어요 — ${apiFail()} ` : ''}기본 연결은 이 PC 의 Claude Code CLI 예요. 저장소 폴더에서 터미널을 열고 node help-server/server.js 를 실행한 뒤 위 [연결 확인]을 누르세요 (${base}). 처음이면 [설정 프롬프트 복사]를 저장소 폴더에서 연 Claude Code 에 붙여 넣으면 준비물 확인부터 서버 실행까지 안내해요.`;
     if (connActs) connActs.hidden = probing;
     if (setupNoteEl) setupNoteEl.textContent = setupNote;
-    if (apiNoteEl) apiNoteEl.textContent = apiNote || (apiUse === 'off' ? '설정 › LLM 설정 › Claude API 가 "사용 안 함"이라 키가 있어도 쓰지 않아요.' : !claudeApi() ? 'Claude API 모듈을 읽지 못했어요 — 확장을 다시 올리세요.' : apiKey ? `저장된 키 ${mask(apiKey)} — 서버가 없으면 이 키로 보내요 (모델 ${API_MODEL}, 그 키에 과금).` : '키를 넣고 저장하면 서버 없이 바로 쓸 수 있어요 — 이 브라우저에만 저장되고 설정 › LLM 설정의 Claude API 와 같은 키예요.');
+    if (apiNoteEl) apiNoteEl.textContent = apiNote || (apiUse === 'off' ? '설정 › LLM 설정 › Claude 연결 방식이 "Claude CLI 만"이라 키가 있어도 쓰지 않아요.' : !claudeApi() ? 'Claude API 모듈을 읽지 못했어요 — 확장을 다시 올리세요.' : apiKey ? (apiFail() ? `저장된 키 ${mask(apiKey)} — ${apiFail()}` : `저장된 키 ${mask(apiKey)} — 서버가 없으면 이 키로 보내요 (모델 ${API_MODEL}, 그 키에 과금).`) : '키를 넣고 저장하면 서버 없이 바로 쓸 수 있어요 — 이 브라우저에만 저장되고 설정 › LLM 설정의 Claude API 와 같은 키예요.');
   }
   function emptyState() {
     const m = M();
@@ -259,16 +286,18 @@
     } else turn = { role: 'assistant', text: `실패 — ${r.error || '응답 없음'}`, at: Date.now(), error: true };
     turns.push(turn); busy = false; save(); render();
     if (!r.ok && r.kind === 'offline') probe(true);   // 서버가 내려갔으면 상태 줄도 바로
+    else if (!r.ok && r0 === 'api') { if (/\(40[0134]\)|workspace|워크스페이스/i.test(r.error || '')) { apiStat = { at: Date.now(), ok: false, keyTag: tagOf(apiKey), error: String(r.error || '').replace(/^Claude API: /, '') }; render(); } else probe(true); }   // API 키·설정이 거절됐으면(400 워크스페이스 ID · 401 · 403 · 404) 입력란을 잠그고 까닭을 카드에, 그 밖(429·529·시간 초과)은 다시 확인만
     if (connected()) input.focus();
   }
   /* 백그라운드에 연결 확인(lib/llm.js — storage.local.llmStatus 도 갱신) */
   async function probe(force) {
     probing = true; render();
     try { const r = await chrome.runtime.sendMessage({ type: 'llmProbe', url: base, force: !!force }); if (r && typeof r.ok === 'boolean') llm = r; } catch (e) {}
+    if (!serverOn() || apiUse === 'always') await probeApi(force);   // 서버가 없으면(또는 "항상" API) 저장된 키도 되는지 확인
     probing = false; render();
   }
   const opsOf = (ops) => (Array.isArray(ops) ? ops : []).map((op) => Object.assign({ text: opTextOf(op) }, op));   // 테스트·디버깅용 (반영 결과의 글)
-  const applySettings = (s) => { const u = String(((s && s.help) || {}).url || '').trim().replace(/\/+$/, ''); if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(u)) base = u; const use = (((s && s.help) || {}).api || {}).use; apiUse = use === 'always' || use === 'off' ? use : 'auto'; };
+  const applySettings = (s) => { const u = String(((s && s.help) || {}).url || '').trim().replace(/\/+$/, ''); if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(u)) base = u; const use = (((s && s.help) || {}).api || {}).use; apiUse = use === 'always' || use === 'off' ? use : 'auto'; apiModel = String((((s && s.help) || {}).api || {}).model || '').trim(); };
 
   form.addEventListener('submit', (ev) => { ev.preventDefault(); send(); });
   input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); send(); } });
@@ -283,6 +312,16 @@
   btnProbe.addEventListener('click', () => probe(true));
   if (btnConn) btnConn.addEventListener('click', () => { connOpen = !connOpen; render(); if (connOpen && !connectionEl.hidden && apiKeyEl) apiKeyEl.focus(); });   // [연결] — 카드 열기/닫기(열면 키 칸에 초점)
   if (btnClose) btnClose.addEventListener('click', () => { saveDraft(); toggle(false); });
+  /* 왼쪽 가장자리(#scResize) 끌기 — 채팅 폭(px, 280px 부터 본문 360px 를 남기는 값까지). 포인터 캡처라 빠르게 끌어도 따라오고, 두 번 누르면 기본 폭 */
+  const resizeEl = $('scResize');
+  if (resizeEl && resizeEl.addEventListener) {
+    let drag = null;
+    resizeEl.addEventListener('pointerdown', (ev) => { if (ev.button) return; const row = box.parentElement; if (!row) return; drag = row.getBoundingClientRect(); try { resizeEl.setPointerCapture(ev.pointerId); } catch (e) {} document.body.classList.add('sc-resizing'); ev.preventDefault(); });
+    resizeEl.addEventListener('pointermove', (ev) => { if (!drag) return; size(`${Math.round(Math.min(Math.max(drag.right - ev.clientX, 280), Math.max(280, drag.width - 360)))}px`, true); });
+    const end = () => { if (!drag) return; drag = null; document.body.classList.remove('sc-resizing'); size(width); };
+    resizeEl.addEventListener('pointerup', end); resizeEl.addEventListener('pointercancel', end);
+    resizeEl.addEventListener('dblclick', () => size(''));
+  }
   /* 예산 규칙 편집란 — [규칙]으로 열고 닫음(열리면 CSS 가 대화를 가림), [저장]은 storage.local.staffRules(비우고 저장하면 규칙 없이 보냄), [기본값]은 입력란에 기본 글만 */
   if (btnRules) btnRules.addEventListener('click', () => { rulesOpen = !rulesOpen; if (rulesOpen && rulesText) rulesText.value = rulesNow(); setRulesStatus(''); render(); if (rulesOpen && rulesText) rulesText.focus(); });
   if (btnRulesSave) btnRulesSave.addEventListener('click', () => { rules = rulesText ? String(rulesText.value) : ''; try { chrome.storage.local.set({ [M().rules]: rules }); } catch (e) {} setRulesStatus(rules.trim() ? '저장했어요 — 다음 요청부터 함께 보냅니다.' : '비워 저장했어요 — 규칙 없이 보냅니다.'); render(); });
@@ -296,7 +335,8 @@
   if (btnApiSave) btnApiSave.addEventListener('click', async () => {
     const k = apiKeyEl ? String(apiKeyEl.value || '').trim() : '';
     try { if (k) await chrome.storage.local.set({ [API_KEY]: k }); else await chrome.storage.local.remove(API_KEY); } catch (e) {}
-    apiKey = k; apiNote = k ? `저장했어요 ${mask(k)} — 서버가 없으면 이 키로 보내요 (모델 ${API_MODEL}).` : '키를 지웠어요.';
+    apiKey = k; apiStat = null; await probeApi(true);
+    apiNote = k ? (apiOk() ? `저장했어요 ${mask(k)} — 서버가 없으면 이 키로 보내요 (모델 ${API_MODEL}).` : `저장했어요 ${mask(k)} — 그런데 ${apiFail() || '키를 확인하지 못했어요'}`) : '키를 지웠어요.';
     render(); if (connected()) input.focus();
   });
   /* 첨부 — 📎 단추 · 파일 선택 · 끌어다 놓기(입력 구역) · 칩의 × */
@@ -316,7 +356,9 @@
       if (ch.settings && (area === 'sync' || area === 'local')) { applySettings(ch.settings.newValue); render(); }   // 서버 주소 · Claude API 사용 방식
       if (area !== 'local') return;
       if (ch.llmStatus) { const v = ch.llmStatus.newValue; if (v && v.url === base) { llm = v; render(); } }   // 패널·설정 페이지·백그라운드가 확인한 결과도 반영
-      if (ch[API_KEY]) { apiKey = String(ch[API_KEY].newValue || '').trim(); if (apiKeyEl && !apiKeyEl.value) apiKeyEl.value = apiKey; render(); }   // 설정 페이지에서 넣은 키
+      if (ch[API_KEY]) { apiKey = String(ch[API_KEY].newValue || '').trim(); if (apiKeyEl && !apiKeyEl.value) apiKeyEl.value = apiKey; render(); probeApi(false).then(render); }   // 설정 페이지에서 넣은 키
+      if (ch.llmApi) { apiStat = ch.llmApi.newValue || null; render(); }   // 설정 페이지의 [API 확인] 결과
+      if (ch.claudeApiWorkspace) { apiWs = String(ch.claudeApiWorkspace.newValue || '').trim(); apiStat = null; probeApi(true).then(render); }   // 설정 페이지에서 넣은 워크스페이스 ID
       const m = M();
       if (ch[m.rules]) { rules = typeof ch[m.rules].newValue === 'string' ? ch[m.rules].newValue : undefined; if (!rulesOpen) render(); }   // 다른 탭에서 고친 규칙
       if (ch[m.key] && !busy) { const v = ch[m.key].newValue; const next = v && Array.isArray(v.turns) ? v.turns : []; if (JSON.stringify(next) !== JSON.stringify(turns)) { turns = next; render(); } }   // 다른 탭의 같은 대화
@@ -332,10 +374,12 @@
       applySettings(s);
     } catch (e) {}
     try {
-      const l = await chrome.storage.local.get([API_KEY, 'llmStatus']);
+      const l = await chrome.storage.local.get([API_KEY, 'llmStatus', 'llmApi', 'claudeApiWorkspace', 'staffChatSize']);
+      size(String(l.staffChatSize || ''), true);
       apiKey = String(l[API_KEY] || '').trim();
       if (apiKeyEl && !apiKeyEl.value) apiKeyEl.value = apiKey;
       if (l.llmStatus && l.llmStatus.url === base) llm = l.llmStatus;
+      apiStat = l.llmApi || null; apiWs = String(l.claudeApiWorkspace || '').trim();
     } catch (e) {}
     inited = true;
     await load();
@@ -352,7 +396,7 @@
     if (l[m.draft] && !input.value) input.value = String(l[m.draft]);
     rulesOpen = false;
     render(); paint();
-    if (open) probe(false);
+    if (open) probe(false); else probeApi(false).then(render);   // 닫혀 있어도 키는 확인해 둔다(열 때 바로)
   }
   /* 이 탭의 모드 — 'staff'(참여연구원 변경 탭) · 'allow'(연구수당 계산 탭) · ''(그 밖 — 채팅 없음). true 는 'staff'(옛 호출) */
   function show(on) {
@@ -367,5 +411,5 @@
     save(); paint();
     if (open) { probe(false).then(() => { if (connected()) input.focus(); }); }
   }
-  self.KRX_STAFF_CHAT = { init, show, toggle, isOpen: () => open, send, probe, opsOf, attach: addFiles, route, mode: () => mode };
+  self.KRX_STAFF_CHAT = { init, show, toggle, isOpen: () => open, send, probe, opsOf, attach: addFiles, route, mode: () => mode, size };
 })();

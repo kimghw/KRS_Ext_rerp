@@ -49,15 +49,18 @@
     const act = btn.dataset.act;
     if (act === 'refresh') { ev.preventDefault(); load(true); }
     else if (act === 'settings') { ev.preventDefault(); chrome.runtime.openOptionsPage(); }
+    else if (act === 'llm-setup') { ev.preventDefault(); chrome.runtime.sendMessage({ type: 'openOptions', hash: btn.dataset.hash || 'llm' }).catch(() => {}); }   // 제목 줄 B(브릿지) 아이콘 → 설정 › LLM 연결 카드(Win+R → setup.cmd 안내)
     else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
     else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; chrome.storage.local.set({ panelView: state.view }); draw(); }
     else if (act === 'section') { ev.preventDefault(); state.section = KRX_RENDER.secOf(btn.dataset.section); chrome.storage.local.set({ panelSection: state.section }); draw(); }
     else if (act === 'claim') { if (ev.target.closest('a')) return; ev.preventDefault(); if (btn.dataset.href) chrome.tabs.create({ url: btn.dataset.href }); }
     else if (act === 'rcms') { ev.preventDefault(); openRcms(btn.href); }
     else if (act === 'sidepanel') { ev.preventDefault(); openSidePanel(); }
+    else if (act === 'sc-ratio') { ev.preventDefault(); if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.size(btn.dataset.ratio === KRX_STAFF_CHAT.size() ? '' : btn.dataset.ratio); }   // 제목 줄 2:1 · 1:1 · 1:2 — 본문:도우미 폭 비율(같은 것을 다시 누르면 기본 폭; lib/render.js, popup/staff-chat.js size)
     else if (act === 'st-agent') { ev.preventDefault(); if (self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.toggle(); }   // 참여연구원 변경 탭 제목 줄 [에이전트] — 변경 도우미 채팅 열기/닫기 (lib/staff-ui.js focusTitle)
   });
   // 제목 줄 "사이드 패널로 열기"(팝업 창에만): 같은 문서를 이 창의 사이드 패널로 열고 팝업은 닫는다. 사용자 클릭 안에서 불러야 하므로 여기서 바로 연다. 아이콘 클릭이 팝업을 열지 사이드 패널을 열지는 설정 actionPopup (background.js applySidePanel, 기본 사이드 패널)
+  if (self.KRX_PREP_CHAT) KRX_PREP_CHAT.bind(host, state, draw);   // 청구 준비 줄 💬: 그 거래 밑에 찾는 방법 익히기 채팅 (popup/prep-chat.js — Help 서버 /ask, 설정 페이지와 같은 storage.local.fetchChat)
   if (state.sidePanel) KRX_CAP.bind(host, state, draw, prepApi);   // 청구 준비 줄의 화면 캡처(화면 전체·영역 선택): 왼쪽 탭을 찍어 첨부 파일로 (popup/capture.js, 사이드 패널만)
   async function openSidePanel() {
     try {

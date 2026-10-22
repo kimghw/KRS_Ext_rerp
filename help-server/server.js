@@ -42,11 +42,11 @@ const RESUME_MS = 2 * 3600000;                       // 마지막 요청 뒤 이
 const RULES = path.join(__dirname, 'rules.md');      // Claude 에 덧붙이는 시스템 프롬프트 (작업 규칙)
 const LOG_DIR = path.join(__dirname, 'logs');        // 끝난 작업 기록 <id>.json (서버를 다시 띄워도 팝업이 마지막 결과를 볼 수 있게)
 const STATE = path.join(__dirname, '.state.json');   // { origin: 고정된 확장 출처, session: { id, at } }
-const KEEP_LOGS = 50, MAX_TEXT = 6000, MAX_BODY = 64 * 1024, MAX_LINES = 2000;   // MAX_TEXT: 설정 페이지의 사이트 만들기 채팅은 가맹점 블록(lib/fetch-sites.js buildPrompt)까지 보내 한 줄보다 길다
+const KEEP_LOGS = 50, MAX_TEXT = 6000, MAX_BODY = 64 * 1024, MAX_LINES = 2000;   // MAX_TEXT: 설정 페이지의 찾는 방법 익히기는 가맹점 블록(lib/fetch-sites.js buildPrompt)까지 보내 한 줄보다 길다
 const CLASSIFY_BODY = 40 * 1024 * 1024, CLASSIFY_MS = 120000, CLASSIFY_SLOTS = 2, CLASSIFY_QUEUE = 8;   // 자동 분류: 본문(이미지·PDF base64 포함) · 한 번 제한 시간 · 동시 실행 · 대기 줄
 const STAFF_BODY = 40 * 1024 * 1024, STAFF_MS = 180000;   // 참여연구원 변경 도우미: 본문(계획 요약 · 이전 대화 · 첨부 PDF·이미지 base64 — 0.8.9) · 한 번 제한 시간
 /* acceptEdits 는 파일 수정만 묻지 않고 허용한다. 헤드리스에서는 물어볼 사람이 없어 그 밖의 명령은 거절되므로 문법 검사·테스트·조회에 쓰는 것만 허용 (Windows 는 PowerShell 도구도 있음) */
-const ALLOWED = ['node', 'git status', 'git diff', 'git log', 'git show', 'curl', 'python'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]).concat(['Bash(git status)', 'PowerShell(git status)', 'Bash(git diff)', 'PowerShell(git diff)', 'Skill(fetch-site)']);   // Skill(fetch-site): 설정 페이지의 사이트 만들기 채팅이 가리키는 .claude/skills/fetch-site (Read 로 읽어도 됨)
+const ALLOWED = ['node', 'git status', 'git diff', 'git log', 'git show', 'curl', 'python'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]).concat(['Bash(git status)', 'PowerShell(git status)', 'Bash(git diff)', 'PowerShell(git diff)', 'Skill(fetch-site)']);   // Skill(fetch-site): 설정 페이지의 찾는 방법 익히기가 가리키는 .claude/skills/fetch-site (Read 로 읽어도 됨)
 const DISALLOWED = ['git commit', 'git push', 'git reset', 'git checkout', 'git restore', 'git stash', 'git clean', 'git rebase', 'git merge'].flatMap((c) => [`Bash(${c} *)`, `PowerShell(${c} *)`]);
 
 const jobs = new Map();   // id → job (메모리, 최근 것만)

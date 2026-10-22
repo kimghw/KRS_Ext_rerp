@@ -183,6 +183,7 @@
       const act = btn.dataset.act;
       if (act === 'refresh') { ev.preventDefault(); load(true); }
       else if (act === 'settings') { ev.preventDefault(); safe(() => chrome.runtime.sendMessage({ type: 'openOptions' })); }
+      else if (act === 'llm-setup') { ev.preventDefault(); safe(() => chrome.runtime.sendMessage({ type: 'openOptions', hash: btn.dataset.hash || 'llm' })); }   // 제목 줄 B(브릿지) 아이콘 → 설정 › LLM 연결 카드(Win+R → setup.cmd 안내)
       else if (act === 'toggle') { if (ev.target.closest('a')) return; ev.preventDefault(); state.collapsed = !state.collapsed; safe(() => chrome.storage.local.set({ panelCollapsed: state.collapsed })); draw(); }
       else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
       else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; safe(() => chrome.storage.local.set({ panelView: state.view })); draw(); }

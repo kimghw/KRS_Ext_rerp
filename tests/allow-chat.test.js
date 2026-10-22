@@ -101,12 +101,13 @@ test('agent.snapshot — 보고 있는 과제·연차의 계산 요약(천원 ·
   const s = api.agent.snapshot();
   assert.deepStrictEqual([s.prjNo, s.alias, s.year, s.rspr, s.period, s.org, s.pool, s.avail, s.payTotal, s.n, s.names, s.hasPlan, s.merge, s.adjust.S, s.byDept], [P.prjNo, 'SSCB', 1, '김거화', '2026-04 ~ 2026-12', '한국선급', 6000, 5000, 35900, 2, ['김거화', '문창재'], true, { sa: false, cd: false }, 5, false]);
   assert.strictEqual(s.people.length, 2, '행정지원은 없음');
-  assert.ok(s.people[0].startsWith('김거화 (') && s.people[0].includes('성과 항목 연구내용 사전조사[다 10점 × 1건 × 가중치 0.5 = 5], 진도보고서 작성[다 10점 × 1건 × 가중치 0.5 = 5], 연구총괄 및 관리[가 50점 × 1건 × 가중치 1 = 50]') && s.people[0].includes('기타 우수(100)') && s.people[0].includes('등급 S') && s.people[0].includes('지급액 3,250천원') && s.people[0].includes('한도 모름'), s.people[0]);
+  const requiredSummary = '연구총괄 및 관리(포함)[가 50점 × 1건 × 가중치 0.5 = 25], 진도보고서 작성(포함)[다 10점 × 1건 × 가중치 0.5 = 5], 연구내용 사전조사(포함)[다 10점 × 1건 × 가중치 0.5 = 5]';   // 필수 3개 (2026-10-22)
+  assert.ok(s.people[0].startsWith('김거화 (') && s.people[0].includes(`성과 항목 ${requiredSummary} (기여도 합 35`) && s.people[0].includes('기타 우수(100)') && s.people[0].includes('등급 S') && s.people[0].includes('지급액 3,250천원') && s.people[0].includes('한도 모름'), s.people[0]);
   assert.ok(s.people[1].includes('기타 미평가') && s.people[1].includes('등급 A') && s.people[1].includes('남은 연구수당 1,500천원(응답) 초과 250천원'), s.people[1]);
   assert.ok(s.groups[0].startsWith('S: 인원 기준 1명 · 몫 65% · 지금 1명(김거화) · 1인 65.00%') && s.groups.length === 5, s.groups[0]);
   assert.ok(s.warnings.some((w) => w.startsWith('문창재: 지급액')) && s.depts.length === 0);
   assert.strictEqual(api.agent.current().prjNo, P.prjNo);
-  assert.ok(withAgent().api.agent.snapshot().people[0].includes('성과 항목 연구내용 사전조사[다 10점 × 1건 × 가중치 0.5 = 5], 진도보고서 작성[다 10점 × 1건 × 가중치 0.5 = 5] (기여도 합 10'), '저장이 없어도 필수 항목(가중치 1/2)');
+  assert.ok(withAgent().api.agent.snapshot().people[0].includes(`성과 항목 ${requiredSummary} (기여도 합 35`), '저장이 없어도 필수 3개 · 난이도 가/다/다 · 가중치 1/2');
   assert.deepStrictEqual(s.research, [], '연구개발계획서가 없으면 빈 목록');
   const { api: api2, st: st2 } = withAgent();
   st2.research = { r1: { id: 'r1', prjNo: P.prjNo, n: 1, contents: [{ item: 'DC 차단기 설계', details: ['소자 선정'] }, { item: '시험 평가', details: [] }] } };
@@ -124,24 +125,40 @@ test('agent.apply — 작업을 차례대로 저장 모양에(표의 칸과 같�
     { op: 'person', name: '문창재', field: 'rank', value: 'S' },
   ]);
   const e = st.allowCalc[key];
-  assert.deepStrictEqual(out.map((r) => r.ok), [true, true, true, true, false, true, true, true, false, true, true, true]);
+  assert.deepStrictEqual(out.map((r) => r.ok), [true, false, true, true, false, true, true, true, false, true, true, true]);
+  assert.ok(out[1].msg.includes('포함한 항목') && out[1].msg.includes('담당 그룹'), '필수 연구총괄을 도우미로 중복 추가할 수 없음');
   assert.ok(out[4].msg.includes('아무개') && out[4].msg.includes('없습니다') && out[8].msg.includes('5명 이상'), '목록 밖 이름 · 5명 미만 통합');
-  assert.deepStrictEqual([e.people.m.items, e.people.k.items, e.people.k.etc, e.people.m.dept, e.pool, e.avail, e.org, e.merge, e.adjust], [[{ name: '논문(SCI(E))', level: '가', count: 1, weight: 0.8 }], [{ name: '연구총괄 및 관리', level: '가', count: 1, weight: 1 }], 100, '수소전기추진연구팀', 4000000, undefined, 'KR', undefined, { S: -5, A: 5 }]);
-  assert.deepStrictEqual([e.people.m.rank, e.people.k.rank], ['S', 'S'], '수동 등급 — 같은 범위의 다른 사람은 그때 등급(김거화 S)으로 적혀 안 움직임');
+  assert.deepStrictEqual([e.people.m.items, e.people.k.items, e.people.k.etc, e.people.m.dept, e.pool, e.avail, e.org, e.merge, e.adjust], [[{ name: '논문(SCI(E))', level: '가', count: 1, weight: 0.8 }], undefined, 100, '수소전기추진연구팀', 4000000, undefined, 'KR', undefined, { S: -5, A: 5 }]);
+  assert.deepStrictEqual([e.people.m.rank, e.people.k.rank], ['S', 'A'], '수동 등급 — 같은 범위의 다른 사람은 그때 등급(김거화 A — 필수가 3개가 되어 논문이 있는 문창재가 앞섬, 2026-10-22)으로 적혀 안 움직임');
   assert.ok(out[0].text === '문창재 — 성과 항목 논문(SCI(E)) (가 · 1건 · 가중치 0.8)' && out[0].msg.includes('성과 항목 1개 · 합산기여도') && out[5].msg.startsWith('계상금액 4,000천원 · 총 지급액') && out[11].msg.includes('S 등급'), out[11].msg);
   assert.ok(draws() === 1 && e.at > 0);
   // 되돌리기·빼기·미지급
   const out2 = await api.agent.apply([{ op: 'item_del', name: '문창재', value: '논문 (SCI(E))' }, { op: 'item_del', name: '문창재', value: '없는 항목' }, { op: 'person', name: '문창재', field: 'out', value: 'on' }, { op: 'auto' }, { op: 'person', name: '김거화', field: 'etc', value: '' }, { op: 'bydept', value: 'on' }, { op: 'nope' }]);
   assert.deepStrictEqual(out2.map((r) => r.ok), [true, false, true, true, true, true, false]);
-  assert.deepStrictEqual([e.people.m.items, e.people.m.out, e.people.m.rank, e.people.k.rank, e.people.k.etc, e.byDept], [undefined, true, undefined, undefined, undefined, true]);
+  assert.deepStrictEqual([e.people.m.items, e.people.m.out, e.people.m.rank, (e.people.k || {}).rank, (e.people.k || {}).etc, e.byDept], [undefined, true, undefined, undefined, undefined, true]);
+  assert.strictEqual(e.people.k, undefined, '필수 항목은 자동 계산하므로 직접 입력값을 모두 지운 사람은 저장에서 정리');
   assert.ok(out2[2].msg.includes('제외(미지급)') && out2[6].msg.includes('모르는 작업'));
   assert.strictEqual(api.agent.snapshot().n, 1, '미지급은 대상에서 빠짐');
-  // 연구내용 등급(research) · 필수 항목은 못 뺌
+  // 연구내용 등급(research) · 포함 항목(필수)은 못 뺌
   st.research = { r1: { id: 'r1', prjNo: P.prjNo, n: 1, contents: [{ item: 'DC 차단기 설계', details: [] }] } };
   const out3 = await api.agent.apply([{ op: 'research', value: 'dc 차단기설계', level: '나' }, { op: 'research', value: '없는 항목', level: '가' }, { op: 'research', value: 'DC 차단기 설계', level: '엉' }, { op: 'item_del', name: '김거화', value: '진도보고서 작성' }]);
   assert.deepStrictEqual(out3.map((r) => r.ok), [true, false, false, false]);
   assert.deepStrictEqual(e.research, { 'DC 차단기 설계': '나' });
-  assert.ok(out3[0].text === '연구내용 "dc 차단기설계" — 나 등급' && out3[0].msg.startsWith('연구내용 "DC 차단기 설계" — 나 등급(30점)') && out3[1].msg.includes('연구내용에 없습니다') && out3[2].msg.includes('가·나·다') && out3[3].msg.includes('필수 항목'), out3.map((r) => r.msg).join('\n'));
+  assert.ok(out3[0].text === '연구내용 "dc 차단기설계" — 나 등급' && out3[0].msg.startsWith('연구내용 "DC 차단기 설계" — 나 등급(30점)') && out3[1].msg.includes('연구내용에 없습니다') && out3[2].msg.includes('가·나·다') && out3[3].msg.includes('포함한 항목이라 사람에게서 뺄 수 없습니다'), out3.map((r) => r.msg).join('\n'));
+  const protectedItems = ['연구 총괄 및 관리', '진도 보고서 작성', '연구내용사전조사'];   // 필수 3개 (2026-10-22 — 연구계획서·최종보고서는 이제 보통 항목)
+  const protectedResults = await api.agent.apply(protectedItems.map((value) => ({ op: 'item_del', name: '김거화', value })));
+  assert.ok(protectedResults.every((r) => !r.ok && r.msg.includes('포함한 항목이라 사람에게서 뺄 수 없습니다')), '필수 3개는 띄어쓰기가 달라도 도우미가 개인 줄에서 삭제할 수 없음');
+});
+
+test('agent.apply — 전담 그룹 밖 연구자의 옛 개별 항목은 숨기고 도우미 추가·삭제도 공통 배정에 따름', async () => {
+  const { api, st } = withAgent(), key = S.planKey(P.prjNo, 1), name = '최종보고서 작성';
+  const stored = [{ name: '최종 보고서 작성', level: '가', count: 2, weight: 0.7 }, { name: '논문(SCI(E))', level: '가', count: 1, weight: 0.8 }];
+  st.allowCalc[key] = { people: { k: { items: stored.map((item) => ({ ...item })) } }, pick: { [name]: true }, groups: [{ name: '보고서 전담', people: ['m'], items: [name] }], at: 1 };   // 최종보고서는 2026-10-22 부터 필수가 아니라 pick 으로 포함
+  const snapshot = api.agent.snapshot();
+  assert.ok(!snapshot.people[0].includes('최종') && snapshot.people[0].includes('논문(SCI(E))') && snapshot.people[1].includes('최종보고서 작성(포함)'), '도우미 요약도 전담 그룹 적용 결과를 사용');
+  const results = await api.agent.apply([{ op: 'item_add', name: '김거화', value: name, level: '가', count: 1, weight: 1 }, { op: 'item_del', name: '김거화', value: '최종 보고서 작성' }]);
+  assert.ok(results.every((result) => !result.ok && result.msg.includes('포함한 항목')), '공통 포함 상태에서는 그룹 밖 사람에게도 도우미가 중복 추가·삭제하지 못함');
+  assert.deepStrictEqual(st.allowCalc[key].people.k.items, stored, '거절된 작업은 숨은 개별 저장값을 그대로 보존');
 });
 
 /* help-server/staff-chat.js run(…, { core }) — child_process.spawn 을 가짜로: 이 모듈의 시스템 프롬프트·스키마·요청 글로 돌고 결과를 이 모듈의 parse 로 읽는다 */

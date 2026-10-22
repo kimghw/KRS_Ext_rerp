@@ -146,7 +146,9 @@
   const bigNote = (blob) => blob && blob.size > TARGET_BYTES ? ' · 500KB 가 넘어 첨부 규칙이 “500KB 이하”인 과제에서는 빠질 수 있습니다(영역 선택으로 나눠 찍으면 작아짐)' : '';
   const stamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
   const siteOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, '').replace(/[^a-z0-9.-]/gi, '_').slice(0, 40) || 'page'; } catch (e) { return 'page'; } };
-  const fileOf = (blob, site, tag) => new File([blob], `capture_${site}_${stamp()}${tag}.${blob.type === 'image/png' ? 'png' : 'jpg'}`, { type: blob.type });
+  // src: 캡처한 탭의 { url, title } — File 에 얹어 두면 lib/prep.js addFiles 가 저장소에 출처로 넣는다(파일 칩 ↗ · Claude 청구내역 참고)
+  const fileOf = (blob, site, tag, src) => Object.assign(new File([blob], `capture_${site}_${stamp()}${tag}.${blob.type === 'image/png' ? 'png' : 'jpg'}`, { type: blob.type }), src ? { src } : {});
+  const srcOf = async (tabId) => { try { const t = await chrome.tabs.get(tabId); return t && t.url ? { url: t.url, title: t.title || '' } : null; } catch (e) { return null; } };
 
   function bind(host, state, draw, prep) {
     let session = null;   // { key, mode, tabId, windowId, stop }
@@ -179,7 +181,7 @@
         const cv = new OffscreenCanvas(w, h);
         cv.getContext('2d').drawImage(bmp, Math.round(r.rect.x * k), Math.round(r.rect.y * k), w, h, 0, 0, w, h);
         const blob = await encode(cv);
-        await prep.addFilesTo(s.key, [fileOf(blob, site, `_${s.n + 1}`)]);
+        await prep.addFilesTo(s.key, [fileOf(blob, site, `_${s.n + 1}`, await srcOf(s.tabId))]);
         s.n++; busy({ n: s.n });
         if (blob.size > TARGET_BYTES) s.big = true;
       }
@@ -190,7 +192,7 @@
       if (!info || info.kind === 'none') {   // 스크립트를 못 넣는 페이지(PDF 보기 등)이거나 스크롤할 곳이 없으면 보이는 부분만
         const bmp = await bitmapOf(await shot(s.windowId, s.tabId));
         const cv = new OffscreenCanvas(bmp.width, bmp.height); cv.getContext('2d').drawImage(bmp, 0, 0);
-        await prep.addFilesTo(s.key, [fileOf(await encode(cv), site, '')]);
+        await prep.addFilesTo(s.key, [fileOf(await encode(cv), site, '', await srcOf(s.tabId))]);
         s.n = 1;
         return info ? '' : ' (보이는 부분만 — 이 페이지는 스크롤해 찍을 수 없음)';
       }
@@ -218,7 +220,7 @@
       } finally { try { await exec(s.tabId, fullDone); } catch (e) {} }
       if (!cv || s.stop) return null;
       const blob = await encode(cv);
-      await prep.addFilesTo(s.key, [fileOf(blob, site, '')]);
+      await prep.addFilesTo(s.key, [fileOf(blob, site, '', await srcOf(s.tabId))]);
       s.n = 1;
       return (info.total > MAX_CSS_H ? ` (너무 길어 위에서 ${MAX_CSS_H.toLocaleString()}px 까지만)` : '') + bigNote(blob);
     }
