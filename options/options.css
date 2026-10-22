@@ -174,27 +174,96 @@ details.card[open] > summary { margin-bottom: 8px; }
 .rs-table tr.rs-text td { background: #fbfcfe; }
 .rs-table pre { margin: 0; font: 12px/1.5 Consolas, "Malgun Gothic", monospace; white-space: pre-wrap; word-break: keep-all; max-height: 420px; overflow: auto; }
 .rs-src { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 8px; background: #e6efff; color: #1f4e9c; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }   /* 공유 (Plus) 의 과제 파일에서 받은 기록 표시 "공유" */
-/* 공유 (Plus) 탭 (options.js 공유 (Plus) 절): 연결 확인 결과 줄과 표 아래 단추 결과 줄(.share-state)은 setStatus 처럼 사라지지 않고 남고, 지금 쓰는 밑폴더 줄(.share-folder) 옆에 폴더 열기·주소 복사·조직 내 링크 단추,
-   동료에게 공유하는 법(.share-guide)은 카드 설명 접기와 같은 ⓘ 배지(.desc-toggle)로 펼침. 동기화 항목 머리(.share-items). 과제별 표(.share-files)는 .prj-table 꼴 — 폴더 칸의 주인 칩(.share-owner), 공유 칸의 결과(.share-res)와 작은 단추(.share-acts), 폴더 없는 줄(.share-nofolder) */
+/* 공유 (Plus): 연결 → 공유 방식·동기화 항목 → 결과. 긴 설명은 각 구역 안에서 펼친다. */
+.share-card-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.share-card-head > div { min-width: 0; }
+.share-card-head h2 { margin-bottom: 3px; }
+.share-connection .share-card-head h2 { font-size: 19px; }
+.share-caption { margin: 0; font-size: 12px; color: var(--muted); }
+.share-enable.setting-toggle { flex: none; gap: 10px; padding: 8px 12px; border: 1px solid #dce5f2; border-radius: 9px; background: #f5f8fd; }
+.share-connect-form label { font-weight: 600; }
+.share-connect-form input { font-weight: 400; }
+.share-settings-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 16px; }
+.share-settings-grid > .card { min-width: 0; }
+.share-settings-grid h2 { margin-bottom: 3px; }
+.share-method.setting-toggle { justify-content: space-between; align-items: flex-start; gap: 18px; padding: 17px 0; }
+.share-method .setting-copy > span { margin-top: 4px; }
+.share-method input { margin-top: 2px; }
+.share-note { margin: 0 0 14px; padding: 11px 12px; border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; }
+.share-count { margin-left: auto; padding: 2px 8px; border-radius: 6px; background: #eef3fc; color: var(--accent); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+.share-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 13px 0 10px; }
+label.share-choice { display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 10px; border: 1px solid #e5eaf2; border-radius: 8px; cursor: pointer; }
+.share-choice:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.share-choice:has(input:checked) { border-color: #dce6f6; background: #f7faff; }
+.share-choice:hover { border-color: #b4c9ea; }
+.share-choice input { margin: 0; }
+.share-choice .setting-copy > span { font-size: 11.5px; margin-top: 0; }
+/* 과제별 공유의 공유할 과제(전체 / 고른 과제만 — #plusPrjPick 은 고른 과제만일 때) · 꺼져 있으면(.share-off) 흐리게 · 전체 공유(common) 카드 (options.js renderSharePrj · renderFetchShare) */
+.share-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.share-scope .share-small-label { display: inline; margin-right: 2px; font-size: 12px; }
+label.share-scope-opt { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 12.5px; font-weight: 400; cursor: pointer; }
+.share-prj-pick { display: grid; gap: 4px; max-height: 220px; overflow: auto; margin: 8px 0 0; padding: 8px 10px; border: 1px solid #e5eaf2; border-radius: 8px; background: #fbfcfe; }
+.share-prj-pick label { display: flex; align-items: baseline; gap: 8px; min-width: 0; margin: 0; font-size: 12.5px; font-weight: 400; cursor: pointer; }
+.share-prj-pick input { flex: none; margin: 0; align-self: center; }
+.share-prj-pick b { flex: none; white-space: nowrap; }
+.share-prj-pick .no { flex: none; color: var(--muted); font-size: 11.5px; }
+.share-prj-pick .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11.5px; }
+.share-prj-empty { color: var(--muted); font-size: 12px; }
+.share-sync-settings.share-off .share-scope, .share-sync-settings.share-off .share-prj-pick, .share-sync-settings.share-off .share-choices { opacity: .45; }
+.share-common .share-card-head { margin-bottom: 4px; }
+.share-common .share-scope { margin-top: 10px; }
+.share-scope-note { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }
+.share-common.share-off .share-scope, .share-common.share-off .share-prj-pick { opacity: .45; }
+.share-prj-pick .st { flex: none; margin-left: auto; padding-left: 8px; color: var(--muted); font-size: 11.5px; white-space: nowrap; }   /* 전체 공유 › 고른 과제만 — 과제마다 가맹점 폴더 공유 결과 (options.js sitesPrjState) */
+.share-prj-pick .st.ok { color: #1e7b3a; }
+.share-prj-pick .st.warn { color: #9a5b00; }
+.share-common .fetch-share:not(:empty) { margin-top: 2px; }
+.share-details { margin-top: 12px; border-top: 1px solid #edf0f5; padding-top: 8px; }
+.share-details > summary { margin: 0; padding: 3px 0; color: var(--muted); font-size: 12px; }
+.share-details > summary:hover { color: var(--accent); }
+.share-help-text { margin: 10px 0 0; padding: 12px 14px; background: var(--surface); border-radius: 8px; color: var(--muted); font-size: 12px; line-height: 1.75; }
+.share-help-text p { margin: 0 0 10px; }
+.share-help-text p:last-child { margin-bottom: 0; }
+.share-help-text dt { color: var(--ink); font-weight: 600; }
+.share-help-text dd { margin: 2px 0 12px; }
+.share-help-text dd:last-child { margin-bottom: 0; }
 .share-state { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .share-state:empty { display: none; }
 .share-state.on { color: #1a7f37; }
 .share-state.err { color: #b3261e; }
 .share-state.run { color: #1f4e9c; }
-.grid .share-folder-row { margin: 0; }
-.share-folder { flex: 1 1 240px; min-width: 0; font-size: 12.5px; overflow-wrap: anywhere; }
-.share-folder-row .desc-toggle { margin-left: 0; }
+#shareProbeState:not(:empty) { margin-top: 12px; padding: 9px 12px; border-radius: 8px; background: #f3f6fb; }
+#shareProbeState.on { background: #eff8f2; }
+#shareProbeState.err { background: #fff2f1; }
+.share-folder-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; padding: 12px; border: 1px solid #e6ebf2; border-radius: 9px; background: #fbfcfe; }
+.share-folder-location { flex: 1 1 220px; min-width: 0; }
+.share-small-label { display: block; color: var(--muted); font-size: 11px; }
+.share-folder { display: block; min-width: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.share-folder-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.share-folder-actions .btn { min-height: 32px; padding: 4px 9px; font-size: 12px; }
 .share-folder-row a.btn { display: inline-flex; align-items: center; text-decoration: none; }   /* 폴더 열기 링크를 옆 단추와 같은 꼴로 */
 #shareFolderStatus:not(:empty) { flex-basis: 100%; }
 .card .help.share-guide { display: block; padding: 12px 14px; margin: 6px 0 0; border-left: 3px solid #c8d9f5; border-radius: 0 8px 8px 0; background: var(--surface); line-height: 1.8; }
 .share-guide ol { margin: 4px 0 0; padding-left: 20px; }
 .share-guide li { margin: 2px 0; }
-.grid p.share-items { margin: 10px 0 -2px; padding-top: 10px; border-top: 1px solid #eef1f6; font-size: 13px; font-weight: 600; color: var(--ink); }
+.share-last-sync { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 12px; }
+.share-last-sync:empty, #plusSyncStatus:empty { display: none; }
+#plusSyncStatus:not(:empty) { margin-bottom: 12px; }
+.share-results .share-card-head > .btn { flex: none; }
+.share-empty { padding: 28px 16px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 13px; text-align: center; }
+.share-files .prj-table { min-width: 760px; }
+.share-files .prj-table th, .share-files .prj-table td { padding: 10px; }
+.share-files .prj-table tbody tr:hover td { background: #f8faff; }
+.share-project { min-width: 190px; max-width: 260px; }
+.share-project strong { display: block; color: var(--ink); font-size: 12px; font-weight: 500; }
+.share-project > span { display: block; margin-top: 3px; font: 11px/1.5 Consolas, monospace; color: var(--muted); }
+.share-file-years, .share-time > span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; }
+.share-time { min-width: 100px; }
 #plusSyncState .err, .share-files .err { color: #b3261e; }
 #plusSyncState .warn, .share-files .warn { color: #9a5b00; }
 .share-files td.tag { white-space: normal; }
-.share-files td.folder { min-width: 150px; }
-.share-files td.share { min-width: 200px; }
+.share-files td.folder { min-width: 120px; }
+.share-files td.share { min-width: 170px; }
 .share-files tr.share-nofolder td { background: #fffaf2; }
 .share-owner { display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 8px; background: #fff4e0; color: #9a5b00; font-size: 10.5px; font-weight: 600; vertical-align: 1px; white-space: nowrap; }
 .share-res { font-size: 12px; line-height: 1.6; }
@@ -230,6 +299,13 @@ details.card[open] > summary { margin-bottom: 8px; }
 .fetch-issue { display: flex; align-items: flex-end; gap: 8px; }
 .fetch-issue label { flex: 1; min-width: 0; }
 .fetch-issue .btn { flex: none; min-height: 32px; padding: 5px 10px; font-size: 12px; }
+.fetch-share { margin: 4px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }   /* 가맹점 목록 아래 공유 (Plus) 줄 (options.js renderFetchShare) */
+.fetch-share:empty { display: none; }
+.fetch-share.err { color: #b3261e; }
+.fetch-share.warn { color: #9a5b00; }
+.fetch-share .fetch-share-btn { min-height: 26px; margin-left: 6px; padding: 2px 9px; font-size: 12px; vertical-align: 1px; }
+.goto-flash { animation: goto-flash 2.4s ease-out; border-radius: 6px; }   /* [공유 (Plus) 에서 켜기] 로 넘어온 체크 상자 줄 */
+@keyframes goto-flash { 0%, 40% { background: rgba(37,99,235,.14); box-shadow: 0 0 0 2px rgba(37,99,235,.35); } 100% { background: transparent; box-shadow: 0 0 0 2px transparent; } }
 /* LLM 설정 탭 › 증빙 찾아오기 · 자주 사용 가맹점의 찾는 방법 익히기 (options/fetch-chat.js — 팝업 Help Chat 줄과 같은 모양, 가맹점 칸들 위의 옅은 파랑 상자) */
 .fetch-chat { border: 1px solid #d5e2fb; border-radius: 11px; background: #f5f8ff; padding: 14px 16px; margin: 0 0 14px; scroll-margin-top: 85px; }
 .fetch-chat .fc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 10px; }
@@ -262,6 +338,7 @@ details.card[open] > summary { margin-bottom: 8px; }
   .fetch-chat .fc-form select { grid-column: 1 / -1; }
   .fetch-site > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .row.sticky { padding: 14px 20px; }
+  .share-settings-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 @media (max-width: 540px) {
   body { padding: 20px 12px 130px; }
@@ -286,6 +363,11 @@ details.card[open] > summary { margin-bottom: 8px; }
   .row.sticky { padding: 12px; gap: 8px; }
   .save-hint { flex-basis: 100%; margin: 0; font-size: 11px; }
   .row > input, .row > select { max-width: 100%; min-width: 0; }
+  .share-card-head { flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .share-enable.setting-toggle { padding: 5px 9px; }
+  .share-folder-actions { width: 100%; }
+  .share-connect-form > .btn { width: 100%; }
+  .share-choices { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::after { transition: none !important; }

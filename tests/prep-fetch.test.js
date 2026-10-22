@@ -228,14 +228,20 @@ test('등록: 비밀번호는 확장 페이지에서 온 것만 저장, 고쳐 �
   assert.ok(!(store.fetchCred || {})[s.id], '콘텐츠 스크립트가 보낸 비밀번호는 무시');
   await PF.saveSite(Object.assign({}, s), { id: 'me', pw: 'pw1' }, true);
   assert.deepStrictEqual(store.fetchCred[s.id], { id: 'me', pw: 'pw1' });
+  assert.ok(s.at > 0 && store.fetchSites[0].at === s.at, '새 등록은 수정 시각을 찍음');
+  store.fetchSites[0].at = 5;   // 같은 값으로 다시 저장하면 수정 시각 그대로
+  await PF.saveSite(Object.assign({}, store.fetchSites[0]), null, true);
+  assert.strictEqual(store.fetchSites[0].at, 5, '올리는 칸이 같으면 수정 시각 그대로');
   store.fetchSites[0].howto = '구매내역 → 거래명세서'; store.fetchSites[0].last = { ts: 1, state: 'done', n: 2 };
   const s2 = await PF.saveSite({ id: s.id, label: '인프런2', match: '인프랩', url: 'https://www.inflearn.com/my/orders', kind: 'lecture' }, null, true);
   assert.strictEqual(s2.howto, '구매내역 → 거래명세서');
+  assert.ok(s2.at > 5, '이름을 고치면 수정 시각을 새로');
   assert.strictEqual(store.fetchSites[0].last.n, 2);
   assert.strictEqual(store.fetchSites.length, 1);
   assert.deepStrictEqual(store.fetchCred[s.id], { id: 'me', pw: 'pw1' }, 'cred 없이 저장하면 비밀번호 그대로');
   await PF.removeSite(s.id);
   assert.strictEqual(store.fetchSites.length, 0);
+  assert.ok(store.fetchSitesSync && store.fetchSitesSync.del[s.id] && store.fetchSitesSync.del[s.id].match === '인프랩', '지운 시각으로 묘비 (공유 (Plus) 가맹점 파일)');
   assert.ok(!store.fetchCred[s.id]);
 });
 test('찾아오기: 등록 안 된 가맹점·꺼진 설정·옛 서버는 시작하지 않음', async () => {

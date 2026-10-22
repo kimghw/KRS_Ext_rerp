@@ -12,7 +12,7 @@ let n = 0, failed = 0;
 const test = (name, fn) => { try { fn(); n++; console.log('ok  ', name); } catch (e) { failed++; console.log('FAIL', name, '\n   ', e.stack || e.message); process.exitCode = 1; } };
 
 const OLD_KEYS = ['connect', 'graph', 'onenoteMcpUrl', 'sectionName', 'notebookId', 'notebookLabel', 'sectionId', 'sectionLabel', 'planPageUrl'];
-const PLUS = { enabled: false, folder: '', driveHost: 'https://krclass-my.sharepoint.com', researchSync: true, staffSync: true, planSync: true, changesSync: true, discover: true, shareWith: 'participants' };
+const PLUS = { enabled: false, folder: '', driveHost: 'https://krclass-my.sharepoint.com', researchSync: true, staffSync: true, planSync: true, changesSync: true, sitesSync: true, discover: true, shareWith: 'participants', projectSync: true, scope: 'all', projects: [], sitesScope: 'all', sitesProjects: [] };
 
 test('DEFAULTS.plus — 공유 폴더 기본(비움 = 내 OneDrive 의 문서/업무/shared) · driveHost · 네 동기화 체크 · 자동 찾기 · 참여연구원 자동 공유, 원노트·MCP·Entra 칸은 없음', () => {
   assert.deepStrictEqual(S.DEFAULTS.plus, PLUS);
@@ -74,6 +74,37 @@ test('shareWith 는 participants | none 만, discover · changesSync 는 참/거
     assert.strictEqual(S.fromStored({ plus: { discover: v } }).plus.discover, true, `discover ${JSON.stringify(v)}`);
     assert.strictEqual(S.fromStored({ plus: { changesSync: v } }).plus.changesSync, true, `changesSync ${JSON.stringify(v)}`);
   }
+});
+test('공유할 과제 — scope 는 all | pick 만(그 밖은 all), projects 는 다듬은 과제번호(중복·빈 값 뺌), projectSync 는 참/거짓만', () => {
+  assert.strictEqual(S.fromStored({ plus: { scope: 'pick' } }).plus.scope, 'pick');
+  for (const v of ['', 'some', 1, true, null, {}]) assert.strictEqual(S.fromStored({ plus: { scope: v } }).plus.scope, 'all', `scope ${JSON.stringify(v)}`);
+  assert.deepStrictEqual(S.fromStored({ plus: { projects: [' 2026-0063-01 ', '', null, '2026-0063-01', 7] } }).plus.projects, ['2026-0063-01', '7']);
+  assert.deepStrictEqual(S.fromStored({ plus: { projects: 'x' } }).plus.projects, []);
+  assert.strictEqual(S.fromStored({ plus: { projectSync: false } }).plus.projectSync, false);
+  assert.strictEqual(S.fromStored({ plus: { projectSync: 0 } }).plus.projectSync, true);
+  const a = S.fromStored({}), b = S.fromStored({});
+  a.plus.projects.push('X');
+  assert.deepStrictEqual([b.plus.projects, S.DEFAULTS.plus.projects], [[], []], 'DEFAULTS 의 배열을 같이 쓰지 않는다');
+});
+test('가맹점을 공유할 과제 — sitesScope 는 all | pick 만, sitesProjects 는 다듬은 과제번호, sitesPick 은 고른 과제만이면 그 목록 · 아니면 null, 과제별 공유의 scope 와 따로', () => {
+  const s = S.fromStored({ plus: { sitesScope: 'pick', sitesProjects: [' A ', 'A', '', 'B'], scope: 'all' } }).plus;
+  assert.deepStrictEqual([s.sitesScope, s.sitesProjects, s.scope], ['pick', ['A', 'B'], 'all']);
+  for (const v of ['', 'x', null, 1]) assert.strictEqual(S.fromStored({ plus: { sitesScope: v } }).plus.sitesScope, 'all', `sitesScope ${JSON.stringify(v)}`);
+  assert.deepStrictEqual(S.fromStored({ plus: { sitesProjects: 'A' } }).plus.sitesProjects, []);
+  assert.deepStrictEqual([S.sitesPick({ sitesScope: 'pick', sitesProjects: ['A'] }), S.sitesPick({ sitesScope: 'pick' }), S.sitesPick({ sitesScope: 'all', sitesProjects: ['A'] }), S.sitesPick(null)], [['A'], [], null, null]);
+  assert.strictEqual(S.sitesPick({ scope: 'pick', projects: ['A'] }), null, '과제별 공유의 고른 과제와 섞지 않는다');
+  const a = S.fromStored({}), b = S.fromStored({});
+  a.plus.sitesProjects.push('X');
+  assert.deepStrictEqual([b.plus.sitesProjects, S.DEFAULTS.plus.sitesProjects], [[], []]);
+});
+test('sharePick · sharesProject — 전체면 null · 모든 과제, 고른 과제면 그 목록만, 공유 꺼짐·과제별 꺼짐이면 아무 과제도', () => {
+  assert.strictEqual(S.sharePick({ scope: 'all', projects: ['A'] }), null);
+  assert.deepStrictEqual(S.sharePick({ scope: 'pick', projects: ['A'] }), ['A']);
+  assert.deepStrictEqual(S.sharePick({ scope: 'pick' }), []);
+  assert.strictEqual(S.sharePick(null), null);
+  assert.deepStrictEqual(['A', 'B'].map((p) => S.sharesProject({ enabled: true, scope: 'all' }, p)), [true, true]);
+  assert.deepStrictEqual(['A', 'B'].map((p) => S.sharesProject({ enabled: true, scope: 'pick', projects: ['A'] }, p)), [true, false]);
+  assert.deepStrictEqual([S.sharesProject({ enabled: false, scope: 'all' }, 'A'), S.sharesProject({ enabled: true, projectSync: false }, 'A'), S.sharesProject(null, 'A')], [false, false, false]);
 });
 test('입력을 바꾸지 않는다 · 다른 migrate 는 그대로(actionSidePanel 버림)', () => {
   const stored = { plus: { enabled: true, sectionId: 'old', sectionLabel: 'x', connect: 'mcp' }, actionSidePanel: true };

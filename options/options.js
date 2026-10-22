@@ -150,6 +150,8 @@
   async function loadProjects() {
     projectList = (await chrome.storage.local.get('projectList')).projectList || null;
     renderProjects();
+    renderSharePrj();   // 공유 (Plus) › 과제별 공유 › 고른 과제만의 목록
+    renderSitesPrj();   // 공유 (Plus) › 전체 공유 › 공유할 과제(가맹점)의 목록
     const sel = $('diagPrj');
     const projects = (projectList && projectList.projects) || [];
     sel.innerHTML = '<option value="">과제 선택</option>' + projects.map((p) => `<option value="${F.esc(p.prjNo)}">${F.esc(p.prjNo)} ${F.esc(p.rspr || '')} ${F.esc((p.prjNm || '').slice(0, 40))}</option>`).join('');
@@ -439,9 +441,18 @@
     $('plusResearchSync').checked = pl.researchSync !== false;   // 연구내용 · 사업비 동기화 (0.8.7)
     $('plusStaffSync').checked = pl.staffSync !== false;
     $('plusChangesSync').checked = pl.changesSync !== false;     // 변경이력 (v2 연차 파일의 changes)
+    $('plusSitesSync').checked = pl.sitesSync !== false;         // 전체 공유 › 자주 사용 가맹점 (밑폴더/common/가맹점.json, 2026-10-22)
+    $('plusProjectSync').checked = pl.projectSync !== false;     // 과제별 공유 켜기 (2026-10-22)
+    setShareScope(pl.scope === 'pick' ? 'pick' : 'all');         // 공유할 과제 — 전체 / 고른 과제만
+    sharePrjSel = new Set((Array.isArray(pl.projects) ? pl.projects : []).map(String));
+    renderSharePrj();
+    setSitesScope(pl.sitesScope === 'pick' ? 'pick' : 'all');    // 전체 공유 › 가맹점을 공유할 과제 — 전체 / 고른 과제만 (2026-10-22)
+    sitesPrjSel = new Set((Array.isArray(pl.sitesProjects) ? pl.sitesProjects : []).map(String));
+    renderSitesPrj();
     $('plusDiscover').checked = pl.discover !== false;           // 나와 공유된 과제 폴더 자동 찾기 (기본 켬)
     $('plusShareWith').checked = String(pl.shareWith || 'participants') !== 'none';   // 폴더를 만들 때 참여연구원에게 자동 공유 ('participants' | 'none')
     updateShareSummary();
+    renderFetchShare();   // 자주 사용 가맹점 아래 공유 줄 (공유 (Plus) 의 가맹점 파일)
     renderShareFolder();
     const hp = Object.assign({}, S.DEFAULTS.help, s.help || {});   // Help Chat (로컬 Help 서버)
     $('helpEnabled').checked = hp.enabled !== false;
@@ -549,7 +560,9 @@
       plus: {   // 공유 (Plus) — driveHost 는 칸이 없어 저장하지 않음 (lib/settings.js 가 기본값으로 채움)
         enabled: $('plusEnabled').checked,
         folder: $('plusFolder').value.trim(),   // '' = 내 OneDrive 의 문서/업무/shared (밑폴더)
-        planSync: $('plusPlanSync').checked, researchSync: $('plusResearchSync').checked, staffSync: $('plusStaffSync').checked, changesSync: $('plusChangesSync').checked,
+        planSync: $('plusPlanSync').checked, researchSync: $('plusResearchSync').checked, staffSync: $('plusStaffSync').checked, changesSync: $('plusChangesSync').checked, sitesSync: $('plusSitesSync').checked,
+        projectSync: $('plusProjectSync').checked, scope: shareScopeVal(), projects: Array.from(sharePrjSel),   // 과제별 공유 · 공유할 과제(전체 / 고른 과제만 — #plusPrjPick)
+        sitesScope: sitesScopeVal(), sitesProjects: Array.from(sitesPrjSel),                                 // 전체 공유 › 가맹점을 공유할 과제(#plusSitesPrjPick)
         discover: $('plusDiscover').checked,                                        // 나와 공유된 과제 폴더 자동 찾기
         shareWith: $('plusShareWith').checked ? 'participants' : 'none'             // 과제 폴더를 만들 때 참여연구원에게 자동 공유(편집)
       },
@@ -824,6 +837,7 @@
   let fetchList = [], fetchDirty = false, fetchNewIdx = -1;
   const fetchOpen = new Set();   // 펼친 가맹점 칸(id, 저장 전 새 칸은 'new'+순번) — 다시 그려도 펼친 채로 (2026-10-22 칸을 접게)
   const fsKey = (s, i) => s.id || 'new' + i;
+  const fetchRemoved = new Set();   // 이 페이지에서 [삭제]한 등록 id — 저장 때 이것만 지우고, 고치는 사이 공유 (Plus) 동기화가 받아 넣은 가맹점은 남긴다
   /* 종류별 필요 서류 칸의 지금 값 (비운 칸은 기본) — 저장(help.fetchDocs)과 가맹점 칸의 "종류 기본 (…)" 표시에 */
   function kindDocsNow() {
     const out = {};
@@ -854,7 +868,8 @@
       const docs = Array.from(new Set(SITES.DOC_CHOICES.concat(extra, need)));
       const k = SITES.knownOf(s) || {};   // 알려진 가맹점이면 칸 예시도 그 업체 것으로
       const last = s.last ? `마지막 ${F.fmtClock(s.last.ts)} · ${s.last.state === 'done' ? `${s.last.n}개 찾아옴` : s.last.state === 'empty' ? '찾지 못함' : s.last.state === 'canceled' ? '중지' : '실패'}${s.last.msg ? ` — ${s.last.msg}` : ''}` : '아직 찾아오지 않음';
-      const key = fsKey(s, i), head = `${SITES.kindLabel(s.kind)} · ${last}`;
+      const upd = s.at ? `수정 ${F.fmtClock(s.at)}${s.by && s.by !== fetchMe ? ` ${s.by}` : ''}` : '';   // 올리는 칸을 마지막으로 고친 때 (공유 (Plus) 가 이 날짜로 최신을 고름)
+      const key = fsKey(s, i), head = [SITES.kindLabel(s.kind), upd, last].filter(Boolean).join(' · ');
       /* 접는 칸(2026-10-22 사용자 "접히게 … 여백이 너무 많고 필요 없는 설명은 빼줘"): 머리 줄 = 이름 · 종류 · 마지막 결과, 단추는 펼쳤을 때만. 칸 설명은 툴팁(title)으로 */
       return `<details class="fetch-site${i === fetchNewIdx ? ' fetch-new' : ''}" data-fs="${i}" data-fkey="${F.esc(key)}" id="fs-${F.esc(s.id || 'new' + i)}"${i === fetchNewIdx || fetchOpen.has(key) ? ' open' : ''}>
         <summary class="fetch-site-head"><span class="fetch-site-name">${F.esc(s.label || '새 가맹점')}</span><span class="fetch-site-last" title="${F.esc(head)}">${F.esc(head)}</span><span class="fetch-site-actions"><button type="button" class="btn" data-fs-guide="${i}" title="이 가맹점의 안내 글(등록 값 · 기억한 찾는 방법 · Help 서버의 사이트 안내 파일 site-fetch/sites/*.md 원문)을 복사합니다 — 다른 PC 의 등록이나 Claude 에 옮겨 줄 때">안내 복사</button><button type="button" class="btn" data-fs-export="${i}" title="이 가맹점의 등록 값(이름 · 가맹점 글자 · 주소 · 종류 · 필요 서류 · Chrome · 찾는 곳 메모 · 기억한 찾는 방법)을 YAML 파일로 내려받습니다 — 아이디·비밀번호는 넣지 않습니다. 아래 [가져오기]로 다시 넣습니다">내보내기</button><button type="button" class="btn" data-fs-prompt="${i}" title="이 가맹점 사이트를 찾아오기에 붙이는(fetch-site 스킬) Claude Code 프롬프트를 이 칸의 값으로 채워 복사합니다 — 이 확장 폴더에서 연 Claude Code 에 붙여 넣으세요. 위 찾는 방법 익히기는 같은 글을 Help 서버로 보냅니다">만들기 프롬프트 복사</button><button type="button" class="btn danger" data-fs-del="${i}" aria-label="${F.esc(s.label || '새 가맹점')} 삭제">삭제</button></span></summary>
@@ -955,6 +970,7 @@
     const b = ev.target.closest('[data-fs-del]'); if (!b) return;
     const s = fetchList[Number(b.dataset.fsDel)];
     if (s && s.id && !confirm(`${s.label || s.match} 등록을 지울까요? (아이디·비밀번호도 지워집니다. 아래 저장을 눌러야 반영)`)) return;
+    if (s && s.id) fetchRemoved.add(s.id);
     fetchList.splice(Number(b.dataset.fsDel), 1); fetchDirty = true; fetchNewIdx = -1; renderFetchSites();
   });
   function addFetchSite(shop) {
@@ -1001,11 +1017,21 @@
     setStatus('fetchStatus', [done.length ? `가져옴: ${done.join(', ')} — 아래 저장을 누르세요` : '', bad.length ? `못 읽음: ${bad.join(' · ')}` : ''].filter(Boolean).join(' / ') || '가져올 파일이 없습니다', !!bad.length);
   });
   $('helpFetch').addEventListener('change', updateFetchSummary);
-  /* 저장 버튼: 빈 새 칸은 버리고, 칸마다 검사(lib/fetch-sites.js sanitize) → fetchSites + fetchCred. last(마지막 결과)는 저장소의 지금 값을 살린다 */
+  /* 고친 사람 — R&D ERP 로그인 이름, 없으면 설정의 내 이름 (가맹점 수정 시각과 같이 남김 · 머리 줄에서 남이 고친 것만 이름을 보임) */
+  let fetchMe = '';
+  async function fetchWho() {
+    try { const u = (await chrome.storage.local.get('rndUser')).rndUser; if (u && u.userNm) return (fetchMe = String(u.userNm)); } catch (e) {}
+    try { return (fetchMe = String((await S.load()).myName || '')); } catch (e) { return ''; }
+  }
+  fetchWho().then(() => { if (fetchList.length) renderFetchSites(); }).catch(() => {});
+  /* 저장 버튼: 빈 새 칸은 버리고, 칸마다 검사(lib/fetch-sites.js sanitize) → fetchSites + fetchCred. last(마지막 결과)는 저장소의 지금 값을 살린다.
+   * 저장소에는 있는데 이 페이지 목록에 없는 등록은 [삭제]한 것(fetchRemoved)만 지우고 나머지(고치는 사이 공유 (Plus) 가 받아 넣은 것)는 아이디·비밀번호와 함께 남긴다 */
   async function saveFetchSites() {
     if (!fetchDirty) return;
     const stored = await SITES.load();
-    const sites = [], cred = {};
+    let oldCred = {};
+    try { oldCred = (await chrome.storage.local.get(SITES.CRED))[SITES.CRED] || {}; } catch (e) {}
+    const sites = [], cred = {}, now = Date.now(), who = await fetchWho();
     for (const s of fetchList) {
       if (!s.id && !String(s.url || '').trim() && !String(s.match || '').trim()) continue;
       let c;
@@ -1013,16 +1039,77 @@
       if (!c.id) c.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + sites.length;
       const old = stored.find((x) => x.id === c.id);
       if (old) c.last = old.last || null;
+      SITES.stamp(c, old, now, who);   // 올리는 칸이 바뀐 등록만 수정 시각·사람 (공유 (Plus) 가맹점 파일에서 날짜가 늦은 쪽이 이김)
       if (!s.id && fetchOpen.has('new' + fetchList.indexOf(s))) fetchOpen.add(c.id);   // 펼친 새 칸은 저장 뒤에도 펼친 채로
       s.id = c.id;
       sites.push(c);
       const id = String(s.loginId || '').trim(), pw = String(s.loginPw || '');
       if (id || pw) cred[c.id] = { id, pw };
     }
+    for (const x of stored) if (x && x.id && !fetchRemoved.has(x.id) && !sites.some((c) => c.id === x.id)) { sites.push(x); if (oldCred[x.id]) cred[x.id] = oldCred[x.id]; }
+    await SITES.bury(stored.filter((x) => x && fetchRemoved.has(x.id)), now);   // [삭제]한 등록은 지운 시각으로 묘비
     await chrome.storage.local.set({ [SITES.KEY]: sites, [SITES.CRED]: cred });
-    fetchDirty = false; fetchNewIdx = -1;
+    fetchDirty = false; fetchNewIdx = -1; fetchRemoved.clear();
   }
-  chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch[SITES.KEY] && !fetchDirty) loadFetchSites().catch(() => {}); });
+  chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch[SITES.KEY] && !fetchDirty) loadFetchSites().catch(() => {}); if (area === 'local' && (ch.shareState || ch.shareSitesPeople)) renderFetchShare(); if (area === 'local' && ch.shareSitesPeople) renderSitesPrj(); });
+  /* 가맹점 목록 아래 공유 줄 — 공유 (Plus) 의 가맹점 파일(밑폴더/common/가맹점.json, background.js shareSync → shareState.sites · lib/sites-sync.js): 폴더 열기 · 동기화 시각 · 가맹점 수 · 합친 동료 파일 · 받은/올린 것 */
+  async function renderFetchShare() {
+    const el = $('fetchShare'), el2 = $('plusCommonState'); if (!el) return;   // el2: 공유 (Plus) 탭 › 전체 공유 카드의 같은 줄(꺼져 있을 때는 비움 — 그 탭에 켜는 상자가 있으므로)
+    const set = (html, cls) => { for (const x of [el, el2]) if (x) { x.innerHTML = html; x.className = 'fetch-share' + (cls ? ' ' + cls : ''); } };
+    if (!$('plusEnabled').checked || !$('plusSitesSync').checked) {
+      if (el2) { el2.innerHTML = ''; el2.className = 'fetch-share'; }   // 꺼진 까닭(Plus 전체 · 가맹점 항목)을 말하고 그 체크 상자로 가는 단추 — 켜는 것은 그 탭에서(Plus 를 켜면 과제 폴더 동기화·자동 공유도 함께 켜지므로 여기서 대신 켜지 않음)
+      const why = !$('plusEnabled').checked ? '<b>공유 (Plus) 사용</b>과 <b>자주 사용 가맹점</b>을' : '<b>자주 사용 가맹점</b>을';
+      el.className = 'fetch-share';
+      return void (el.innerHTML = `SharePoint 공유 꺼짐 — 공유 (Plus) 탭 › 전체 공유의 ${why} 켜면 OneDrive 의 <code>업무/shared/common/가맹점.json</code> 으로 내 PC 끼리, 동료와 맞춥니다(아이디·비밀번호는 올리지 않음) <button type="button" class="btn fetch-share-btn" data-sites-goplus>공유 (Plus) 에서 켜기</button>`);
+    }
+    let st = null, sp = null;
+    try { const l = await chrome.storage.local.get(['shareState', 'shareSitesPeople']); st = (l.shareState || {}).sites || null; sp = (l.shareSitesPeople || {}).last || null; } catch (e) {}
+    /* 동료 공유(common 폴더 읽기 — background.js shareSitesFolder · 자동 공유) 결과 + [동료에게 공유] 단추 */
+    const noPrj = sitesScopeVal() === 'pick' && !sitesPrjSel.size;   // 고른 과제만인데 하나도 안 고름 — 동기화(내 파일·동료 파일)는 돌고 공유만 안 함
+    const shareTxt = noPrj ? ' · 공유할 과제를 고르지 않아 동료에게 공유하지 않음' : sp ? ` · 읽기 공유 ${sp.shared}명${sp.at ? `(${F.esc(F.fmtClock(sp.at))})` : ''}${(sp.ambiguous || []).length ? ` · 이름 겹침 ${F.esc(sp.ambiguous.join(', '))}` : ''}${(sp.notFound || []).length ? ` · 못 찾음 ${F.esc(sp.notFound.join(', '))}` : ''}${sp.error ? ` · 공유 오류 ${F.esc(sp.error)}` : ''}` : ' · 아직 아무와도 공유하지 않음';
+    const btn = ' <button type="button" class="btn fetch-share-btn" data-sites-share title="가맹점 폴더(shared/common)를 공유할 과제(공유 (Plus) › 전체 공유 — 참여 과제 전체 또는 고른 과제)의 참여연구원에게 읽기로 공유합니다 — 누를 때 과제별 이름을 먼저 보여 주고 확인을 받습니다. 동료는 나와 공유에서 이 폴더를 찾아 가맹점 파일을 읽어 합칩니다">동료에게 공유</button>';
+    if (!st) return set(`공유: 다음 동기화 때 <code>shared/common/가맹점.json</code> 을 만들거나 받습니다${shareTxt}${btn}`);
+    if (!st.ok) return set(`공유 실패 — ${F.esc(st.error || '')}${btn}`, 'err');
+    const others = (st.others || []).filter((o) => !o.error).map((o) => `${F.esc(o.owner || '동료')} ${o.n}곳`);
+    const bad = (st.others || []).filter((o) => o.error).map((o) => `${F.esc(o.owner || '동료')}(${F.esc(o.error)})`);
+    const got = [st.added && `새로 받음 ${st.added}`, st.updated && `고쳐 받음 ${st.updated}`, st.removed && `지움 ${st.removed}`, st.pushed && '올림'].filter(Boolean).join(' · ');
+    set(`공유: ${st.folderUrl ? `<a href="${F.esc(st.folderUrl)}" target="_blank" rel="noopener">shared/common</a>` : 'shared/common'}/가맹점.json · ${F.esc(F.fmtClock(st.at))} · ${st.count || 0}곳${others.length ? ` · 동료 파일 ${others.join(', ')}` : ''}${got ? ` · ${got}` : ''}${bad.length ? ` · 못 읽음 ${bad.join(', ')}` : ''}${shareTxt}${btn}`, bad.length || (sp && sp.error) ? 'warn' : '');
+  }
+  /* [동료에게 공유]: 이름을 먼저 받아(dry) 확인 → 공유 (common 폴더 읽기 권한) */
+  async function onSitesShareClick(ev, statusId) {
+    const go = ev.target.closest('[data-sites-goplus]');
+    if (go) {   // [공유 (Plus) 에서 켜기]: 공유 탭으로 넘어가 꺼져 있는 체크 상자(Plus 사용 → 가맹점)를 보여 주고 잠깐 강조
+      showTab('share'); history.replaceState(null, '', '#share');
+      const box = $(!$('plusEnabled').checked ? 'plusEnabled' : 'plusSitesSync'), row = box.closest('label') || box;
+      row.scrollIntoView({ block: 'center' }); box.focus({ preventScroll: true });
+      row.classList.remove('goto-flash'); void row.offsetWidth; row.classList.add('goto-flash');
+      return;
+    }
+    const b = ev.target.closest('[data-sites-share]'); if (!b) return;
+    b.disabled = true;
+    try {
+      const scope = sitesScopeVal(), prjNos = Array.from(sitesPrjSel);   // 저장 전이어도 지금 고른 대로 (백그라운드가 설정 대신 이것을 씀)
+      setStatus(statusId, `${scope === 'pick' ? '고른' : '참여'} 과제의 참여연구원을 찾는 중…`);
+      let d = null;
+      try { d = await chrome.runtime.sendMessage({ type: 'sitesShare', dry: true, scope, prjNos }); } catch (e) { d = { ok: false, message: String(e.message || e) }; }
+      if (!d || !d.ok) { setStatus(statusId, (d && (d.message || d.error)) || '공유할 사람을 찾지 못했습니다', true); return; }
+      let aliases = {};
+      try { aliases = (await chrome.storage.local.get('projectAliases')).projectAliases || {}; } catch (e) {}
+      const byPrj = d.byPrj && typeof d.byPrj === 'object' ? d.byPrj : {};
+      const lines = (Array.isArray(d.prjNos) ? d.prjNos : Object.keys(byPrj)).filter((no) => Array.isArray(byPrj[no])).map((no) => `[${aliases[no] || no}] ${byPrj[no].length ? byPrj[no].join(', ') : '(나 말고 없음)'}`);
+      if (!confirm(`가맹점 폴더(shared/common)를 ${d.names.length}명에게 읽기로 공유할까요?
+
+${lines.length ? lines.join('\n') : d.names.join(', ')}`)) { setStatus(statusId, ''); return; }
+      setStatus(statusId, '공유하는 중…');
+      let r = null;
+      try { r = await chrome.runtime.sendMessage({ type: 'sitesShare', names: d.names, byPrj, scope, prjNos: d.prjNos || prjNos }); } catch (e) { r = { ok: false, message: String(e.message || e) }; }
+      setStatus(statusId, r && r.ok ? `가맹점 폴더 — ${r.message}` : `공유 실패: ${(r && (r.message || r.error)) || ''}`, !(r && r.ok));
+      renderFetchShare(); renderSitesPrj();
+    } finally { b.disabled = false; }
+  }
+  $('fetchShare').addEventListener('click', (ev) => onSitesShareClick(ev, 'fetchStatus'));
+  $('plusCommonState').addEventListener('click', (ev) => onSitesShareClick(ev, 'plusSyncStatus'));   // 공유 (Plus) 탭 › 전체 공유 카드의 [동료에게 공유]
+  for (const id of ['plusEnabled', 'plusSitesSync']) $(id).addEventListener('change', () => { renderFetchShare(); updateSitesSummary(); });
   /* 패널이 연 주소의 #fetch-new=… / #fetch=… / #fetch-chat=… (LLM 설정 탭의 증빙 찾아오기 구역) */
   async function fetchFromHash() {
     const h = decodeURIComponent(String(location.hash || '').slice(1));
@@ -1226,7 +1313,7 @@
    * 2026-10-18 사용자 지정: "아니 mcp 없이 grph api 하지 않고 브라우저 토큰으로 하라고" → (저녁) "onedrive 에 업무/shared 안에 과제별로 .. 약칭으로 없으면 jobid 없으면 임시번호. 이렇게 하고 여기에 넣자. 년차별로 1개 파일이고 1개 파일에서 변경사항이랑 다 관리했으면 좋겠어. 과제 정보랑 등등."
    *   → "그리고 참여연구원들에게 공유할 수 있게 설정까지 같이해줘. .. 그리고 workspace 에도 경로주면 알아서 동기화" → "예상지출도 다 들어 가겠지? 이건 별도 파일에서 해도 되긴하는데 알아서 해줘."
    *   밑폴더(base) = plus.folder, 비면 내 OneDrive 의 문서/업무/shared. 과제 폴더 = base/<약칭 → Job Id → 과제번호>/ 에 <n>차년도.json(과제 정보 · 예산 줄 · 참여연구원 계획 · 연구내용 · 변경이력) + 예상비용.json(모든 연차의 예상 비용 — 별도 파일).
-   *   설정 plus = { enabled, folder, planSync, researchSync, staffSync, changesSync, discover(나와 공유 자동 찾기), shareWith('participants' | 'none' — 폴더를 만들 때 참여연구원에게 자동 공유) } (driveHost 는 기본값 — 칸 없음).
+   *   설정 plus = { enabled, folder, planSync, researchSync, staffSync, changesSync, sitesSync(자주 사용 가맹점 — common/가맹점.json, lib/sites-sync.js), discover(나와 공유 자동 찾기), shareWith('participants' | 'none' — 폴더를 만들 때 참여연구원에게 자동 공유) } (driveHost 는 기본값 — 칸 없음).
    * storage.local.shareState (v2) = { at, ok, reason, ms, base:{ path, viewUrl }(v1 은 folder), count(과제), files(쓴/읽은 파일 수), written, pulled, errors, error?, kind?,
    *   pages:{ [prjNo]: { prjNo, title, folder(폴더 이름), folderUrl(보기 주소), webUrl(현재 연차 파일), owner?(남의 폴더면 사이트 주인 — 나와 공유로 찾은 것), years:[n…], at, created, pulled, pushed, count, counts{ plan, research, staff, budget, changes }, remoteAt, remoteBy,
    *     noFolder?(폴더가 없고 내가 만들 자격(책임자·로컬 자료)도 없음), error?, kind?, share?{ shared:[{ name, email }], ambiguous:[{ name, candidates:[…] }], notFound:[name], error? }(자동 공유 결과) } }, index }
@@ -1270,28 +1357,91 @@
   /* 지금 쓰는 밑폴더 줄: 칸이 비면 "내 OneDrive 의 문서/업무/shared", 아니면 "붙여 넣은 폴더" — 풀린 경로가 있으면 함께, 폴더 열기 링크는 viewUrl 이 있을 때만 */
   function renderShareFolder() {
     const typed = $('plusFolder').value.trim(), fresh = typed === savedFolder, f = fresh ? shareFolderInfo : null;
-    const where = typed ? '붙여 넣은 폴더' : BASE_LABEL;
     const el = $('shareFolderNow');
-    el.textContent = !fresh ? '주소가 바뀌었습니다 — 연결 확인(저장됨)이나 저장을 누르세요'
-      : f && f.path ? `밑폴더(${where}): ${f.path} — 과제 폴더는 이 아래`
-      : typed ? `${where} — 연결 확인을 누르면 경로가 보입니다` : `${where} (칸이 비어 있어 기본값) — 연결 확인이나 첫 동기화 때 풀립니다(없으면 만듦)`;
+    el.textContent = !fresh ? '주소 변경됨 · 연결 확인 또는 저장이 필요합니다'
+      : f && f.path ? f.path.split('/').filter(Boolean).slice(-3).join(' / ')
+      : typed ? '입력한 폴더 · 연결 확인 전' : '내 OneDrive · 문서 / 업무 / shared';
     el.title = f && f.path ? f.path : '';
     el.classList.toggle('muted', !(f && f.path));
     const open = $('shareFolderOpen');
     open.hidden = !(f && f.viewUrl);
     if (f && f.viewUrl) open.href = f.viewUrl;
   }
-  function updateShareSummary() {   // 제목 옆 요약 + 공유 (Plus) 탭 이름 옆 칩(켜짐/꺼짐)
-    const on = $('plusEnabled').checked;
+  function updateShareSummary() {   // 과제별 공유 칩(꺼짐 · 과제 범위 · 선택 항목 수) + 공유 (Plus) 탭 이름 옆 칩(켜짐/꺼짐)
+    const on = $('plusEnabled').checked, prjOn = $('plusProjectSync').checked, pick = shareScopeVal() === 'pick';
     const parts = [$('plusPlanSync').checked && '예상 비용', $('plusResearchSync').checked && '연구내용', $('plusStaffSync').checked && '사업비', $('plusChangesSync').checked && '변경이력'].filter(Boolean);
-    const where = $('plusFolder').value.trim() ? '붙여 넣은 폴더' : '내 OneDrive 문서/업무/shared';
-    const extra = [$('plusShareWith').checked && '참여연구원 자동 공유', $('plusDiscover').checked && '나와 공유 자동 찾기'].filter(Boolean);
-    $('plusSummary').textContent = !on ? '사용 안 함' : `${parts.length ? `${parts.join(' · ')} 동기화 중` : '켜짐'} · ${where}${extra.length ? ` · ${extra.join(' · ')}` : ''}`;
+    $('plusSummary').textContent = !prjOn ? '꺼짐' : `${pick ? `${sharePrjSel.size}개 과제` : '전체 과제'} · ${parts.length} / 4 항목`;
+    $('plusPrjPick').closest('.share-sync-settings').classList.toggle('share-off', !prjOn);
+    $('plusSummary').title = parts.join(' · ') || '선택한 항목 없음';
     const b = $('shareBadge'); b.textContent = on ? '켜짐' : '꺼짐'; b.className = 'tab-badge ' + (on ? 'on' : 'off');
   }
   $('plusEnabled').addEventListener('change', () => { updateShareSummary(); showShareState(); });
   $('plusFolder').addEventListener('input', () => { updateShareSummary(); renderShareFolder(); });
-  ['plusPlanSync', 'plusResearchSync', 'plusStaffSync', 'plusChangesSync', 'plusShareWith', 'plusDiscover'].forEach((id) => $(id).addEventListener('change', updateShareSummary));
+  ['plusPlanSync', 'plusResearchSync', 'plusStaffSync', 'plusChangesSync', 'plusSitesSync', 'plusShareWith', 'plusDiscover', 'plusProjectSync'].forEach((id) => $(id).addEventListener('change', updateShareSummary));
+  /* 과제별 공유 › 공유할 과제 (2026-10-22 사용자 "과제별로 공유할때는 공유설정에 전체/과제별"): 라디오 plusScope(all | pick) · 고른 과제만이면 #plusPrjPick 에 참여 과제(projectList — 별칭 projectAliases)의 체크.
+   *   고른 것은 sharePrjSel → 저장 때 plus.projects. 목록에 없는 과제번호(참여가 끝난 과제 등)도 골라 둔 것이면 줄로 남겨 풀 수 있게 */
+  let sharePrjSel = new Set();
+  const shareScopeVal = () => { const r = document.querySelector('input[name=plusScope]:checked'); return r && r.value === 'pick' ? 'pick' : 'all'; };
+  function setShareScope(v) { document.querySelectorAll('input[name=plusScope]').forEach((r) => { r.checked = r.value === v; }); }
+  /* 참여 과제 체크 목록의 html — 과제별 공유(#plusPrjPick, data-share-prj) · 전체 공유의 가맹점(#plusSitesPrjPick, data-sites-prj)이 같이 쓴다. extra(prjNo) 는 줄 끝에 붙일 html(가맹점 공유 결과) */
+  async function prjPickHtml(sel, attr, extra) {
+    let aliases = {};
+    try { aliases = (await chrome.storage.local.get('projectAliases')).projectAliases || {}; } catch (e) {}
+    const projects = ((projectList && projectList.projects) || []).filter((p) => p && p.prjNo);
+    const known = new Set(projects.map((p) => String(p.prjNo)));
+    const rows = projects.map((p) => ({ prjNo: String(p.prjNo), prjNm: p.prjNm || '' })).concat(Array.from(sel).filter((no) => !known.has(no)).map((no) => ({ prjNo: no, prjNm: '(참여 과제 목록에 없음)' })));
+    return rows.length
+      ? rows.map((p) => `<label title="${F.esc(p.prjNm)}"><input type="checkbox" ${attr}="${F.esc(p.prjNo)}"${sel.has(p.prjNo) ? ' checked' : ''}> <b>${F.esc(aliases[p.prjNo] || p.prjNo)}</b>${aliases[p.prjNo] ? ` <span class="no">${F.esc(p.prjNo)}</span>` : ''} <span class="nm">${F.esc(p.prjNm)}</span>${extra ? extra(p.prjNo) : ''}</label>`).join('')
+      : '<div class="share-prj-empty">참여 과제 목록이 아직 없습니다 — 일반 설정 › 과제 선택의 <b>과제 목록 새로고침</b>을 누르세요.</div>';
+  }
+  async function renderSharePrj() {
+    const box = $('plusPrjPick'); if (!box) return;
+    box.hidden = shareScopeVal() !== 'pick';
+    box.innerHTML = await prjPickHtml(sharePrjSel, 'data-share-prj');
+    updateShareSummary();
+  }
+  document.querySelectorAll('input[name=plusScope]').forEach((r) => r.addEventListener('change', () => { renderSharePrj(); }));
+  /* 전체 공유 › 가맹점을 공유할 과제 (2026-10-22 사용자 "이거 과제별로 공유할 수 있게 해줘야지"): 라디오 plusSitesScope(all | pick) · 고른 과제만이면 #plusSitesPrjPick 에 참여 과제 체크 + 과제마다 공유 결과.
+   *   고른 것은 sitesPrjSel → 저장 때 plus.sitesProjects. 백그라운드 자동 공유(shareSitesPeople)는 저장된 설정으로, [동료에게 공유]는 지금 라디오·체크로 그 과제들의 참여인력에게 common 폴더를 읽기로 */
+  let sitesPrjSel = new Set();
+  const sitesScopeVal = () => { const r = document.querySelector('input[name=plusSitesScope]:checked'); return r && r.value === 'pick' ? 'pick' : 'all'; };
+  function setSitesScope(v) { document.querySelectorAll('input[name=plusSitesScope]').forEach((r) => { r.checked = r.value === v; }); }
+  /* 과제 하나의 가맹점 폴더 공유 결과 — shareSitesPeople.byPrj[prjNo](그 과제에서 찾은 참여인력, 내 이름 제외) × res(이름마다 결과). 한 번도 찾지 않은 과제는 빈 칸 */
+  function sitesPrjState(rec, no) {
+    const names = rec && rec.byPrj && Array.isArray(rec.byPrj[no]) ? rec.byPrj[no] : null;
+    if (!names) return '';
+    if (!names.length) return '<span class="st">나 말고 참여인력 없음</span>';
+    const res = (rec && rec.res) || {}, by = (k) => names.filter((n) => res[n] === k);
+    const ok = by('shared'), amb = by('ambiguous'), nf = by('notFound'), fl = by('failed'), wait = names.filter((n) => !res[n]);
+    const tip = [ok.length && `공유: ${ok.join(', ')}`, amb.length && `이름 겹침: ${amb.join(', ')}`, nf.length && `못 찾음: ${nf.join(', ')}`, fl.length && `실패: ${fl.join(', ')}`, wait.length && `아직: ${wait.join(', ')}`].filter(Boolean).join('\n');
+    const txt = [`공유 ${ok.length}/${names.length}명`, amb.length && `이름 겹침 ${amb.length}`, nf.length && `못 찾음 ${nf.length}`, fl.length && `실패 ${fl.length}`].filter(Boolean).join(' · ');
+    return `<span class="st${amb.length || nf.length || fl.length ? ' warn' : ok.length === names.length ? ' ok' : ''}" title="${F.esc(tip)}">${F.esc(txt)}</span>`;
+  }
+  async function renderSitesPrj() {
+    const box = $('plusSitesPrjPick'); if (!box) return;
+    box.hidden = sitesScopeVal() !== 'pick';
+    let rec = {};
+    try { rec = (await chrome.storage.local.get('shareSitesPeople')).shareSitesPeople || {}; } catch (e) {}
+    box.innerHTML = await prjPickHtml(sitesPrjSel, 'data-sites-prj', (no) => sitesPrjState(rec, no));
+    updateSitesSummary();
+  }
+  function updateSitesSummary() {   // 전체 공유 칩: common · 꺼짐 | 전체 과제 | n개 과제
+    const on = $('plusSitesSync').checked, pick = sitesScopeVal() === 'pick';
+    $('plusSitesSummary').textContent = `common · ${!on ? '꺼짐' : pick ? `${sitesPrjSel.size}개 과제` : '전체 과제'}`;
+    $('plusSitesSummary').title = !on ? '자주 사용 가맹점 공유 꺼짐' : pick ? '고른 과제의 참여연구원에게 가맹점 폴더를 읽기로 공유' : '참여 과제 전체의 참여연구원에게 가맹점 폴더를 읽기로 공유';
+    $('plusSitesPrjPick').closest('.share-common').classList.toggle('share-off', !on);
+  }
+  document.querySelectorAll('input[name=plusSitesScope]').forEach((r) => r.addEventListener('change', () => { renderSitesPrj(); renderFetchShare(); }));
+  $('plusSitesPrjPick').addEventListener('change', (ev) => {
+    const cb = ev.target.closest('input[data-sites-prj]'); if (!cb) return;
+    if (cb.checked) sitesPrjSel.add(cb.dataset.sitesPrj); else sitesPrjSel.delete(cb.dataset.sitesPrj);
+    updateSitesSummary(); renderFetchShare();
+  });
+  $('plusPrjPick').addEventListener('change', (ev) => {
+    const cb = ev.target.closest('input[data-share-prj]'); if (!cb) return;
+    if (cb.checked) sharePrjSel.add(cb.dataset.sharePrj); else sharePrjSel.delete(cb.dataset.sharePrj);
+    updateShareSummary();
+  });
   /* 동료에게 공유하는 법: 카드 설명 접기(initDescFold)와 같은 ⓘ 배지(.desc-toggle)로 #shareHowGuide 를 펼친다. 펼친 상태는 storage.local.optShareGuide (initDescFold 의 optHelp 와 따로 — 서로 덮어쓰지 않게) */
   (async () => {
     const btn = $('btnShareHow'), guide = $('shareHowGuide');
@@ -1305,6 +1455,7 @@
   $('btnShareProbe').addEventListener('click', async () => {
     try { await S.save(read()); savedFolder = $('plusFolder').value.trim(); } catch (e) { setShareProbe(`설정 저장 실패: ${e.message || e}`, 'err'); return; }
     setShareProbe('공유 폴더에 연결하는 중…', 'run');
+    $('shareProbeState').title = '';
     let r = null;
     try { r = await chrome.runtime.sendMessage({ type: 'shareProbe', folder: savedFolder }); } catch (e) { r = null; }
     if (r && r.ok) {
@@ -1313,13 +1464,14 @@
       const folders = r.folders != null ? r.folders : r.projectFolders;
       const nf = countOf(folders), fnames = namesOf(folders).slice(0, 8);
       const ns = countOf(r.shared != null ? r.shared : (r.discovered != null ? r.discovered : r.sharedWithMe));
-      const parts = [`연결됨${r.mine ? ' (내 OneDrive)' : ''}: ${(shareFolderInfo && shareFolderInfo.path) || '밑폴더'}`];
-      if (nf != null) parts.push(`과제 폴더 ${nf}개${fnames.length ? ` (${fnames.join(', ')}${nf > fnames.length ? ' …' : ''})` : ''}`);
+      const parts = [`연결됨${r.mine ? ' (내 OneDrive)' : ''}`];
+      if (nf != null) parts.push(`과제 폴더 ${nf}개`);
       else if (countOf(r.files) != null) parts.push(`파일 ${countOf(r.files)}건`);
-      if (ns != null) parts.push(`나와 공유에서 찾은 과제 폴더 ${ns}개`);
+      if (ns != null) parts.push(`공유받은 폴더 ${ns}개`);
       if (nf == null && ns == null && r.message) parts.push(String(r.message));
-      parts.push(r.exists === false ? '폴더가 아직 없습니다 — 지금 동기화하면 만듭니다' : '동기화 가능');
+      if (r.exists === false) parts.push('폴더가 아직 없습니다 — 지금 동기화하면 만듭니다');
       setShareProbe(parts.join(' · '), 'on');
+      $('shareProbeState').title = [(shareFolderInfo && shareFolderInfo.path) || '', fnames.join(', ')].filter(Boolean).join('\n');
     } else {
       renderShareFolder();
       setShareProbe(shareFail(r, '연결 실패'), 'err', r && r.kind === 'auth' ? loginUrl() : '');
@@ -1445,7 +1597,7 @@
     const nOwner = list.filter((c) => c.owner).length, nNoFolder = list.filter((c) => c.noFolder).length;
     let line = '';
     if (st && st.at) {
-      const when = `${F.fmtClock(st.at)}${st.reason ? ` (${F.esc(st.reason)})` : ''}`;
+      const when = F.fmtClock(st.at);
       line = st.ok
         ? `마지막 동기화 ${when} — 과제 ${F.num(st.count) || Object.keys(pages).length}건${countOf(st.files) != null ? ` · 파일 ${countOf(st.files)}개` : ''} · 씀 ${F.num(st.written)}건 · 받음 ${F.num(st.pulled)}건${nOwner ? ` · 공유받은 폴더 ${nOwner}개` : ''}${nNoFolder ? ` · <span class="warn">폴더 없음 ${nNoFolder}건</span>` : ''}${st.errors ? ` · <span class="err">오류 ${st.errors}건</span>` : ''}`
         : `<span class="err">마지막 동기화 ${when} 실패 — ${F.esc(shareErrText(st))}${st.errors > 1 ? ` 외 ${st.errors - 1}건` : ''}</span>${st.kind === 'auth' ? ` · <a href="${F.esc(loginUrl())}" target="_blank" rel="noopener">OneDrive 열기</a>` : ''}`;
@@ -1476,9 +1628,9 @@
           : `<button type="button" class="btn" data-share-act="people" data-prj="${F.esc(prjNo)}" title="R&D ERP 참여인력(이 과제의 참여연구원)에게 이 폴더를 편집 권한으로 공유합니다 — 이미 공유된 사람은 그대로">참여연구원에게 공유</button><button type="button" class="btn" data-share-act="link" data-prj="${F.esc(prjNo)}" title="이 과제 폴더의 조직 내 편집 링크를 만들어 복사합니다 — 자동 공유가 안 된 사람에게 보내면 한 번 열기만 해도 나와 공유에 들어옵니다">링크 복사</button><button type="button" class="btn" data-share-act="rename" data-prj="${F.esc(prjNo)}" data-name="${F.esc(folder)}" title="폴더 이름을 바꿉니다 — 이름은 표시용이라 과제는 파일 안의 과제번호로 알아봅니다">이름 바꾸기</button>`)
         : '';
       const shareCell = `${c.share ? `<div class="share-res">${shareResultHtml(c.share)}</div>` : (c.owner ? '<div class="share-res muted">공유받은 폴더</div>' : '')}${acts ? `<div class="share-acts">${acts}</div>` : ''}`;
-      return `<tr${c.noFolder ? ' class="share-nofolder"' : ''}><td class="no">${F.esc(prjNo)}</td><td class="nm">${F.esc(c.title || names[prjNo] || '')}</td><td class="tag folder">${folderCell}</td><td class="tag">${yearsCell}</td><td class="tag">${c.at ? F.fmtClock(c.at) : ''}</td><td class="tag">${who}</td><td class="tag share">${shareCell}</td><td class="tag">${stateCell}</td></tr>`;
+      return `<tr${c.noFolder ? ' class="share-nofolder"' : ''}><td class="share-project"><strong>${F.esc(c.title || names[prjNo] || '')}</strong><span>${F.esc(prjNo)}</span></td><td class="tag folder">${folderCell}<div class="share-file-years">${yearsCell}</div></td><td class="tag share-time">${c.at ? F.fmtClock(c.at) : ''}${who ? `<span>파일 수정 ${who}</span>` : ''}</td><td class="tag share">${shareCell}</td><td class="tag">${stateCell}</td></tr>`;
     });
-    $('plusPages').innerHTML = rows.length ? `<div class="prj-list share-files"><table class="prj-table"><thead><tr><th>과제번호</th><th>과제명</th><th>폴더</th><th>연차 파일</th><th>동기화</th><th>파일 수정 (누가)</th><th>공유</th><th>상태</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '';
+    $('plusPages').innerHTML = rows.length ? `<div class="prj-list share-files" role="region" aria-label="과제별 동기화 결과" tabindex="0"><table class="prj-table"><thead><tr><th scope="col">과제</th><th scope="col">공유 폴더 · 파일</th><th scope="col">동기화</th><th scope="col">공유 관리</th><th scope="col">상태</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>` : `<div class="share-empty">${$('plusEnabled').checked ? '동기화된 과제가 없습니다. 지금 동기화하면 과제별 결과가 여기에 표시됩니다.' : '공유 사용을 켜면 과제별 자료를 동기화할 수 있습니다.'}</div>`;
     renderShareFolder();
   }
   showShareState();

@@ -3,7 +3,8 @@ importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.
   'lib/plan.js', 'lib/plan-sync.js',   // 공유 (Plus) 의 예상 비용 몫: plan.js 는 저장소 키·월간 구독 계산용, plan-sync.js 는 병합 규칙(merge)
   'lib/research.js', 'lib/research-sync.js',   // 연구개발계획서(연구내용) 참조 · 공유 (Plus) 의 연구내용 병합 규칙(merge)
   'lib/staff.js', 'lib/staff-sync.js', 'lib/collect.js',   // 사업비(참여연구원 참여율·지급액 계획, 0.8.7) · 공유 (Plus) 의 사업비 병합 규칙(merge) · 참여연구원 자료 요청(SharePoint 응답 목록 · 팀즈 딥 링크 · 응답 취합, 0.8.9 — 배선은 아래 collect*)
-  'lib/sp-store.js', 'lib/prjdoc.js', 'lib/prjdoc-sync.js');   // 공유 (Plus, 2026-10-18 부터 SharePoint 폴더의 과제별 JSON 파일): sp-store 저장소 접근(브라우저 로그인 쿠키 · 작업 탭) · prjdoc 문서 모양·병합 · prjdoc-sync 과제별 차례 — 배선은 아래 shareSync
+  'lib/sp-store.js', 'lib/prjdoc.js', 'lib/prjdoc-sync.js',   // 공유 (Plus, 2026-10-18 부터 SharePoint 폴더의 과제별 JSON 파일): sp-store 저장소 접근(브라우저 로그인 쿠키 · 작업 탭) · prjdoc 문서 모양·병합 · prjdoc-sync 과제별 차례 — 배선은 아래 shareSync
+  'lib/sites-sync.js');   // 공유 (Plus) 의 자주 사용 가맹점(밑폴더/common/가맹점.json — 내 파일 쓰기 + 동료 파일 읽어 합치기, 2026-10-22) 차례 — 병합은 lib/fetch-sites.js mergeShared
 
 const CACHE_KEY = 'cache';
 const CAPTURE_KEY = 'captureLog';
@@ -597,6 +598,10 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === ALARM) { refresh(true).catch(() => {}); shareSync('alarm').catch(() => {}); collectPoll().catch(() => {}); } });   // 자동 갱신 때 공유 (Plus) 도 (켜져 있을 때만 실제 동작)
 
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[KRX_SITES.KEY] && Date.now() - sitesSelfAt > 3000) {   // 자주 사용 가맹점을 고침(설정 페이지·패널 등록·찾아오기가 남긴 찾는 방법) → 공유 (Plus) 가맹점 파일도 4초 뒤 (마지막 결과만 바뀐 것·동기화가 받은 것은 빼고)
+    const fp = (v) => JSON.stringify((Array.isArray(v) ? v : []).map((s) => [s && s.id, KRX_SITES.sharedOf(s || {})]));
+    if (fp(changes[KRX_SITES.KEY].oldValue) !== fp(changes[KRX_SITES.KEY].newValue)) queueShareSync('edit');
+  }
   if ((area === 'sync' || area === 'local') && changes.settings) {
     settingsGen++;   // 진행 중인 조회가 있으면 끝난 뒤 새 설정으로 한 번 더 돌게 함
     applySidePanel();   // 공유 (Plus) 의 폴더 캐시(shareFolder)는 설정 folder 와 견주어 쓰므로 여기서 지울 것이 없다 (shareCfg)
@@ -636,7 +641,10 @@ const SHARE_PROJECTS_KEY = 'shareProjects';   // { [prjNo]: { jobId, io, start, 
 const SHARE_SUPPORT_KEY = 'projectSupport';   // { [prjNo]: { people:[{ name, role, ref }], at } } — 행정지원(과제마다, 연차 아님). 사업비 관리 참여인력 카드에서 고치고 연차 파일 project.support · supportAt 로 KRS WORKSPACE 와 **양쪽이** 맞춤(supportAt 큰 쪽 — 2026-10-19 사용자 "행정지원은 서로 변경 가능하고")
 const SHARE_CHANGES_MAX = 500;
 const SHARE_PART_SVC = 'rtask_0008_t03_01_r001';   // 과제정보 › 참여인력 — 자동 공유할 사람 이름 (lib/staff.js rowsOfErp · byName, lib/staff-ui.js 와 같은 조회)
-let shareInflight = null, shareNext = null, shareNextOpts = null, shareTimer = 0;
+const SHARE_SITES_PEOPLE_KEY = 'shareSitesPeople';   // { tried:[이름], at, scope(지난 대상 과제 지문), byPrj:{ [prjNo]: [이름] }(과제마다 찾은 참여인력), res:{ [이름]: 'shared'|'ambiguous'|'notFound'|'failed' }, last:{ shared, names, ambiguous, notFound, error?, at, manual?, prjNos } }
+                                                      //   — 가맹점 파일 폴더(common)를 읽기로 공유해 준 사람(공유할 과제 plus.sitesScope 의 참여인력 — 하루에 한 번, 또는 공유할 과제가 바뀌면 새 사람만)
+const SHARE_SITES_PEOPLE_MS = 24 * 3600000;
+let shareInflight = null, shareNext = null, shareNextOpts = null, shareTimer = 0, sitesSelfAt = 0;
 const spFetch = (u, o) => fetch(u, o);   // 서비스워커의 fetch 그대로 — credentials:'include' 는 저장소가 붙인다. 쿠키·다이제스트 값은 로그·결과 어디에도 찍지 않는다
 const spIo = () => ({ fetch: spFetch, chrome });
 /* 저장소 손잡이 — lib/prjdoc-sync.js 가 받는 store { listFiles, readFile, listFolders, sharedWithMe, openWriter, childCfg, … }. KRX_SP 함수에 fetch · chrome 을 여기서 넣어 prjdoc-sync 는 순수하게 둔다.
@@ -648,7 +656,7 @@ const shareStore = Object.assign(Object.create(null), KRX_SP, {
   sharedWithMe: (io, o) => KRX_SP.sharedWithMe(Object.assign(spIo(), io || {}), o || {}),
   openWriter: (cfg, o) => KRX_SP.openWriter(cfg, Object.assign(spIo(), o || {}))
 });
-const SHARE_MISSING = { off: '"공유 (Plus)" 체크(팝업 아래 줄 또는 설정 › 공유 (Plus))', items: '설정 › 공유 (Plus) 의 동기화 항목(예상 비용 · 연구내용 · 사업비 · 변경이력) 가운데 하나 이상 체크' };
+const SHARE_MISSING = { off: '"공유 (Plus)" 체크(팝업 아래 줄 또는 설정 › 공유 (Plus))', items: '설정 › 공유 (Plus) 의 전체 공유(자주 사용 가맹점) 또는 과제별 공유(예상 비용 · 연구내용 · 사업비 · 변경이력) 가운데 하나 이상 체크', project: '설정 › 공유 (Plus) › 과제별 공유 › 공유할 과제에서 이 과제 체크' };
 /* 무엇을 맞출지 — 설정 공유 (Plus) 탭의 체크. budget(예산 줄)은 사업비 체크와 함께, alias 는 늘 (prjdoc-sync 의 want) */
 const shareWant = (p) => ({ plan: p.planSync !== false, research: p.researchSync !== false, staff: p.staffSync !== false, budget: p.staffSync !== false, changes: p.changesSync !== false, alias: true, support: true });   // 행정지원도 별칭처럼 늘
 const shareDriveHost = (p) => String((p && p.driveHost) || '').trim() || KRX_SETTINGS.DEFAULTS.plus.driveHost;
@@ -920,6 +928,25 @@ async function shareDecoratePages(state, p, index) {
     } catch (x) {}
   }
 }
+/* 번호 이름 폴더를 약칭으로 (2026-10-22 사용자 "약어가 아니라 무슨 번호로 저장되어 있던데 … 여기 역할이 아닌가"): 폴더 이름은 만들 때 정해(약칭 → Job Id → 과제번호) 사용자가 지은 이름은 저절로 바꾸지 않지만,
+ *   약칭이 없어 **과제번호나 Job Id 로 만든** 내 폴더(owner 없음)는 약칭이 생기면 다음 동기화 때 약칭으로 바꾼다(shareRename 과 같은 길 — 색인·pages 도 고침). 같은 이름의 다른 과제 폴더가 색인에 있으면 건너뛰고,
+ *   SharePoint 가 거절하면(같은 이름의 폴더가 이미 있음 등) 결과를 pages[prj].renameError 에만 남긴다. 동료·KRS WORKSPACE 는 옛 경로가 nofolder 가 되면 나와 공유·폴더 목록을 다시 훑어 찾는다(prjdoc-sync ①②) */
+async function shareAutoRename(state, aliases, index, pick) {
+  const projects = shareObj((await chrome.storage.local.get(SHARE_PROJECTS_KEY))[SHARE_PROJECTS_KEY]);
+  for (const [prj, e] of Object.entries(index)) {
+    if (!e || e.owner || !e.folder || (pick && !pick.includes(prj))) continue;
+    const pg = (state.pages || {})[prj];
+    if (!pg || pg.error || pg.noFolder) continue;   // 이번에 맞춘 과제만
+    const jobId = String((projects[prj] || {}).jobId || '').trim(), folder = String(e.folder);
+    if (!(folder === prj || (jobId && folder === KRX_PRJDOC.folderNameFor({ jobId })))) continue;   // 번호로 만든 이름일 때만
+    const want = String(KRX_PRJDOC.folderNameFor({ alias: aliases[prj] }) || '');
+    if (!String(aliases[prj] || '').trim() || !want || want === folder) continue;
+    if (Object.entries(index).some(([q, x]) => q !== prj && x && !x.owner && String(x.folder || '').toLowerCase() === want.toLowerCase())) continue;   // 그 이름은 다른 과제 폴더
+    const r = await shareRename({ prjNo: prj, name: want }, index);
+    if (r && r.ok && !r.unchanged) Object.assign(pg, { folder: r.name, folderUrl: r.folderUrl || '', planUrl: '', webUrl: '', renamedFrom: folder });
+    else if (r && !r.ok) pg.renameError = String(r.message || '');
+  }
+}
 /* 폴더를 **새로 만든** 과제(prjdoc-sync 의 state.created 목록 또는 pages[prj].folderCreated — pages[prj].created 는 "파일을 새로 만듦" 이라 쓰지 않는다: 있던 폴더에 다음 연차 파일이 생길 때마다 다시 공유하지 않게)의
  *   참여인력에게 자동 공유(편집) — 설정 shareWith 'participants'. 남의 폴더(owner)·오류 과제는 건너뛴다. 결과는 pages[prj].share */
 async function shareAutoPeople(state, p, index, settings, who, cache) {
@@ -947,6 +974,108 @@ async function sharePatchPage(prjNo, patch) {
   await chrome.storage.local.set({ shareState: st, planSyncState: st, researchSyncState: st, staffSyncState: st });
   return st;
 }
+/* ----- 자주 사용 가맹점 공유 (2026-10-22 사용자 "shared/common 아래 두면 어떨까" → 가맹점.json · "동료와도 합침"): 밑폴더/common/가맹점.json — 차례 lib/sites-sync.js, 병합 lib/fetch-sites.js mergeShared -----
+ * 로컬은 fetchSites(목록) + fetchSitesSync(지난 동기화의 지문·묘비). 받은 것을 저장할 때는 sitesSelfAt 을 찍어 위 storage.onChanged 가 다시 동기화를 걸지 않게 하고, 지워진 가맹점의 아이디·비밀번호(fetchCred)도 지운다.
+ * 폴더를 새로 만들었거나 하루가 지났거나 공유할 과제(plus.sitesScope — 전체 / 고른 과제만)가 바뀌었으면 그 과제들의 참여인력(내 이름 제외 — 과제 폴더 자동 공유와 같은 조회)에게 common 폴더를 **읽기**로 공유한다(이미 해 본 이름은 건너뜀, 설정 shareWith 'none' 이면 안 함) —
+ * 동료는 "나와 공유" 에서 그 폴더를 찾아 읽기만 하고 자기 파일은 자기 OneDrive 에 쓴다 */
+async function sitesLoadLocal() {
+  const l = await chrome.storage.local.get(KRX_SITES.SHARE_META);
+  return { sites: await KRX_SITES.load(), meta: shareObj(l[KRX_SITES.SHARE_META]) };
+}
+async function sitesSaveLocal(d) {
+  const out = { [KRX_SITES.SHARE_META]: shareObj(d && d.meta) };
+  if (d && Array.isArray(d.sites)) {
+    out[KRX_SITES.KEY] = d.sites;
+    const ids = new Set(d.sites.map((s) => s && s.id));
+    const cred = shareObj((await chrome.storage.local.get(KRX_SITES.CRED))[KRX_SITES.CRED]);
+    if (Object.keys(cred).some((id) => !ids.has(id))) { const c = {}; for (const [id, v] of Object.entries(cred)) if (ids.has(id)) c[id] = v; out[KRX_SITES.CRED] = c; }
+  }
+  sitesSelfAt = Date.now();
+  await chrome.storage.local.set(out);
+}
+/* 가맹점을 공유할 과제 (2026-10-22 사용자 "이거 과제별로 공유할 수 있게 해줘야지") — 설정 sitesScope 'pick' 이면 고른 과제(참여가 끝난 과제도 고른 대로), 'all' 이면 참여 과제(projectList) 모두 */
+const sitesTargetPrjNos = (p, all) => KRX_SETTINGS.sitesPick(p) || Array.from(new Set((all || []).map(String).filter(Boolean)));
+/* 과제들의 참여인력 이름(내 이름 제외) → { names(합친 것), byPrj:{ [prjNo]: [이름] } }. R&D ERP 로그인이 풀렸으면 shareParticipantNames 의 오류 그대로 */
+async function sitesPeopleOf(prjNos, myNames) {
+  const byPrj = {}, set = new Set();
+  for (const prj of prjNos) { byPrj[prj] = await shareParticipantNames(prj, myNames); for (const n of byPrj[prj]) set.add(n); }
+  return { names: Array.from(set), byPrj };
+}
+/* 공유 결과(shareResultOf 모양)를 기록에 — 해 본 이름(tried — 오류가 없을 때만, 이름 겹침·못 찾음도 다시 묻지 않음: 설정 › 공유 (Plus) 나 OneDrive 에서 직접) · 이름마다 결과(res — 설정 페이지가 과제마다 "공유 n/m명") · 마지막 결과(last) */
+function sitesPeopleRecord(rec, names, share, extra) {
+  const tried = new Set(Array.isArray(rec.tried) ? rec.tried : []), res = Object.assign({}, shareObj(rec.res));
+  if (!share.error) {
+    const norm = (x) => String(x || '').replace(/\s+/g, '');
+    const amb = new Set(share.ambiguous.map((x) => norm(x.name))), nf = new Set(share.notFound.map(norm)), ok = new Set(share.shared.map((x) => norm(x.name)));
+    for (const n of names) { tried.add(n); res[n] = amb.has(norm(n)) ? 'ambiguous' : nf.has(norm(n)) ? 'notFound' : ok.has(norm(n)) ? 'shared' : 'failed'; }
+  }
+  const last = Object.assign({ shared: share.shared.length, names: share.shared.map((x) => x.name), ambiguous: share.ambiguous.map((x) => x.name), notFound: share.notFound, error: share.error || '', at: Date.now() }, extra || {});
+  return Object.assign({}, rec, { tried: Array.from(tried), res, last });
+}
+async function shareSitesPeople(st, cfg, p, settings, ctx) {
+  if (p.shareWith === 'none' || !st || !st.ok || !st.exists || !ctx) return null;
+  const rec = shareObj((await chrome.storage.local.get(SHARE_SITES_PEOPLE_KEY))[SHARE_SITES_PEOPLE_KEY]);
+  const prjNos = sitesTargetPrjNos(p, ctx.myPrjNos), scope = prjNos.slice().sort().join('|');
+  if (!st.created && rec.at && rec.scope === scope && Date.now() - rec.at < SHARE_SITES_PEOPLE_MS) return rec.last || null;   // 하루 안이고 공유할 과제도 그대로
+  let found = { names: [], byPrj: {} };
+  try { found = await sitesPeopleOf(prjNos, shareMyNames(ctx.cache, settings, ctx.who)); }
+  catch (e) { await chrome.storage.local.set({ [SHARE_SITES_PEOPLE_KEY]: Object.assign({}, rec, { scope, at: Date.now() - SHARE_SITES_PEOPLE_MS + 3600000 }) }); return rec.last || null; }   // R&D ERP 로그인이 풀렸으면 한 시간 뒤 다시
+  const tried = new Set(Array.isArray(rec.tried) ? rec.tried : []);
+  const todo = found.names.filter((n) => !tried.has(n));
+  let next = Object.assign({}, rec, { byPrj: Object.assign({}, shareObj(rec.byPrj), found.byPrj) });
+  if (todo.length) {
+    const holder = {};
+    await sharePeopleJobs([{ prjNo: '', cfg, names: todo, pg: holder }], 'read');
+    next = sitesPeopleRecord(next, todo, holder.share || shareResultOf(null, 'read'), { prjNos });
+  }
+  next.at = Date.now(); next.scope = scope;
+  await chrome.storage.local.set({ [SHARE_SITES_PEOPLE_KEY]: next });
+  return next.last || null;
+}
+/* 설정 › 자주 사용 가맹점 [동료에게 공유](2026-10-22 사용자 "폴더를 공유하는 기능도 추가되어 있겠지?" — 자동 공유는 shareWith 가 'none' 이면 돌지 않으므로 직접 누르는 길; 같은 날 "이거 과제별로 공유할 수 있게"):
+ *   common 폴더를 **읽기**로 공유 — msg = { scope?('all' | 'pick' — 설정 페이지의 지금 라디오, 없으면 설정 sitesScope), prjNos?(scope 'pick' 일 때 지금 체크한 과제; 'all' 이면 참여 과제(projectList) 모두), names?(없으면 그 과제들의 참여인력, 내 이름 제외), byPrj?(dry 가 준 과제별 이름 — 기록용),
+ *   dry?(사람 이름만 돌려줌 — 페이지가 확인을 받고 names 로 다시 보냄) } → { ok, names, byPrj, prjNos, share?, message } | { ok:false, kind, message }. 폴더가 아직 없으면 만든다. 결과는 shareSitesPeople 에(목록 아래 줄 · 과제별 줄이 보임), 해 본 이름은 자동 공유가 다시 묻지 않음 */
+async function shareSitesFolder(msg) {
+  msg = msg || {};
+  const settings = await KRX_SETTINGS.load(), p = settings.plus || {};
+  try {
+    const l = await chrome.storage.local.get(['rndUser', 'projectList']);
+    const all = ((l.projectList && l.projectList.projects) || []).map((pr) => pr && pr.prjNo);
+    const scope = ['all', 'pick'].includes(msg.scope) ? msg.scope : (KRX_SETTINGS.sitesPick(p) ? 'pick' : 'all');
+    const prjNos = scope === 'all' ? sitesTargetPrjNos({}, all) : Array.isArray(msg.prjNos) ? Array.from(new Set(msg.prjNos.map(String).filter(Boolean))) : sitesTargetPrjNos(p, all);
+    if (!prjNos.length) return { ok: false, names: [], prjNos, message: scope === 'all' ? '참여 과제 목록이 아직 없습니다 — 일반 설정 › 과제 선택의 과제 목록 새로고침을 누르세요' : '공유할 과제를 고르지 않았습니다 — 공유 (Plus) › 전체 공유 › 공유할 과제에서 과제를 체크하세요' };
+    let names = Array.isArray(msg.names) ? Array.from(new Set(msg.names.map((x) => String(x || '').trim()).filter(Boolean))) : null;
+    let byPrj = shareObj(msg.byPrj);
+    if (!names) {
+      const found = await sitesPeopleOf(prjNos, shareMyNames(await getCache(), settings, String((l.rndUser || {}).userNm || settings.myName || '')));
+      names = found.names; byPrj = found.byPrj;
+    }
+    if (!names.length) return { ok: false, names, byPrj, prjNos, message: '공유할 사람이 없습니다 — 고른 과제의 참여인력에 나 말고는 없음' };
+    if (msg.dry) return { ok: true, dry: true, names, byPrj, prjNos };
+    const cfg = KRX_SP.childCfg(await shareCfg(p, false), KRX_SITES.SHARE_DIR);
+    let w = null, share;
+    try {
+      w = await shareStore.openWriter(cfg);
+      if (typeof w.ensurePath === 'function') await w.ensurePath(cfg.folderPath);
+      share = shareResultOf(await w.sharePeople(cfg.folderPath, names, { role: 'read' }), 'read');
+    } finally { if (w) { try { await w.close(); } catch (e) {} } }
+    const rec = shareObj((await chrome.storage.local.get(SHARE_SITES_PEOPLE_KEY))[SHARE_SITES_PEOPLE_KEY]);
+    const next = sitesPeopleRecord(Object.assign({}, rec, { byPrj: Object.assign({}, shareObj(rec.byPrj), byPrj) }), names, share, { manual: true, prjNos });
+    next.at = rec.at || Date.now();
+    await chrome.storage.local.set({ [SHARE_SITES_PEOPLE_KEY]: next });
+    return { ok: !share.error, names, byPrj, prjNos, share, message: shareResultText(share), error: share.error, kind: share.kind };
+  } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
+}
+/* 가맹점 파일 동기화 한 번 — 실패는 이 결과의 error · kind 로만(과제 동기화 결과와 따로). cfg 는 밑폴더(없으면 다시 품), store 는 과제 동기화와 나와 공유 목록을 나눠 쓰는 것 */
+async function shareSitesSync(p, cfg, store, ctx, settings) {
+  try {
+    if (!cfg) cfg = await shareCfg(p, false);
+    const who = String((ctx && ctx.who) || settings.myName || '');
+    const st = await KRX_SITES_SYNC.run({ store, io: spIo(), base: cfg, driveHost: shareDriveHost(p), discover: p.discover !== false, who, now: Date.now(), loadLocal: sitesLoadLocal, saveLocal: sitesSaveLocal });
+    if (st.ok) { try { st.people = await shareSitesPeople(st, KRX_SP.childCfg(cfg, KRX_SITES.SHARE_DIR), p, settings, ctx); } catch (e) {} }
+    return st;
+  } catch (e) { const d = describeShare(e); return { at: Date.now(), ok: false, error: d.message, kind: d.kind }; }
+}
 async function shareSync(reason, opts) {
   opts = opts || {};
   if (shareInflight) {
@@ -966,11 +1095,15 @@ async function shareSync(reason, opts) {
     const settings = await KRX_SETTINGS.load();
     const p = settings.plus || {};
     const want = shareWant(p);
-    if (!p.enabled || !(want.plan || want.research || want.staff || want.changes)) return { ok: false, skipped: 'off', missing: [!p.enabled && SHARE_MISSING.off, p.enabled && SHARE_MISSING.items].filter(Boolean) };
+    const pick = KRX_SETTINGS.sharePick(p);   // 공유할 과제 — 고른 과제만이면 그 목록, 전체면 null (2026-10-22 사용자 "공유설정에 전체/과제별")
+    const projOn = p.projectSync !== false && !(pick && !pick.length) && (want.plan || want.research || want.staff || want.changes), sitesOn = p.sitesSync !== false;   // 과제별 공유(과제 파일) · 전체 공유(common/가맹점.json — 과제와 따로)
+    if (p.enabled && opts.prjNo && (p.projectSync === false || (pick && !pick.includes(String(opts.prjNo))))) return { ok: false, skipped: 'project', prjNo: String(opts.prjNo), missing: [SHARE_MISSING.project] };   // 구름 아이콘·편집 — 공유하지 않는 과제
+    if (!p.enabled || !(projOn || sitesOn)) return { ok: false, skipped: 'off', missing: [!p.enabled && SHARE_MISSING.off, p.enabled && SHARE_MISSING.items].filter(Boolean) };
     const prev = (await chrome.storage.local.get('shareState')).shareState || null;
     if ((reason === 'load' || reason === 'alarm') && prev && prev.ok && Date.now() - prev.at < SHARE_SYNC_MIN_MS) return Object.assign({ skipped: 'recent' }, prev);
     const t0 = Date.now();
-    let state;
+    let state, baseCfg = null, ctx = null, sharedMemo = null;
+    const runStore = Object.assign(Object.create(shareStore), { sharedWithMe: (io, o) => (sharedMemo = sharedMemo || shareStore.sharedWithMe(io, o)) });   // 나와 공유 목록은 한 번 받아 과제·가맹점이 같이
     try {
       const l = await chrome.storage.local.get(['projectList', 'rndUser', 'projectAliases', SHARE_INDEX_KEY]);
       const cache = await getCache();
@@ -983,9 +1116,10 @@ async function shareSync(reason, opts) {
       const leadPrjNos = shareLeadPrjNos(projects, cache, settings, who);
       const index = shareObj(l[SHARE_INDEX_KEY]);
       const cfg = await shareCfg(p, false);   // 못 풀면(auth · badurl · offline) 아래 catch 가 kind 그대로 상태에 남겨 팝업·설정이 안내한다
-      const r = await KRX_PRJDOC_SYNC.run({
-        store: shareStore, io: spIo(), base: cfg, cfg, driveHost: shareDriveHost(p), names, rsprs, myPrjNos, leadPrjNos, aliases: shareObj(l.projectAliases), index, discover: p.discover !== false,
-        only: opts.prjNo || '', want, who, loadLocal: shareLoadLocal, saveLocal: (part, prj, data) => shareSaveLocal(part, prj, data, names), now: t0
+      baseCfg = cfg; ctx = { cache, who, myPrjNos };
+      const r = !projOn ? { state: {} } : await KRX_PRJDOC_SYNC.run({
+        store: runStore, io: spIo(), base: cfg, cfg, driveHost: shareDriveHost(p), names, rsprs, myPrjNos, leadPrjNos, aliases: shareObj(l.projectAliases), index, discover: p.discover !== false,
+        only: opts.prjNo || '', allow: pick, want, who, loadLocal: shareLoadLocal, saveLocal: (part, prj, data) => shareSaveLocal(part, prj, data, names), now: t0
       });
       const rs = (r && r.state) || {};
       state = Object.assign({ at: t0, ok: true, base: { path: cfg.folderPath, viewUrl: cfg.viewUrl || '' }, count: 0, files: 0, written: 0, pulled: 0, errors: 0, pages: {} }, rs, { reason, ms: Date.now() - t0 });
@@ -996,6 +1130,7 @@ async function shareSync(reason, opts) {
       delete state.index;   // 캐시는 shareIndex 에 — 상태에는 두지 않는다
       await shareDecoratePages(state, p, newIndex);
       if (p.shareWith !== 'none') await shareAutoPeople(state, p, newIndex, settings, who, cache);
+      if (projOn) await shareAutoRename(state, shareObj(l.projectAliases), newIndex, pick);   // 번호로 만든 내 과제 폴더 → 약칭이 생겼으면 약칭으로
       state.ms = Date.now() - t0;
     } catch (e) {
       const d = describeShare(e);
@@ -1003,6 +1138,8 @@ async function shareSync(reason, opts) {
       if (d.kind === 'badurl') { try { await chrome.storage.local.remove('shareFolder'); } catch (e2) {} }   // 캐시한 폴더 주소가 틀렸을 수 있다 — 다음에 다시 푼다
     }
     if ((opts.prjNo || !state.ok) && prev && prev.pages) state.pages = Object.assign({}, prev.pages, state.pages || {});   // 과제 하나만 돌렸거나 실패했으면(로그인 풀림 등 — run 이 ok:false 로 돌려줄 때도) 다른 과제·지난 결과는 남긴다 (툴팁이 과제별로 읽음, 오류는 error · kind 에)
+    if (sitesOn && !opts.prjNo) state.sites = await shareSitesSync(p, baseCfg, runStore, ctx, settings);   // 가맹점 파일 — 결과는 따로(state.ok 에 섞지 않음). 과제 하나만 돌릴 때(구름 아이콘)는 지난 결과
+    else if (prev && prev.sites) state.sites = prev.sites;
     await chrome.storage.local.set({ shareState: state, planSyncState: state, researchSyncState: state, staffSyncState: state });
     return state;
   })().finally(() => { shareInflight = null; });
@@ -1108,12 +1245,12 @@ async function shareOrgLink(msg) {
 }
 /* 과제 폴더 이름 바꾸기(선택) — msg = { prjNo, name } → { ok, prjNo, name, unchanged? }. 이름은 KRX_PRJDOC.folderNameFor 규칙(파일 이름에 못 쓰는 글자 제거 · 60자)으로 다듬고, shareIndex 의 folder·path·url 을 rename 결과로 고친다
  *   (path·url 을 옛 경로로 두면 다음 동기화가 그 색인을 믿고 옛 경로를 nofolder 로 보아 — 동료 폴더면 색인을 버리고 다시 훑고, 내 base 면 매번 다시 훑는다; 2026-10-18 검토) */
-async function shareRename(msg) {
+async function shareRename(msg, index0) {   // index0: 동기화 중 자동 이름 바꾸기(shareAutoRename)가 넘기는 새 색인 — 고친 것을 그 객체에도
   const p = (await KRX_SETTINGS.load()).plus || {};
   const prjNo = String((msg && msg.prjNo) || '').trim(), name = String((msg && msg.name) || '').trim();
   if (!prjNo || !name) return shareFail('error', '과제번호와 새 폴더 이름이 필요합니다');
   try {
-    const index = shareObj((await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
+    const index = index0 || shareObj((await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
     const cfg = await shareProjectCfg(prjNo, p, index);
     if (!cfg) return shareFail('nofolder', SHARE_NOFOLDER_MSG);
     const clean = typeof KRX_PRJDOC.folderNameFor === 'function' ? String(KRX_PRJDOC.folderNameFor({ alias: name, prjNo }) || '') : name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').trim().slice(0, 60);
@@ -1127,7 +1264,7 @@ async function shareRename(msg) {
     index[prjNo] = Object.assign({}, index[prjNo], { folder: clean, path: newPath, url: String((r && r.url) || (newCfg ? shareFolderUrl(newCfg) : '')), at: Date.now() });
     await chrome.storage.local.set({ [SHARE_INDEX_KEY]: index });
     await sharePatchPage(prjNo, { folder: clean, folderUrl: newCfg ? (newCfg.viewUrl || shareFolderUrl(newCfg)) : '', planUrl: '', webUrl: '' });
-    return { ok: true, prjNo, name: clean, path: newPath };
+    return { ok: true, prjNo, name: clean, path: newPath, folderUrl: newCfg ? (newCfg.viewUrl || shareFolderUrl(newCfg)) : '' };
   } catch (e) { const d = describeShare(e); return shareFail(d.kind, d.message); }
 }
 
@@ -1366,6 +1503,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'planSyncQueue': queueShareSync(String(msg.reason || 'edit')); return { ok: true };   // 항목 편집 뒤 4초 모아서
       case 'shareProbe': return await shareProbe(msg);                                      // 설정 페이지 "연결 확인" — base 풀기(msg.folder 가 있으면 저장 전 칸 값) + 과제 폴더 목록 + 나와 공유 → { ok, folder, folders, count, shared, mine } / 로그인 필요(auth)
       case 'shareFolderCopy': case 'planExport': return await shareFolderCopy(msg);        // 패널 ⬆ · 사업비 관리 · 설정 [주소 복사]: base(또는 prjNo 의 과제 폴더 · file 이면 예상비용.json) 주소를 클립보드에 (planExport 는 옛 이름)
+      case 'sitesShare': return await shareSitesFolder(msg);                              // 설정 › 자주 사용 가맹점 [동료에게 공유]: common 폴더를 공유할 과제(prjNos)의 참여연구원에게 읽기로 (dry 면 이름만)
       case 'shareFolderPeople': return await shareFolderPeople(msg);                       // 사업비 관리·설정 [참여연구원에게 공유]: 과제 폴더를 사람들(names 또는 참여인력 전부)에게 편집 공유 → { ok, share:{ shared, ambiguous, notFound } }
       case 'shareOrgLink': return await shareOrgLink(msg);                                 // 사업비 관리·설정 [링크 복사]: 조직 내 편집 링크를 만들어 클립보드에 → { ok, url, copied }
       case 'shareRename': return await shareRename(msg);                                   // 과제 폴더 이름 바꾸기(선택) → { ok, name }

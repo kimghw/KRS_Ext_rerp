@@ -161,6 +161,21 @@ await test('폴더 이름 규칙: 약칭 → 없으면 Job Id(로컬 projects �
   assert.deepStrictEqual(r.state.created.sort(), ['P3', 'P4']);
 });
 
+await test('공유할 과제(allow — 설정 고른 과제만): 고르지 않은 과제는 책임자·로컬 자료가 있어도 폴더를 만들지도 쓰지도 않음 · only 가 고르지 않은 과제면 아무것도 안 함 · 빈 목록이면 과제 없음', async () => {
+  const store = fakeStore({ [BASE]: {} });
+  const me = memLocal({ aliases: { P3: 'MW' }, projects: { P3: { anl: 1 }, P4: { anl: 1, jobId: 'RND4' } } });
+  const r = await Y.run(deps(store, me, { myPrjNos: ['P3', 'P4'], leadPrjNos: ['P3', 'P4'], names: {}, allow: ['P3'] }));
+  assert.deepStrictEqual([r.state.ok, Object.keys(r.state.pages), r.state.created], [true, ['P3'], ['P3']]);
+  assert.deepStrictEqual(Object.keys(store.tree).filter((k) => k.startsWith(`${BASE}/`)), [`${BASE}/MW`], 'P4(RND4) 폴더는 안 만듦');
+  const n0 = store.calls.length;
+  const r2 = await Y.run(deps(store, me, { myPrjNos: ['P3', 'P4'], leadPrjNos: ['P3', 'P4'], names: {}, allow: ['P3'], only: 'P4', index: r.state.index }));
+  assert.deepStrictEqual([r2.state.ok, Object.keys(r2.state.pages)], [true, []]);
+  assert.ok(!store.calls.slice(n0).some((c) => c.startsWith('open') || c.startsWith('modify') || c.startsWith('ensure')), 'writer 안 열림');
+  const r3 = await Y.run(deps(store, me, { myPrjNos: ['P3', 'P4'], leadPrjNos: ['P3', 'P4'], names: {}, allow: [], index: r.state.index }));
+  assert.deepStrictEqual(Object.keys(r3.state.pages), []);
+  assert.deepStrictEqual(r3.state.index.P3 && r3.state.index.P3.folder, 'MW', '고르지 않아도 알아본 폴더의 색인은 남김');
+});
+
 await test('동료가 고친 파일: 예산 줄(WORKSPACE at)·새 사람(새 at)·높은 판·변경이력·별칭·jobId 를 받아 칸마다 saveLocal, 내 것은 올림 · 다시 돌리면 둘이 같아 쓰지 않음 · 동료가 다시 받으면 내 것이 들어온다', async () => {
   const store = fakeStore({ [BASE]: {} });
   const you = memLocal({ plan: { plans: { P1: { '10|연구활동비': [item('a', 5), item('d', 6, { by: '동료' })] } }, del: {} }, research: { 'mw급과제#1': rec('P1', 1, 'r3', 2, { goals: ['새 판'] }) },
