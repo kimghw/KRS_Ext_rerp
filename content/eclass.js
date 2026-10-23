@@ -158,6 +158,7 @@
   KRX_PAY.bind(host, state, draw);    // 급여·연구수당 구역의 받기 예정 연구수당 입력(＋/수정/삭제) 처리
   KRX_PART.bind(host, state, draw);   // 과제 참여율 표의 참여 계획 입력(＋/수정/삭제, 기간 달력) 처리
   KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 드래그 앤 드롭·지우기, 청구서 작성) 처리
+  if (self.KRX_GIT) KRX_GIT.bind(state, draw);   // 제목 줄 업데이트 단추(GitHub 새 커밋 — lib/gitsync.js): storage.local.gitStatus → state.git (2026-10-23)
   KRX_RESEARCH.bind(host, state, draw);   // 연구내용 줄: 설정 페이지에서 계획서를 넣고 빼면 다시 그림, 복사 버튼
   KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
 
@@ -183,7 +184,8 @@
       const act = btn.dataset.act;
       if (act === 'refresh') { ev.preventDefault(); load(true); }
       else if (act === 'settings') { ev.preventDefault(); safe(() => chrome.runtime.sendMessage({ type: 'openOptions' })); }
-      else if (act === 'llm-setup') { ev.preventDefault(); safe(() => chrome.runtime.sendMessage({ type: 'openOptions', hash: btn.dataset.hash || 'llm' })); }   // 제목 줄 B(브릿지) 아이콘 → 설정 › LLM 연결 카드(Win+R → setup.cmd 안내)
+      else if (act === 'git') { ev.preventDefault(); safe(() => { const m = self.KRX_GIT && KRX_GIT.act(state); return m ? chrome.runtime.sendMessage(m) : null; }); }   // 제목 줄 업데이트 단추(lib/gitsync.js): 새 커밋이면 받기(gitPull) · 받은 뒤 ↻ 면 확장 다시 불러오기(gitReload) · 그 밖에는 다시 확인(gitCheck) (2026-10-23)
+      else if (act === 'llm-prompt') { ev.preventDefault(); safe(() => KRX_RENDER.copyLlmPrompt(btn, state, 'eClass 패널 제목 줄')); }   // 제목 줄 B(브릿지) 아이콘(Help 서버가 없을 때만) → 연결 지침(lib/help-setup.js 의 설정 프롬프트)을 클립보드에, 잠깐 ✓ (2026-10-23 사용자 "B를 클릭하면 연결 지침을 복사하게 해줘")
       else if (act === 'toggle') { if (ev.target.closest('a')) return; ev.preventDefault(); state.collapsed = !state.collapsed; safe(() => chrome.storage.local.set({ panelCollapsed: state.collapsed })); draw(); }
       else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
       else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; safe(() => chrome.storage.local.set({ panelView: state.view })); draw(); }

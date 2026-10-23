@@ -34,9 +34,9 @@
 .krext-updated { flex: 1; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .krext-btn { display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.12); color: #fff; border-radius: 7px; width: 26px; height: 24px; line-height: 20px; font-size: 14px; cursor: pointer; padding: 0; }
 .krext-btn svg { display: block; width: 14px; height: 14px; }
-.krext-btn-m { font-weight: 700; font-size: 13px; line-height: 1; letter-spacing: .02em; }
-.krext-btn-ai { font-weight: 700; font-size: 11px; line-height: 1; letter-spacing: .04em; }   /* 제목 줄 B(브릿지) — Help 서버(CLI)가 없을 때만 (lib/render.js llmSetupBtn); API 키로 연결돼 있으면 .krext-on, 아니면 흐림 */
-.krext-btn-ai:not(.krext-on) { opacity: .6; border-style: dashed; }   /* 사업비 관리 — 글자 M (2026-10-19 사용자 "그냥 M 넣어줘") */
+.krext-btn-m { font-weight: 700; font-size: 13px; line-height: 1; letter-spacing: .02em; }   /* 사업비 관리 — 글자 M (2026-10-19 사용자 "그냥 M 넣어줘") */
+.krext-btn-ai { font-weight: 700; font-size: 11px; line-height: 1; letter-spacing: .04em; }   /* 제목 줄 B(브릿지) — Help 서버(CLI)가 없을 때만 (lib/render.js llmSetupBtn); API 키로 연결돼 있으면 .krext-on, 아니면 흐림. 누르면 연결 지침 복사 — 잠깐 ✓ (2026-10-23) */
+.krext-btn-ai:not(.krext-on) { opacity: .6; border-style: dashed; }
 .krext-btn.krext-spin svg { animation: krext-spin 1s linear infinite; }
 @keyframes krext-spin { to { transform: rotate(360deg); } }
 .krext-dot { display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: rgba(255,255,255,.7); vertical-align: 1px; }
@@ -1672,3 +1672,14 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 @media (max-width: 600px) {
   .krext-st-focus .krext-al-card { padding: 16px 12px; }
 }
+
+/* 제목 줄 업데이트 단추(lib/gitsync.js button, 2026-10-23): GitHub 에 새 커밋이 있을 때만 보임 — 귀퉁이 수는 새 커밋 수. new 는 켜진 색(누르면 받기), blocked·diverged 는 흐림(누르면 다시 확인, 풍선 말에 까닭),
+ * reload 는 노랑 ↻(받은 것을 반영 — 누르면 확장 다시 불러오기), busy 는 돌아가는 중 */
+.krext-btn-git { position: relative; overflow: visible; }
+.krext-btn-git.krext-git-new { background: rgba(255,255,255,.3); border-color: #fff; }
+.krext-btn-git.krext-git-blocked, .krext-btn-git.krext-git-diverged { opacity: .6; border-style: dashed; }
+.krext-btn-git.krext-git-reload { background: #f4b740; border-color: #f4b740; color: #1f2d3d; }
+.krext-btn-git.krext-git-reload:hover { background: #ffc85c; }
+.krext-panel.krext-inline .krext-btn-git.krext-git-new { background: #e3edfb; border-color: #b7cdf0; color: #1a5fb4; }
+.krext-panel.krext-inline .krext-btn-git.krext-git-reload { background: #f4b740; border-color: #e0a528; color: #1f2d3d; }
+.krext-git-count { position: absolute; top: -6px; right: -7px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: #a8323f; color: #fff; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; box-sizing: border-box; }

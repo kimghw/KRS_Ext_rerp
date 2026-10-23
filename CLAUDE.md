@@ -27,7 +27,7 @@
 node help-server/server.js
 ```
 
-- 또는 `help-server\setup.cmd` 더블클릭(2026-10-21): Claude Code CLI 설치(없으면, 공식 install.ps1)/최신화(`claude update`) → `git pull --ff-only` → 서버 실행을 한 번에(내용은 `setup.ps1`). 설정 페이지 › LLM 연결과 패널 제목 줄의 **B**(브릿지) 아이콘(서버가 없을 때만 보임)이 이 파일을 안내한다(Win+R → `<확장 폴더>\help-server\setup.cmd` → Enter) — 브라우저 확장은 이 PC 에 프로그램을 띄우거나 설치할 수 없어 이 한 번은 사용자 몫.
+- 또는 `help-server\setup.cmd` 더블클릭(2026-10-21): Claude Code CLI 설치(없으면, 공식 install.ps1)/최신화(`claude update`) → `git pull --ff-only` → 서버 실행을 한 번에(내용은 `setup.ps1`). 설정 페이지 › LLM 연결이 이 파일을 안내한다(Win+R → `<확장 폴더>\help-server\setup.cmd` → Enter); 패널 제목 줄의 **B**(브릿지) 아이콘(서버가 없을 때만 보임)은 누르면 연결 지침(`lib/help-setup.js` 의 Claude Code 설정 프롬프트)을 클립보드에 복사하고 풍선 말에 이 길도 적는다(2026-10-23 사용자 "B를 클릭하면 연결 지침을 복사하게 해줘") — 브라우저 확장은 이 PC 에 프로그램을 띄우거나 설치할 수 없어 이 한 번은 사용자 몫.
 
 - 터미널을 열어 둔 동안만 동작한다(`127.0.0.1:8106`). **Claude 에 로그인한 Windows 사용자 계정으로** 실행해야 한다 — SYSTEM 계정의 Windows 서비스로 돌리면 로그인 정보가 없어 실패한다.
 - 확인: 설정 페이지 › LLM 설정 › **연결 확인**(탭 이름 옆에 연결됨/연결 안 됨 — LLM 으로 하는 기능은 연결돼 있을 때만 켜짐), 또는 `curl http://127.0.0.1:8106/health`.
@@ -54,6 +54,7 @@ node help-server/server.js
 | 찾아오기에 "Node … 22 이상이 필요합니다" | 서버를 띄운 Node 가 낮음 → Node 22+ 로 서버 다시 실행 |
 | 찾아오기에 "작업용 Chrome 이 20초 안에 뜨지 않았습니다" | 같은 프로필을 다른 Chrome 이 쓰는 중이거나 Chrome 을 못 찾음 → 작업용 Chrome 창을 닫고 다시, 또는 `KRX_FETCH_CHROME` |
 | 찾아오기가 "찾지 못함: …(추가 인증 필요·로그인 실패)" | 남아 있는 작업용 Chrome 창에서 직접 로그인·인증 → 다시 찾아오기(로그인은 그 프로필에 남음). 아이디·비밀번호는 설정 › LLM 설정 › 증빙 찾아오기 |
+| 제목 줄에 업데이트 단추가 안 보임 | GitHub 에 새 커밋이 없거나(같으면 단추 없음), 서버가 이전 버전(`GET /git` 없음 — 설정 › LLM 설정 › 연결 확인에 "GitHub 새 커밋 확인·받기 없음") → 서버를 끄고 다시 `node help-server/server.js`, 또는 서버 연결 안 됨(B 아이콘이 보임) |
 | 완료인데 "적용" 버튼이 없음 | 확장 파일이 안 바뀜(문서·테스트만) 또는 문법 오류로 보류 — 상태 줄을 눌러 로그 확인 |
 
 ### 알아 둘 것
@@ -66,4 +67,5 @@ node help-server/server.js
 - 설정 페이지 › LLM 설정 › 자주 사용 가맹점의 **찾는 방법 익히기**도 같은 `/ask` 로 온다(글이 `[증빙 찾아오기 — 새 사이트 붙이기]` 로 시작). 그 요청은 **fetch-site 스킬**(`.claude/skills/fetch-site/SKILL.md`, 대화형에서 `/fetch-site`)의 절차대로 — `node site-fetch/run.js` 단독 실행으로만 시험하고 `site-fetch/sites/<이름>.md` 를 만들며, 마지막 답변에 `howto:` 줄(채팅이 그 가맹점의 "기억한 찾는 방법" 칸에 넣음)을 둔다. 시험 서류는 `site-fetch-out/`(git 제외). 서버의 `GET /fetch/skill` · `GET /fetch/guide?url=` 가 설정 페이지의 **스킬 복사** · **안내 복사**에 원문을 준다.
 - 실서버 이상 동작을 Claude 가 직접 확인하려면 CDP 용 Chrome(KRS 프로필, `--remote-debugging-port=9333`)이 떠 있어야 한다. 없어도 코드 근거로 고친다.
 - 작업 기록은 `help-server/logs/<id>.json`(최근 50개), 고정된 확장 출처와 대화 세션은 `help-server/.state.json` — 둘 다 git 에서 제외.
+- 같은 서버가 **GitHub 새 커밋 확인·받기**(`GET /git` · `POST /git/pull`, `help-server/gitsync.js`, 2026-10-23)도 한다 — 패널 제목 줄의 **업데이트** 단추(`lib/gitsync.js`, 새 커밋이 있을 때만 보임)가 조회마다 묻고 누르면 `git pull --ff-only` 로 받는다(2026-10-23 사용자 "최신 깃이 올라오면 버튼이 생기고 누르면 브릿지 이용해서 업데이트"). 받은 것에 확장 파일이 있으면 단추가 ↻ 로 바뀌고 **사용자가 눌러야** 확장을 다시 불러온다(저절로 올리지 않음). 받은 것에 서버 파일(`help-server/`·`site-fetch/` 코드, 서버가 require 한 `lib/`)이 있으면 서버가 한가할 때 스스로 다시 뜬다(같은 명령을 떼어 띄우고 포트를 닫은 뒤 끝남 — 출력은 `help-server/logs/server.log`). 커밋·푸시는 하지 않는다. kr_ext_workspace 는 같은 기능을 네이티브 다리(`gitsync.js` · `native/gitsync.mjs`)로 이미 갖고 있다.
 - `help-server/` 와 `popup/help.js` 는 이 창구 자체다. 깨지면 팝업에서 고쳐 달라고 할 수 없으니 고칠 때는 `node --check` 와 실제 요청으로 확인한다.

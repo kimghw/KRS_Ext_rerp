@@ -25,6 +25,7 @@
   const staffApi = KRX_STAFF_UI.bind(host, state, draw);   // 제목 줄 사업비 관리 화면(state.page): 과제 칩·연차 칩·기간, 예산 줄, 사람 표의 칸·✎ 폼·더하기·빼기, 초기화, rERP 조회(백그라운드 callService), 복사
   if (state.tab && self.KRX_STAFF_CHAT) KRX_STAFF_CHAT.init({ api: staffApi, allow: allowApi, state, draw });   // 참여연구원 변경 탭의 변경 도우미 · 연구수당 계산 탭의 연구수당 도우미 채팅(popup/staff-chat.js, 0.8.8 · 2026-10-21) — 제목 줄 [에이전트] 단추(st-agent)로 열고 닫음, LLM(Help 서버)이 연결돼 있을 때만 입력
   const prepApi = KRX_PREP.bind(host, state, draw);   // 카드미청구 거래 행 밑 둘째 줄의 청구 준비(청구종류 select, 청구내역 입력란, 파일 지우기, 청구서 작성) 처리 — 팝업 창에는 파일을 끌어다 놓을 수 없고(창이 닫힘) 사이드 패널에서는 됨
+  if (self.KRX_GIT) KRX_GIT.bind(state, draw);   // 제목 줄 업데이트 단추(GitHub 새 커밋 — lib/gitsync.js): storage.local.gitStatus → state.git (2026-10-23)
 
   /* 브라우저 탭으로 열렸을 때(mode.js KRX_TAB — 주소 #tab&page=staff&only=staff&prj=과제번호&year=연차, lib/staff-ui.js openTab → background.js openExtTab):
    * 사업비 관리 화면을 그 과제·연차로 열고(staffApi.focus), only=staff 면 참여인력 부분만(state.staffOnly → render.js · lib/staff-ui.js section only, html.krext-only 가 Help Chat 줄·툴바를 숨김).
@@ -49,7 +50,8 @@
     const act = btn.dataset.act;
     if (act === 'refresh') { ev.preventDefault(); load(true); }
     else if (act === 'settings') { ev.preventDefault(); chrome.runtime.openOptionsPage(); }
-    else if (act === 'llm-setup') { ev.preventDefault(); chrome.runtime.sendMessage({ type: 'openOptions', hash: btn.dataset.hash || 'llm' }).catch(() => {}); }   // 제목 줄 B(브릿지) 아이콘 → 설정 › LLM 연결 카드(Win+R → setup.cmd 안내)
+    else if (act === 'git') { ev.preventDefault(); const m = self.KRX_GIT && KRX_GIT.act(state); if (m) chrome.runtime.sendMessage(m).catch(() => {}); }   // 제목 줄 업데이트 단추(lib/gitsync.js): 새 커밋이면 받기(gitPull) · 받은 뒤 ↻ 면 확장 다시 불러오기(gitReload) · 그 밖에는 다시 확인(gitCheck) (2026-10-23)
+    else if (act === 'llm-prompt') { ev.preventDefault(); KRX_RENDER.copyLlmPrompt(btn, state, window.KRX_TAB ? '브라우저 탭 제목 줄' : window.KRX_SIDE ? '사이드 패널 제목 줄' : '툴바 팝업 제목 줄').catch(() => {}); }   // 제목 줄 B(브릿지) 아이콘(Help 서버가 없을 때만) → 연결 지침(lib/help-setup.js 의 설정 프롬프트)을 클립보드에, 잠깐 ✓ (2026-10-23 사용자 "B를 클릭하면 연결 지침을 복사하게 해줘")
     else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
     else if (act === 'view') { ev.preventDefault(); state.view = btn.dataset.view === 'card' ? 'card' : 'project'; chrome.storage.local.set({ panelView: state.view }); draw(); }
     else if (act === 'section') { ev.preventDefault(); state.section = KRX_RENDER.secOf(btn.dataset.section); chrome.storage.local.set({ panelSection: state.section }); draw(); }

@@ -85,7 +85,7 @@
     document.querySelectorAll('details.card[data-collapse]').forEach((el) => {
       const key = el.dataset.collapse;
       if (typeof saved[key] === 'boolean') el.open = saved[key];
-      if (key === 'llm' && location.hash === '#llm-cli') { el.open = true; setTimeout(() => el.scrollIntoView({ block: 'start' }), 80); }   // 패널 B(브릿지) 아이콘(Help 서버가 없을 때) → LLM 연결 카드(Win+R → setup.cmd 안내)를 펼쳐 보임 — 기억된 접힘보다 우선, 기억은 안 바꿈(listener 전)
+      if (key === 'llm' && location.hash === '#llm-cli') { el.open = true; setTimeout(() => el.scrollIntoView({ block: 'start' }), 80); }   // 주소에 #llm-cli 가 있으면 LLM 연결 카드(Win+R → setup.cmd 안내)를 펼쳐 보임(2026-10-23 전에는 패널 B(브릿지) 아이콘이 이 주소로 왔음 — 지금 B 는 연결 지침 복사) — 기억된 접힘보다 우선, 기억은 안 바꿈(listener 전)
       el.addEventListener('toggle', () => { saved[key] = el.open; try { chrome.storage.local.set({ optCollapse: saved }); } catch (e) {} });
     });
   }
@@ -1146,7 +1146,7 @@ ${lines.length ? lines.join('\n') : d.names.join(', ')}`)) { setStatus(statusId,
     } catch (e) { j = null; err = `연결할 수 없습니다 (${url}) — 이 PC 에서 node help-server/server.js 를 실행하세요`; }
     const ok = !!(j && j.ok && j.name === 'krx-help');
     return { url, at: Date.now(), ok, model: ok ? j.model || '' : '', classify: ok ? j.classify || '' : '', classifyPtcl: !!(ok && j.classifyPtcl), fetch: ok ? j.fetch || '' : '', fetchNote: ok ? j.fetchNote || '' : '',
-      cli: ok ? j.cli || '' : '', version: ok ? j.version || '' : '', repo: ok ? j.repo || '' : '', busy: ok ? j.busy || '' : '', error: ok ? '' : (j && j.error ? `거절됨: ${j.error}` : err || `연결할 수 없습니다 (${url})`) };
+      cli: ok ? j.cli || '' : '', git: !!(ok && j.git), version: ok ? j.version || '' : '', repo: ok ? j.repo || '' : '', busy: ok ? j.busy || '' : '', error: ok ? '' : (j && j.error ? `거절됨: ${j.error}` : err || `연결할 수 없습니다 (${url})`) };
   }
   async function probeLlm(force) {
     if (llmProbing) return llmProbing;
@@ -1172,7 +1172,7 @@ ${lines.length ? lines.join('\n') : d.names.join(', ')}`)) { setStatus(statusId,
     st.className = 'llm-state ' + (!llm ? '' : ok ? 'on' : 'err');
     const detail = $('llmDetail');
     detail.innerHTML = !llm ? '' : ok
-      ? [`주소 ${F.esc(llm.url)}`, `모델 ${F.esc(llm.model || '-')}`, `자동 분류 ${F.esc(llm.classify || '없음')}`, `청구내역 작성 ${llm.classifyPtcl ? '가능' : '안 됨'}`, `증빙 찾아오기 ${F.esc(llm.fetch || llm.fetchNote || '없음')}`, `claude CLI ${F.esc(llm.cli || '확인 안 됨')}`, llm.version ? `서버가 읽은 확장 ${F.esc(llm.version)}` : '', llm.repo ? `저장소 ${F.esc(llm.repo)}` : '', llm.busy ? '요청 처리 중' : ''].filter(Boolean).map((t) => `<span>${t}</span>`).join('')
+      ? [`주소 ${F.esc(llm.url)}`, `모델 ${F.esc(llm.model || '-')}`, `자동 분류 ${F.esc(llm.classify || '없음')}`, `청구내역 작성 ${llm.classifyPtcl ? '가능' : '안 됨'}`, `증빙 찾아오기 ${F.esc(llm.fetch || llm.fetchNote || '없음')}`, `claude CLI ${F.esc(llm.cli || '확인 안 됨')}`, `GitHub 새 커밋 확인·받기 ${llm.git ? '가능' : '없음 (이전 버전 서버 — 다시 실행하세요)'}`, llm.version ? `서버가 읽은 확장 ${F.esc(llm.version)}` : '', llm.repo ? `저장소 ${F.esc(llm.repo)}` : '', llm.busy ? '요청 처리 중' : ''].filter(Boolean).map((t) => `<span>${t}</span>`).join('')
       : `<span class="err">${F.esc(llm.error || '연결할 수 없습니다')}</span><span>서버가 안 떠 있으면 이 PC 의 터미널에서 <code>node help-server/server.js</code> — 뜨면 30초 안에 저절로 켜집니다 (또는 연결 확인)</span>`;
     // 연결돼 있을 때만 LLM 기능 구역(증빙 찾아오기·가맹점 등록 포함)을 켠다 (확인 전에는 켜 둠). 자동 분류 카드는 Claude API 키가 있어도 켠다
     // 2026-10-21 사용자 "다 가게 해줘. 동일하게 위 설정에 맞게": 서버든 Claude API 든 어느 길로든 연결되면 기능 카드를 전부 켠다(설정은 설정일 뿐 — Help Chat · 찾아오기의 실제 동작은 서버 몫이고 안내가 말함). 둘 다 안 될 때만 흐리게

@@ -17,6 +17,8 @@
  * 참여연구원 변경 도우미(0.8.8): POST /staff — 참여연구원 변경 탭의 오른쪽 채팅(popup/staff-chat.js)이 요청 한 줄 + 보고 있는 과제·연차 계획의 요약 + 최근 대화를 보내면 help-server/staff-chat.js 가 claude -p 를 한 번 돌려
  *   답(reply)과 확장이 반영할 작업 목록(ops)을 돌려준다(반영·계산·저장은 확장 lib/staff-ui.js agent.apply). 자동 분류와 같은 자리(CLASSIFY_SLOTS)를 나눠 쓴다. GET /health 의 staff 에 그 모델을 적어 확장이 이 기능이 있는 서버인지 안다.
  * 연구수당 도우미(2026-10-21): POST /allow — 연구수당 계산 탭의 같은 채팅(popup/staff-chat.js allow 모드)이 요청 + 계산 요약(lib/allowance.js agent.snapshot)을 보내면 같은 staff-chat.js run 을 lib/allow-chat-core.js(프롬프트 = 10-53 연구수당 지침)로 돌려 작업 목록을 돌려준다(반영은 lib/allowance.js agent.apply). GET /health 의 allow 에 그 모델.
+ * GitHub 새 커밋 확인·받기(2026-10-23): GET /git · POST /git/pull — 패널 제목 줄의 업데이트 단추(lib/gitsync.js)가 조회마다 묻고(받아 오기는 10분에 한 번, ?fetch=1 이면 바로) 누르면 받는다(help-server/gitsync.js, pull --ff-only — 확장이 git 에 넘기는 값은 없음).
+ *   받은 것에 서버 파일(help-server/·site-fetch/ 코드, 서버가 require 한 lib/)이 있으면 서버가 한가할 때 스스로 다시 뜬다(같은 명령을 떼어 띄우고 포트를 닫은 뒤 끝남, 출력은 logs/server.log). GET /health 의 git 으로 확장이 이 기능이 있는 서버인지 안다.
  * 환경 변수: KRX_HELP_PORT(8106) · KRX_HELP_MODEL(claude-opus-5-5) · KRX_HELP_FAST_MODEL(claude-haiku-5-5, 자동 분류) · KRX_HELP_CLAUDE(claude 실행 파일) · KRX_HELP_PERMISSION(acceptEdits) · KRX_HELP_TIMEOUT_MIN(30) · KRX_HELP_EXT_ID
  *   증빙 찾아오기: KRX_FETCH_MODEL(KRX_HELP_MODEL) 외 site-fetch/README.md */
 'use strict';
@@ -29,6 +31,7 @@ const classify = require('./classify');
 const siteFetch = require('../site-fetch');   // 증빙 찾아오기 — 다른 웹 사이트에 가는 부분은 site-fetch/ 에 따로 (이 서버는 /fetch 경로만 넘겨 줌)
 const staffChat = require('./staff-chat');     // 참여연구원 변경 도우미 — 탭 채팅의 POST /staff (0.8.8)
 const allowChat = require('../lib/allow-chat-core.js');   // 연구수당 도우미 — 연구수당 계산 탭의 같은 채팅, POST /allow (2026-10-21): 프롬프트·작업·스키마만 다르고 실행은 staffChat.run(…, { core })
+const gitsync = require('./gitsync');          // GitHub 새 커밋 확인·받기 — 패널 제목 줄의 업데이트 단추(lib/gitsync.js)가 부르는 GET /git · POST /git/pull (2026-10-23)
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.KRX_HELP_PORT) || 8106;
@@ -53,6 +56,10 @@ const jobs = new Map();   // id → job (메모리, 최근 것만)
 let running = null;       // { job, child, timer }
 let state = readJson(STATE) || {};
 let cliVersion = '';
+const GIT_FETCH_MS = 10 * 60000;   // GitHub 받아 오기(fetch) 간격 — 확장이 조회마다 물어도 이 안에서는 마지막으로 받아 둔 것과 견준다(kr_ext_workspace 의 git 아이콘과 같다). GET /git?fetch=1 이면 바로
+let gitFetchedAt = 0;              // 마지막으로 받아 온 때
+let gitQueue = Promise.resolve();  // git 작업은 한 번에 하나(확인·받기가 겹치지 않게)
+let restartTimer = null;           // 받은 커밋에 서버 파일이 있어 다시 뜨기로 한 상태 (scheduleRestart)
 
 function readJson(f) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return null; } }
 function saveState() { try { fs.writeFileSync(STATE, JSON.stringify(state, null, 2)); } catch (e) {} }
@@ -319,6 +326,57 @@ async function staffRequest(body, kind) {
   } finally { classifyDone(); }
 }
 
+/* GitHub 새 커밋 확인·받기 (help-server/gitsync.js — 패널 제목 줄의 업데이트 단추, 2026-10-23). git 작업은 줄을 세워 한 번에 하나만 */
+function gitRun(fn) { const p = gitQueue.then(fn, fn); gitQueue = p.catch(() => {}); return p; }
+async function gitStatusCached(force) {
+  const now = Date.now();
+  const doFetch = force || now - gitFetchedAt >= GIT_FETCH_MS;
+  const s = await gitsync.gitStatus({ fetch: doFetch });
+  if (doFetch) gitFetchedAt = now;   // 실패해도(인증·오프라인) 그때로 적어 매번 다시 두드리지 않는다 — 까닭은 fetchError 로 간다
+  return Object.assign(s, { fetchedAt: gitFetchedAt });
+}
+/** 서버 프로세스가 require 한 파일(저장소 상대 경로) — 이 중 하나가 받은 커밋에 있으면 다시 띄워야 반영된다 */
+const loadedModules = () => Object.keys(require.cache).map(rel).filter((p) => !path.isAbsolute(p) && !p.startsWith('..'));
+async function gitPullAndRestart() {
+  const r = await gitsync.gitPull({ loaded: loadedModules() });
+  if (!r.ok) { console.log(`[${new Date().toLocaleTimeString()}] GitHub 받기 실패: ${oneLine(r.error, 200)}`); return r; }
+  if (r.pulled) {
+    gitFetchedAt = 0;   // 다음 확인은 받아 오기부터
+    console.log(`[${new Date().toLocaleTimeString()}] GitHub 에서 커밋 ${r.pulled}개 받음 (${r.from} → ${r.to}, 파일 ${r.fileCount}개: ${oneLine(r.files.join(', '), 200)})${r.reload ? ' · 확장 다시 불러오기 필요' : ''}`);
+    if (r.server) r.restart = scheduleRestart(`업데이트 ${r.from} → ${r.to}`);
+  }
+  return r;
+}
+/* 받은 커밋에 서버가 읽는 파일이 있으면 스스로 다시 뜬다 — 응답을 보낸 뒤, 한가할 때(Help Chat·분류·찾아오기가 돌고 있으면 끝나기를 5초마다 기다림 → 'later', 아니면 'now').
+ * 새 프로세스는 같은 명령(node help-server/server.js)을 이 저장소에서 떼어 띄우고(창 없음, 출력은 help-server/logs/server.log) 이 프로세스는 포트를 닫은 뒤 끝난다 — 포트는 닫힌 뒤에야 새 프로세스가 잡으므로 겹치지 않는다.
+ * setup.cmd 창에서 띄운 서버라면 그 창의 node 는 끝나고(pause 가 남음) 새 서버는 숨은 채로 돈다. */
+function scheduleRestart(why) {
+  const idle = () => !running && !classifying && !siteFetch.busy();
+  if (!restartTimer) {
+    const go = () => { if (!idle()) { restartTimer = setTimeout(go, 5000); return; } restartTimer = null; restartSelf(why); };
+    restartTimer = setTimeout(go, 700);   // 응답이 나간 뒤
+  }
+  return idle() ? 'now' : 'later';
+}
+function restartSelf(why) {
+  console.log(`[${new Date().toLocaleTimeString()}] 서버를 다시 띄웁니다 — ${why} (새 서버의 출력은 help-server/logs/server.log)`);
+  let done = false;
+  const next = () => {
+    if (done) return;
+    done = true;
+    let out = 'ignore';
+    try { fs.mkdirSync(LOG_DIR, { recursive: true }); out = fs.openSync(path.join(LOG_DIR, 'server.log'), 'a'); } catch (e) {}
+    try {
+      spawn(process.execPath, [__filename], { cwd: ROOT, env: Object.assign({}, process.env, { KRX_HELP_RESTARTED: why }), detached: true, stdio: ['ignore', out, out], windowsHide: true }).unref();
+    } catch (e) { console.error(`다시 띄우지 못했습니다: ${e.message} — node help-server/server.js 를 직접 실행하세요`); }
+    if (out !== 'ignore') try { fs.closeSync(out); } catch (e) {}
+    process.exit(0);
+  };
+  try { server.closeAllConnections(); } catch (e) {}
+  server.close(next);
+  setTimeout(next, 3000).unref();   // 연결이 안 닫혀도 넘어간다
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const bad = guard(req);
@@ -326,10 +384,17 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
     if (req.method === 'GET' && u.pathname === '/health') {
       return send(res, 200, { ok: true, name: 'krx-help', version: manifestVersion(), repo: ROOT, model: MODEL, cli: cliVersion, busy: running ? running.job.id : '',
-        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), classify: FAST_MODEL, classifyPtcl: true, staff: STAFF_MODEL, staffFiles: true, allow: STAFF_MODEL,
+        session: !!(state.session && Date.now() - state.session.at < RESUME_MS), git: true, classify: FAST_MODEL, classifyPtcl: true, staff: STAFF_MODEL, staffFiles: true, allow: STAFF_MODEL,
         fetch: siteFetch.available() ? '' : FETCH_MODEL, fetchNote: siteFetch.available(), fetchBusy: siteFetch.busy() });
     }
     if (u.pathname === '/fetch' || u.pathname.startsWith('/fetch/')) return fetchRoute(req, res, u);   // 증빙 찾아오기 (site-fetch/)
+    if (req.method === 'GET' && u.pathname === '/git') {   // GitHub 새 커밋 확인 (lib/gitsync.js check): 받아 오기는 10분에 한 번, ?fetch=1 이면 바로 → { ok, branch, upstream, ahead, behind, commits, dirty, overlap, fetchError?, fetchedAt } | { ok:false, error }
+      return send(res, 200, await gitRun(() => gitStatusCached(u.searchParams.get('fetch') === '1')));
+    }
+    if (req.method === 'POST' && u.pathname === '/git/pull') {   // 받기 (lib/gitsync.js pull): git pull --ff-only → { ok, from, to, pulled, files, fileCount, reload(확장 다시 불러오기 필요), server(서버 파일 바뀜), deps, restart('now'|'later'|'') } — 서버 파일이 바뀌었으면 응답 뒤 스스로 다시 뜬다
+      await readBody(req);
+      return send(res, 200, await gitRun(gitPullAndRestart));
+    }
     if (req.method === 'GET' && u.pathname === '/job') {
       const job = findJob(u.searchParams.get('id') || '');
       if (!job) return send(res, 404, { ok: false, kind: 'nojob', error: '그 작업 기록이 없습니다' });
@@ -373,6 +438,7 @@ function fetchRoute(req, res, u) {
 server.on('error', (e) => { console.error(e && e.code === 'EADDRINUSE' ? `포트 ${PORT} 를 이미 쓰고 있습니다 (Help 서버가 이미 떠 있거나 KRX_HELP_PORT 로 다른 포트 지정)` : e); process.exit(1); });
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`확장 Help Chat 서버 http://127.0.0.1:${PORT}  저장소 ${ROOT}  모델 ${MODEL}  권한 ${PERMISSION}  자동 분류 ${FAST_MODEL}  증빙 찾아오기 ${siteFetch.available() || FETCH_MODEL}  참여연구원 변경 도우미 ${STAFF_MODEL}`);
+  if (process.env.KRX_HELP_RESTARTED) console.log(`[${new Date().toLocaleTimeString()}] 업데이트 뒤 다시 시작 — ${process.env.KRX_HELP_RESTARTED}`);
   const tryVersion = (bins) => execFile(bins[0], ['--version'], { env: childEnv(), windowsHide: true }, (err, out) => {
     if (err) return bins.length > 1 ? tryVersion(bins.slice(1)) : console.error('claude CLI 를 실행하지 못했습니다 — 설치·로그인(claude) 뒤 다시 시도하세요');
     cliVersion = String(out).trim().split(/\s+/)[0]; console.log(`claude CLI ${cliVersion}`);

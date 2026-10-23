@@ -23,7 +23,7 @@
         "https://eclass.krs.co.kr/eClassVer4/",
         "https://eclass.krs.co.kr/eClassVer4"
       ],
-      "js": ["lib/format.js", "lib/settings.js", "lib/plan.js", "lib/pay.js", "lib/part.js", "lib/fetch-sites.js", "lib/prep.js", "lib/research.js", "lib/staff.js", "lib/collect.js", "lib/staff-ui.js", "lib/render.js", "content/eclass.js"],
+      "js": ["lib/format.js", "lib/settings.js", "lib/plan.js", "lib/pay.js", "lib/part.js", "lib/fetch-sites.js", "lib/prep.js", "lib/research.js", "lib/staff.js", "lib/collect.js", "lib/staff-ui.js", "lib/help-setup.js", "lib/gitsync.js", "lib/render.js", "content/eclass.js"],
       "css": ["lib/panel.css"],
       "run_at": "document_idle"
     },

@@ -1,5 +1,5 @@
 /* 서비스워커: 데이터 수집/캐시, 배지, 캡처 로그 저장, 주기 갱신 */
-importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/mcp-client.js', 'lib/teams-mcp.js', 'lib/prep-store.js', 'lib/classify-core.js', 'lib/claude-api.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · classify-core·claude-api: 자동 분류를 Claude API 로 직접 (0.8.6) · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
+importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/gitsync.js', 'lib/mcp-client.js', 'lib/teams-mcp.js', 'lib/prep-store.js', 'lib/classify-core.js', 'lib/claude-api.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · classify-core·claude-api: 자동 분류를 Claude API 로 직접 (0.8.6) · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
   'lib/plan.js', 'lib/plan-sync.js',   // 공유 (Plus) 의 예상 비용 몫: plan.js 는 저장소 키·월간 구독 계산용, plan-sync.js 는 병합 규칙(merge)
   'lib/research.js', 'lib/research-sync.js',   // 연구개발계획서(연구내용) 참조 · 공유 (Plus) 의 연구내용 병합 규칙(merge)
   'lib/staff.js', 'lib/staff-sync.js', 'lib/collect.js',   // 사업비(참여연구원 참여율·지급액 계획, 0.8.7) · 공유 (Plus) 의 사업비 병합 규칙(merge) · 참여연구원 자료 요청(SharePoint 응답 목록 · 팀즈 딥 링크 · 응답 취합, 0.8.9 — 배선은 아래 collect*)
@@ -79,7 +79,7 @@ async function refresh(force, opts) {
       const gen = settingsGen;
       const settings = await KRX_SETTINGS.load();
       const cache = await getCache();
-      KRX_LLM.probe((settings.help || {}).url, false).catch(() => {});   // LLM(Help 서버) 연결 상태 → storage.local.llmStatus (패널의 찾아오기 버튼·설정 페이지가 봄). 30초 안이면 마지막 결과
+      KRX_LLM.probe((settings.help || {}).url, false).then((st) => (st.ok && st.git ? KRX_GIT.check(st.url, false) : KRX_GIT.offline(st.url, st.ok ? '이전 버전 Help 서버' : st.error))).catch(() => {});   // LLM(Help 서버) 연결 상태 → storage.local.llmStatus (패널의 찾아오기 버튼·설정 페이지가 봄). 30초 안이면 마지막 결과. 이어서 GitHub 새 커밋 확인(lib/gitsync.js → storage.local.gitStatus, 10분 안이면 마지막 결과) — 서버가 없거나 이전 버전이면 제목 줄 업데이트 단추를 숨김 (2026-10-23)
       const ttl = Math.max(1, KRX_FMT.num(settings.refreshMinutes) || 10) * 60000;
       // 오류로 끝난 결과(예: 재로드 직후 일시적 네트워크 오류)는 TTL 과 상관없이 다시 조회.
       // "로그인 필요"로 끝난 결과도 자동 로그인이 켜져 있으면 RND_SSO_RETRY_MS 뒤부터 다시 조회 — eClass 에 로그인하고 돌아오면 다음 패널 열기/알람에서 SSO 로 이어진다 (실패해도 요청 2개라 가벼움)
@@ -541,6 +541,7 @@ async function patchCacheHrPay(hrPay) {
 }
 
 chrome.runtime.onInstalled.addListener(() => {   // 설치/업데이트/재로드 시 이전 캐시를 버리고 새로 조회
+  KRX_GIT.reset().catch(() => {});   // 제목 줄 업데이트 단추의 받은 뒤 ↻ 표시(storage.local.gitStatus.reload)를 지움 — 다시 올라왔으니 다음 조회에서 새로 확인 (lib/gitsync.js, 2026-10-23)
   chrome.storage.local.remove([CACHE_KEY, 'hrDiag'])
     .then(ensureHrRules)
     .then(injectBridgeIntoOpenErpTabs)
@@ -1495,6 +1496,20 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   return true;
 });
 
+/* GitHub 새 커밋 확인·받기 (lib/gitsync.js — Help 서버 GET /git · POST /git/pull, 2026-10-23): 조회(refresh)마다 LLM 연결 확인에 이어 확인하고, 제목 줄 업데이트 단추가 gitCheck · gitPull · gitReload 로 부른다.
+ * 서버가 없거나 이 기능이 없는(이전 버전) 서버면 상태를 비워 단추를 숨긴다. 받은 것에 서버 파일이 있으면 서버가 스스로 다시 뜨므로(restart) 몇 초 뒤 연결과 새 커밋을 다시 확인해 B 아이콘이 남지 않게 한다 */
+async function gitCheck(force) {
+  const st = await KRX_LLM.probe(((await KRX_SETTINGS.load()).help || {}).url, !!force);
+  if (!st.ok || !st.git) return await KRX_GIT.offline(st.url, st.ok ? '이전 버전 Help 서버 — 다시 띄우면 GitHub 확인이 됩니다' : st.error);
+  return await KRX_GIT.check(st.url, !!force);
+}
+async function gitPull() {
+  const url = KRX_LLM.baseUrl(((await KRX_SETTINGS.load()).help || {}).url);
+  const r = await KRX_GIT.pull(url);
+  if (r.restart) setTimeout(() => { KRX_LLM.probe(url, true).then((st) => { if (st.ok && st.git) KRX_GIT.check(st.url, true).catch(() => {}); }).catch(() => {}); }, 6000);
+  return r;
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg && msg.type) {
@@ -1553,6 +1568,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepFile': { const f = await KRX_PREP_STORE.fileB64(String(msg.id || '')); return f ? Object.assign({ ok: true }, f) : { ok: false, error: '파일이 없습니다 (지워졌거나 다른 브라우저에 저장됨)' }; }   // popup/file.html 이 보여 줄 파일 하나
       case 'prepFileOpen': await chrome.tabs.create({ url: chrome.runtime.getURL(`popup/file.html#${encodeURIComponent(String(msg.id || ''))}`) }); return { ok: true };   // 파일 칩 이름 클릭 → 새 탭에서 보기 (eClass 패널·사이드 패널·팝업 모두 여기로)
       case 'teamsProbe': return await KRX_TEAMS.probe(msg.url || ((await KRX_SETTINGS.load()).teams || {}).mcpUrl, !!msg.force);   // 팀즈 MCP 연결 확인 — 설정 페이지 · 참여연구원 변경 탭. 결과는 storage.local.teamsStatus
+      case 'gitCheck': return await gitCheck(!!msg.force);     // 패널 제목 줄 업데이트 단추(lib/gitsync.js): GitHub 새 커밋 다시 확인 (force 면 서버가 받아 오기부터) → storage.local.gitStatus (2026-10-23)
+      case 'gitPull': return await gitPull();                   // 받기(Help 서버 POST /git/pull, git pull --ff-only) → gitStatus(확장 파일이 바뀌었으면 reload 표시 ↻) · 서버 파일이 바뀌어 서버가 스스로 다시 뜨면 몇 초 뒤 LLM 연결을 다시 확인
+      case 'gitReload': setTimeout(() => chrome.runtime.reload(), 150); return { ok: true };   // 받은 것을 반영 — 사용자가 ↻ 단추를 눌렀을 때만 (저절로 다시 올리지 않음, 2026-10-22 사용자 지정)
       case 'llmProbe': return await KRX_LLM.probe(msg.url, !!msg.force);   // LLM(Help 서버) 연결 확인 — 설정 페이지 LLM 설정 탭(연결 확인 · 주기 확인). 결과는 storage.local.llmStatus 에도 (lib/llm.js)
       case 'prepSetFileKind': return { ok: true, entry: await KRX_PREP_STORE.setFileKind(String(msg.key || ''), String(msg.id || ''), String(msg.kind || '')) };   // 첨부 파일 종류 → 이름 바꾸기
       case 'prepRemoveFile': return { ok: true, entry: await KRX_PREP_STORE.removeFile(String(msg.key || ''), String(msg.id || '')) };
