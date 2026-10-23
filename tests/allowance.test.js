@@ -139,6 +139,25 @@ test('카드 — 계획이 없으면 일반 정보와 안내만; section(only:al
   const sec = U.section({ projects: [P] }, {}, st, '<span class="krext-page-title">연구수당 계산</span>', { only: 'allow' });
   assert.ok(sec.includes('krext-page-title">연구수당 계산') && sec.includes('data-act="st-year" data-year="1"') && sec.includes('data-alkey="2026-0063-01@1"') && sec.includes('data-act="st-agent"') && sec.includes('연구수당 도우미(채팅) 열기') && !sec.includes('data-card="staff"') && sec.includes('별지 1·2 를 그대로 셈합니다'));
 });
+test('카드 — 계획이 없어도 rERP 등록 지급계획(이 기간)을 조회해 두었으면 그 참여율로 셈한다(사람 id erp:이름키 · staff.erpOnly · 안내 한 줄 · 별지와 DOCX 켜짐); 조회 전에는 전처럼 안내만', () => {
+  const REC = [
+    { EMP_NM: '문창재', ROLE_NM: '참여연구원', PAY_LIMT_AMT: '5823000', PAY_AMT: '1165000', PART_RT: '20.01', PLAN_YM_FROM: '202604', PLAN_YM_TO: '202611', NCNT: '8', REQ_CNT: '9', SEQ_NO: '2' },
+    { EMP_NM: '문창재', ROLE_NM: '참여연구원', PAY_LIMT_AMT: '5823000', PAY_AMT: '1159000', PART_RT: '19.91', PLAN_YM_FROM: '202612', PLAN_YM_TO: '202612', NCNT: '1', REQ_CNT: '9', SEQ_NO: '2' },
+    { EMP_NM: '김거화', ROLE_NM: '과제책임자', PAY_LIMT_AMT: '8480000', PAY_AMT: '2328000', PART_RT: '27.46', PLAN_YM_FROM: '202604', PLAN_YM_TO: '202611', NCNT: '8', REQ_CNT: '9', SEQ_NO: '1' },
+    { EMP_NM: '김거화', ROLE_NM: '과제책임자', PAY_LIMT_AMT: '8480000', PAY_AMT: '2322000', PART_RT: '27.39', PLAN_YM_FROM: '202612', PLAN_YM_TO: '202612', NCNT: '1', REQ_CNT: '9', SEQ_NO: '1' },
+  ];
+  const st = mk({ staffPlans: {}, staffRows: { [P.prjNo]: { at: 1, rows: S.rowsOfErp(REC), others: {} } } });
+  const br = U.budgetRows(P, null, 1, st);
+  const c = A.ctxOf(P, null, 1, br, st, { me: '김거화', hr: null });
+  assert.ok(c.staff && c.staff.erpOnly === true && c.erpOnly === true && c.staff.basis === 'rerp', 'rERP 등록 지급계획으로 대체');
+  assert.deepStrictEqual(c.res.people.map((x) => [x.id, x.name, x.target, x.rate > 0]).sort((a, b) => a[0].localeCompare(b[0])), [['erp:김거화', '김거화', true, true], ['erp:문창재', '문창재', true, true]], '이름키 id · 지급 대상 둘');
+  assert.strictEqual(c.res.n, 2);
+  const html = A.card(P, null, 1, br, st, { me: '김거화', hr: null });
+  assert.ok(html.includes('2명 · 집행 가능액 5,000천원') && html.includes('1차년도 참여연구원 계획이 아직 없어 rERP 등록 지급계획의 참여율로 셈합니다') && html.includes('krext-al-t1') && !html.includes('disabled>DOCX 내려받기') && !html.includes('참여연구원 계획이 아직 없습니다 — <b>참여연구원 변경</b>') && html.includes('data-alp="dept" data-i="erp:김거화"'), '안내 한 줄 · 별지 1 · DOCX 단추 켜짐 · 칸의 id 는 erp:이름키');
+  const st0 = mk({ staffPlans: {} });
+  const none = A.card(P, null, 1, U.budgetRows(P, null, 1, st0), st0, {});
+  assert.ok(none.includes('0명 · 집행 가능액 5,000천원') && none.includes('1차년도 참여연구원 계획이 아직 없습니다') && none.includes('disabled>DOCX 내려받기') && !none.includes('krext-al-t1') && !none.includes('krext-al-erponly'), '계획도 rERP 조회도 없으면 전처럼 안내만');
+});
 test('복사 글과 Word 문서 모형 — 별지 1 표(항목 줄 · 계)와 별지 2 표, docx 로 만들어짐', () => {
   const st = mk({ allowCalc: { [S.planKey(P.prjNo, 1)]: { people: { k: { dept: '연구본부', grade: 'P2', items: [{ name: '연구총괄 및 관리', level: '가', count: 1, weight: 1 }, { name: '논문(SCI(E))', level: '가', count: 1, weight: 0.8 }], etc: 100 }, m: { grade: 'P1', etc: 75 } }, at: 1 } } });
   const c = A.ctxOf(P, plan, 1, U.budgetRows(P, plan, 1, st), st, {});

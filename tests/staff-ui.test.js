@@ -398,20 +398,24 @@ test('참여인력 계획이 있으면 — 카드 머리(연구자 n명 · 초�
   const html3 = U.section(d, {}, st, '', EDIT);
   assert.ok(/krext-st-error">인건비 합 30,266천원이 예산 30,000천원을 넘습니다 — 초과금 266천원/.test(html3) && html3.includes('>연구자 2명 · 초과 266</span>') && html3.includes('krext-ws-state krext-red'));
 });
-test('계획이 없는 패널 카드 — rERP 등록 지급계획(이 기간)을 보기 표로 보이고(WORKSPACE 와 같음) 머리는 연구자 n명, 100% 초과 알림만, 복사는 그 표; 탭은 안내와 편집 단추', () => {
+test('계획이 없는 패널 카드 — rERP 등록 지급계획(이 기간)을 보기 표로 보이고(WORKSPACE 와 같음) 머리는 연구자 n명, 100% 초과 알림만, 복사는 그 표; 탭도 안내 아래 같은 보기 표와 편집 단추(새 사람 폼이 열리면 폼)', () => {
   const rows = S.rowsOfErp(REC);
   const st = mk({ data: d, staffRows: { [P.prjNo]: { at: 1, rows, others: {} } }, staffSupport: { [P.prjNo]: { people: [{ name: '조주희', role: '행정 담당', ref: true }], at: 5 } } });
   const html = U.section(d, {}, st, '', EDIT);
   assert.ok(html.includes('>연구자 2명 · 행정 1명</span>') && html.includes('계획이 아직 없어 rERP 등록 지급계획(이 기간)을 보입니다 — 계획은 <b>참여연구원 변경</b>에서 세웁니다') && html.includes('<table class="krext-cards krext-st-table krext-st-view">') && html.includes('title="과제책임자">책임</td>') && html.includes('>10,479</td>') && !html.includes('krext-st-erp'), '머리 · 안내 · 보기 표(rERP 등록 줄은 계획일 때만)');
   assert.ok(!html.includes('<span class="krext-badge">') && !html.includes('참여연구원 계획 합'), '계획은 아니므로 연차 칩 배지·예산 메모 없음');
   const tab = U.section(d, {}, st, '', TAB);
-  assert.ok(/>행정 1명( · 예산 [\d,]+천원)?<\/span>/.test(tab) && tab.includes('1차년도 인건비 계획이 아직 없습니다. <b>계획 관리 → rERP 현재로</b> 를 누르면') && !tab.includes('krext-st-view') && tab.includes('data-act="st-init-erp"'), '탭: 계획 관리 경로 안내와 편집 단추, rERP 표는 보이지 않음');
+  assert.ok(tab.includes('>연구자 2명 · 행정 1명</span>') && tab.includes('1차년도 인건비 계획이 아직 없습니다. <b>계획 관리 → rERP 현재로</b> 를 누르면') && tab.includes('아래는 이 기간의 rERP 등록 지급계획(보기만)입니다.') && tab.includes('<table class="krext-cards krext-st-table krext-st-view">') && tab.includes('title="과제책임자">책임</td>') && !tab.includes('krext-st-editable') && tab.includes('aria-label="달마다의 지급 보이기"') && tab.includes('data-act="st-init-erp"'), '탭: 머리는 그 인원, 계획 관리 경로 안내 아래 rERP 등록 지급계획 보기 표(편집 표 아님, M 은 달마다의 지급) · 편집 단추');
+  st.staffEdit = { prjNo: P.prjNo, year: 1, id: 'new' }; st.staffDraft = { from: '2026-10', mode: 'rate', value: '20', name: '' };
+  const tabForm = U.section(d, {}, st, '', TAB);
+  assert.ok(tabForm.includes('krext-st-editable') && !tabForm.includes('krext-st-view') && !tabForm.includes('아래는 이 기간의 rERP 등록 지급계획'), '새 사람 폼이 열려 있으면 폼이 우선 — 보기 표 없음');
+  st.staffEdit = null; st.staffDraft = null; st.staffOnly = 'staff';   // 복사는 탭(staffOnly)에서도 보이는 rERP 등록 표
   withStaffActions(st, ({ click }) => {
     const prior = Object.getOwnPropertyDescriptor(globalThis, 'navigator'); let copied = '';   // Node 21+ 의 navigator 는 setter 없는 getter — defineProperty 로 바꾼다
     Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText: (t) => { copied = t; return { then(ok) { ok(); } }; } } }, configurable: true, writable: true });
     try { click('st-copy'); } finally { if (prior) Object.defineProperty(globalThis, 'navigator', prior); else delete globalThis.navigator; }
     const lines = copied.split('\n');
-    assert.ok(lines.length === 4 && lines[1].startsWith('문창재\t참여연구원\t5,823') && lines[3].startsWith('조주희\t행정지원\t\t과제 공통'), '복사는 보이는 rERP 등록 표 + 행정지원 줄');
+    assert.ok(lines.length === 4 && lines[1].startsWith('문창재\t참여연구원\t5,823') && lines[3].startsWith('조주희\t행정지원\t\t과제 공통'), '복사는 보이는 rERP 등록 표 + 행정지원 줄(탭에서도)');
   });
 });
 test('기간 구간 줄 — 12월부터 참여율을 바꾸면 구간마다 한 줄(4~11월 27.46% · 12월 20.00%), 구간 줄의 칸은 그 구간만 바꾸고, 예산을 넘어도 막지 않고 초과금·부족금을 메시지에', () => {
