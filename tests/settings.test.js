@@ -112,4 +112,11 @@ test('입력을 바꾸지 않는다 · 다른 migrate 는 그대로(actionSidePa
   assert.deepStrictEqual(stored, { plus: { enabled: true, sectionId: 'old', sectionLabel: 'x', connect: 'mcp' }, actionSidePanel: true });
   assert.deepStrictEqual(['sectionId' in s.plus, 'connect' in s.plus, 'actionSidePanel' in s, s.plus.enabled], [false, false, false, true]);
 });
+test('MIG-09 rndUrl — 이전 기본값(레이아웃 GET, ERP 자체 비밀번호 변경 창이 뜰 수 있음)은 SSO 진입 페이지로, 사용자가 바꾼 주소는 그대로', () => {
+  const SSO = 'https://rnd.krs.co.kr/jsp/rderp/main/sso_login_krs_view.jsp?SSO_PAGE_GB=A';
+  assert.strictEqual(S.DEFAULTS.rndUrl, SSO);
+  assert.strictEqual(S.fromStored({}).rndUrl, SSO);
+  for (const old of ['https://rnd.krs.co.kr/rderp_layoutMain.act', ' http://rnd.krs.co.kr/rderp_layoutMain.act/ ']) assert.strictEqual(S.fromStored({ rndUrl: old }).rndUrl, SSO, old);
+  for (const mine of ['https://rnd.krs.co.kr/rderp_layoutMain.act#krext=x', 'https://rnd.krs.co.kr/rmain_0002_01.act']) assert.strictEqual(S.fromStored({ rndUrl: mine }).rndUrl, mine, mine);
+});
 console.log(`\n${n} passed${failed ? `, ${failed} failed` : ''}`);

@@ -491,6 +491,7 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 - `SSO-03` 세 요청을 `fetch(credentials:'include')` 로 보낸다. rERP 는 Referer·Origin 을 보지 않아 확장 출처에서도 통하고, 탭을 열지 않으며 0.5초 안팎에 끝난다. 새 쿠키는 브라우저가 관리하므로 열려 있는 ERP 탭도 함께 살아난다.
 - `SSO-04` 시점: 알람(갱신 주기)·패널/팝업 열기·↻ 등 모든 조회에서 결과가 로그인 필요일 때 한 번. "로그인 필요"로 끝난 캐시는 1분(`RND_SSO_RETRY_MS`) 뒤부터 다시 조회하므로 eClass 에 로그인하고 eClass 홈을 열면 패널이 바로 다시 로그인한다. 설정 페이지의 **R&D ERP 자동 로그인 지금 시도** 버튼으로 바로 확인할 수 있다.
 - `SSO-05` 실패 처리: eClass 세션까지 끝났으면(loginCheck 가 빈 값) 캐시에 `eclassLogin` 으로 기록하고 패널·배지에 "eClass 로그인 필요"를 안내한다. 그 밖의 실패는 `autoLogin.error` 와 함께 이전 안내(eClass 의 R&D ERP 메뉴 클릭)를 보인다.
+- `SSO-07` 레이아웃 직접 열기(2026-10-23): 레이아웃(`rderp_layoutMain.act`)을 GET 으로 바로 열면 화면이 `SSO_IN=N` 으로 그려져 ERP 의 `layoutMain.js fn_reqPw` 가 ERP 자체 비밀번호(eClass 와 별개 계정) 검사를 한다 — 초기 비밀번호·초기화(`PW_INIT_YN=Y`)이거나 마지막 변경(`rmain_0000_01_r001` 의 `PW_CHG_DATE`)이 6개월 기준일(hidden `CHNG_BASE_DT`)보다 전이면 비밀번호 변경 창(blockUI)과 alert "비밀번호 변경 기간이 6개월이 지났습니다" 가 뜬다. 계정마다 달라 어떤 PC(계정)에서만 보인다(2026-10-23 다른 PC 에서 "R&D ERP 열기" 로 발생, 이 PC 계정은 2026-07-01 에 바꿔 안 보임). `SYS_LOGIN=Y` 를 POST 하면 `SSO_IN=Y` 로 그려져 검사를 건너뛴다(CDP 실측). 그래서 **R&D ERP 열기**(설정 `rndUrl` 기본값 · 패널·팝업 링크)는 eClass 아이콘과 같은 SSO 진입 페이지 `sso_login_krs_view.jsp?SSO_PAGE_GB=A` 를 연다(eClass 아이콘처럼 결재함 탭이 같이 열림, 이전 기본값 저장분은 `MIG-09`). 과제 행 아이콘·보완요청·청구서 작성 같은 딥링크(`rderp_layoutMain.act#krext=…`)는 `content/rnd-hook.js` 가 document_start 에 같은 주소·해시로 `SYS_LOGIN=Y&SSO_PAGE_GB=M` 폼 POST 를 다시 보내 연다(해시에 `krext_sso=1` 을 붙여 한 번만 — 해시는 POST 뒤에도 남아 딥링크가 그대로 열림).
 - `SSO-06` HR 자동 로그인(9장)과 원칙은 같지만 경로가 다르다: HR 은 eClass 중계 페이지가 UID·SID 를 URL 에 실어 `hr.krs.co.kr/sso-proc` 로 보내고(GET 한 번), rERP 는 rERP 쪽 페이지가 eClass 에 되물어 받은 값을 POST 한다(요청 세 번). eClass 가 HR 에 주는 UID 는 36자, rERP 에 주는 UID 는 30자.
 
 ## 9. HR System 급여명세서 수집·자동 로그인
@@ -529,7 +530,7 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 | `actionPopup` | `false` | 툴바 아이콘 클릭 시 사이드 패널(기본) 대신 팝업 창 열기(`PAN-08`, 0.8.5). 0.8.4 의 `actionSidePanel` 은 마이그레이션에서 버린다 |
 | `refreshMinutes` | `10` | 캐시 유지 / 자동 갱신 주기(분), 최소 1 |
 | `autoRefresh` | `true` | 자동 갱신 사용 |
-| `rndUrl` | `https://rnd.krs.co.kr/rderp_layoutMain.act` | R&D ERP 열기 주소 |
+| `rndUrl` | `https://rnd.krs.co.kr/jsp/rderp/main/sso_login_krs_view.jsp?SSO_PAGE_GB=A` | R&D ERP 열기 주소 — eClass 홈 rERP 아이콘과 같은 SSO 진입(`SSO-07`, `MIG-09`) |
 | `rndAutoLogin` | `true` | R&D ERP 자동 로그인(8장). 설정 페이지에 **지금 시도** 버튼 |
 | `prjPicker` | `true` | 과제 화면 내 참여 과제 드롭다운(7장) |
 | `rcms.url` | `https://www.rcms.go.kr/index.do` | RCMS 열기 주소 |
@@ -637,6 +638,7 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
 - `MIG-06` `quickPicks` 에 `회의비=…=17` 항목이 있고 종류(식비/다과) 항목이 하나도 없으면 그 뒤에 식사비·다과비를 끼워 넣는다.
 - `MIG-07` `attachKinds` 가 0.8.5 개발 중의 기본값 `거래명세서·교육내용·수료증` 그대로면 새 기본값(거래명세서·수강증·강의내용·수료증)으로 바꾼다.
 - `MIG-08` `plus` 의 옛 칸(0.8.0 개발 중 `sectionId · sectionLabel · planPageUrl`, 0.8.0~0.8.6 `onenoteMcpUrl · sectionName · notebookId · notebookLabel`, 0.8.7 개발 중 `connect · graph`)은 조용히 버리고 `folder`(문자열, 기본 '')·`driveHost`(비면 기본값)를 보장한다(2026-10-18 저장소가 SharePoint 의 과제별 폴더·연차 파일로 바뀜 — 3.9). `enabled` 와 세 동기화 체크의 뜻은 그대로. v2(같은 날 저녁)의 새 칸은 `changesSync`(참/거짓, 기본 true) · `discover`(참/거짓, 기본 true) · `shareWith`(`participants` | `none`, 기본 `participants`) — 그 밖의 값은 기본값(`tests/settings.test.js`). v1(문서/RERP 의 `<과제번호>.json`) 때의 밑폴더 캐시 `shareFolder` 는 `baseName` 이 없어 다음 동기화가 다시 푼다.
+- `MIG-09` `rndUrl` 이 이전 기본값 `https://rnd.krs.co.kr/rderp_layoutMain.act` 이면 SSO 진입 페이지(`sso_login_krs_view.jsp?SSO_PAGE_GB=A`)로 바꾼다 — 레이아웃 GET 은 ERP 자체 비밀번호 변경 창이 뜰 수 있음(`SSO-07`, 2026-10-23). 사용자가 바꾼 주소는 그대로(`tests/settings.test.js`).
 
 ### 10.8 설정 페이지의 기타 동작
 

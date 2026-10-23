@@ -41,6 +41,8 @@ eClass 홈의 앱 아이콘 "rERP"(`<span data-app="MAP00046" data-sso="N" data-
 
 R&D ERP 자체 로그인 화면(`main_0001_08.act`, `USER_NM`·`USER_PW`, LOGIN_GB=1)은 별개 계정 체계라 쓰지 않습니다.
 
+**레이아웃을 GET 으로 바로 열 때 (2026-10-23 CDP 확인)**: 레이아웃(`rderp_layoutMain.act`)을 GET 으로 바로 열면 화면이 `SSO_IN=N` 으로 그려져 ERP 의 `layoutMain.js fn_reqPw` 가 ERP 자체 비밀번호(eClass 와 별개 계정) 검사를 합니다 — 초기 비밀번호·초기화(`PW_INIT_YN=Y`)이거나 마지막 변경(`rmain_0000_01_r001` 의 `PW_CHG_DATE`)이 6개월 기준일(hidden `CHNG_BASE_DT`)보다 전이면 비밀번호 변경 창(blockUI)과 alert "비밀번호 변경 기간이 6개월이 지났습니다" 가 뜹니다. 계정마다 달라 어떤 PC(계정)에서만 보입니다(2026-10-23 다른 PC 에서 "R&D ERP 열기" 로 발생, 이 PC 계정은 2026-07-01 에 바꿔 안 보임). `SYS_LOGIN=Y` 를 POST 하면 `SSO_IN=Y` 로 그려져 검사를 건너뜁니다(CDP 실측). 그래서 **R&D ERP 열기**(설정 `rndUrl` 기본값 · 패널·팝업 링크)는 eClass 아이콘과 같은 SSO 진입 페이지 `sso_login_krs_view.jsp?SSO_PAGE_GB=A` 를 엽니다(eClass 아이콘처럼 결재함 탭이 같이 열림, 이전 기본값 저장분은 `MIG-09`). 과제 행 아이콘·보완요청·청구서 작성 같은 딥링크(`rderp_layoutMain.act#krext=…`)는 `content/rnd-hook.js` 가 document_start 에 같은 주소·해시로 `SYS_LOGIN=Y&SSO_PAGE_GB=M` 폼 POST 를 다시 보내 엽니다(해시에 `krext_sso=1` 을 붙여 한 번만 — 해시는 POST 뒤에도 남아 딥링크가 그대로 열림).
+
 ### 4.2 확장의 재현: `KRX_API.ssoLogin` ([lib/rnd-api.js](lib/rnd-api.js))
 
 | # | 요청 | 비고 |
@@ -111,6 +113,7 @@ eClass 홈 메뉴 **HR › Main Page** 는 href 없이 `onclick="openNewWindow('
 
 | 키 | 기본값 | 뜻 |
 |---|---|---|
+| `rndUrl` | `https://rnd.krs.co.kr/jsp/rderp/main/sso_login_krs_view.jsp?SSO_PAGE_GB=A` | R&D ERP 열기 링크 — eClass 아이콘과 같은 SSO 진입(이전 기본값 `rderp_layoutMain.act` 는 `MIG-09` 가 바꿈) |
 | `rndAutoLogin` | `true` | R&D ERP 세션이 풀리면 eClass SSO 로 백그라운드 재로그인 |
 | `hr.url` | `https://eclass.krs.co.kr/eClassVer4/External/SSOMessage` | HR System 열기 링크 겸 자동 로그인 중계 주소 |
 | `hr.autoLogin` | `true` | HR 세션이 풀리면 위 주소로 자동 로그인 |
@@ -151,6 +154,7 @@ eClass 홈 메뉴 **HR › Main Page** 는 href 없이 `onclick="openNewWindow('
 - R&D ERP SSO 의 POST 경로는 `sso_login_krs.jct` 입니다(`.act` 는 HTML). Origin·Referer 검사가 없습니다.
 - HR 루트를 직접 열면 로그아웃 상태에서 403. `SSOMessage` → `sso-proc` 가 실제 진입 경로입니다.
 - 0.7.1 `hrAutoLogin`, 0.7.2 `rndAutoLogin` 이 탭 없이 성공하는 것을 CDP 로 확인했습니다.
+- (2026-10-23) 로그인된 세션에서 레이아웃을 GET 하면 `SSO_IN=N`, `SYS_LOGIN=Y` 를 POST 하면 `SSO_IN=Y` 로 그려지고, 해시(`#krext=…`)는 폼 POST 뒤에도 남아 딥링크 탭이 열립니다. 비밀번호 변경 창 조건은 `layoutMain.js fn_reqPw`(SSO_IN≠Y · LOGIN_GB=1 일 때 `rmain_0000_01_r001` 의 초기 비밀번호·`PW_INIT_YN`·`PW_CHG_DATE < CHNG_BASE_DT`).
 
 **미확인**
 

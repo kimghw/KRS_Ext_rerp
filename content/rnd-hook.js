@@ -3,6 +3,24 @@
 (() => {
   if (window.__krextHooked) return;
   window.__krextHooked = true;
+  /* ---- 딥링크는 SSO 표시(SYS_LOGIN=Y)를 붙인 POST 로 다시 연다 (2026-10-23) ----
+   * 레이아웃을 GET 으로 열면 화면이 SSO_IN=N 으로 그려져 layoutMain.js fn_reqPw 가 ERP 자체 비밀번호(eClass 와 별개 계정) 검사를 한다:
+   * 초기 비밀번호·초기화(PW_INIT_YN=Y)이거나 마지막 변경(rmain_0000_01_r001 PW_CHG_DATE)이 6개월 기준일(hidden CHNG_BASE_DT) 전이면 비밀번호 변경 창(blockUI)과 alert 가 떠
+   * 딥링크 화면이 가려지고 백그라운드 탭의 청구 준비 자동 처리도 alert 에 멈춘다(계정마다 다름 — 이 PC 계정은 2026-07 에 바꿔 안 보였고 다른 PC 의 계정에서 뜸).
+   * eClass 아이콘 진입(SSO)처럼 SYS_LOGIN=Y 를 POST 하면 SSO_IN=Y 로 그려져 검사를 건너뛴다 — 같은 주소·해시로 같은 출처 폼 POST(해시는 POST 뒤에도 남아 아래 deepLink 가 그대로 연다,
+   * 2026-10-23 CDP 실측). 두 번째 로드는 해시의 krext_sso=1 로 알아보고 다시 하지 않는다. 안 되면 예전처럼 GET 으로 뜬 화면에서 연다 */
+  if (window === window.top && /^\/rderp_layoutMain\.act$/i.test(location.pathname) && /(?:^#|&)krext=/.test(location.hash) && !/(?:^#|&)krext_sso=1(?:&|$)/.test(location.hash)) {
+    try {
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = location.pathname + location.search + location.hash + '&krext_sso=1';
+      for (const [k, v] of [['SYS_LOGIN', 'Y'], ['SSO_PAGE_GB', 'M']]) { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = v; form.appendChild(i); }   // M = 결재함 자동 열기(A) 없이 메인화면
+      window.stop();
+      (document.documentElement || document.appendChild(document.createElement('html'))).appendChild(form);
+      form.submit();
+      return;
+    } catch (e) {}
+  }
   /* 시각은 반드시 now() 로: 청구서 화면 스크립트가 Date.now 를 덮어써(Date.now = function(){ return new Date(); }) 숫자가 아닌 Date 객체를 돌려준다.
    * 그 상태에서 Date.now() + 밀리초 는 문자열이 되어 "지금 < 만료" 비교가 늘 거짓 → 자동 모드가 꺼진 것처럼 confirm 이 진짜로 떠 백그라운드 탭에서 저장이 멈췄다 (2026-09-25 CDP 로 확인).
    * document_start 에는 아직 원본이라 붙들어 두고, 혹시 그것도 이상하면 new Date().getTime() */
