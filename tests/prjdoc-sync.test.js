@@ -212,13 +212,14 @@ await test('동료가 고친 파일: 예산 줄(WORKSPACE at)·새 사람(새 at
     [true, false, ['c', 'd'], { a: { ts: 9, prj: 'P1' } }, ['P1@1', 'P1@2'], '과제1', ['c10', 'c15'], []]);
 });
 
-await test('나와 공유: 동료 base(…/shared)와 과제 폴더(…/shared/<이름>) 항목을 훑어 내 참여 과제(P2)면 그 폴더에 — writer 는 사이트마다 따로 · 남의 과제(P9)·엉뚱한 폴더는 무시 · index 에 owner·site · 다음엔 index 만으로(discover 끄면 sharedWithMe 안 부름) · 참여자는 동료 폴더를, 책임자는 내 폴더를 고른다', async () => {
+await test('나와 공유: 동료 base(…/shared)와 과제 폴더 항목을 훑어 내 참여 과제(P2)면 그 폴더에 — writer 는 사이트마다 따로 · 남의 과제(P9)·연차 파일 없는 폴더는 무시(skip) · index 에 owner·site · 다음엔 index 만으로(discover 끄면 sharedWithMe 안 부름) · 참여자는 동료(책임자) 폴더를, 책임자는 내 폴더를 고른다', async () => {
   const p2doc = Object.assign(D.emptyYear({ prjNo: 'P2', prjNm: '과제2', rspr: '동료' }, 1), { staff: { plans: [splan('P2', 1, 500, [person('옛것', [1])], { prjNm: '과제2' })], del: {} }, updatedAt: '2026-10-18T00:00:00.000Z', updatedBy: '동료' });
-  const tree = { [BASE]: {}, [YOUR_BASE]: {}, [`${YOUR_BASE}/MW`]: { '1차년도.json': D.serialize(p2doc) }, [`${YOUR_BASE}/ZZ`]: { '1차년도.json': D.serialize(D.emptyYear({ prjNo: 'P9' }, 1)) }, [`${YOU}/Documents/기타`]: { '1차년도.json': D.serialize(D.emptyYear({ prjNo: 'P2' }, 1)) } };
+  const tree = { [BASE]: {}, [YOUR_BASE]: {}, [`${YOUR_BASE}/MW`]: { '1차년도.json': D.serialize(p2doc) }, [`${YOUR_BASE}/ZZ`]: { '1차년도.json': D.serialize(D.emptyYear({ prjNo: 'P9' }, 1)) }, [`${YOU}/Documents/기타`]: { '메모.txt': 'x' } };
   const store = fakeStore(tree, { shared: [{ path: YOUR_BASE, ownerName: '동료' }, { path: `${YOU}/Documents/기타`, ownerName: '동료' }] });
   const me = memLocal({ staff: { plans: { 'P2@1': splan('P2', 1, 9000, [person('문창재', [1165000], 5823000)], { prjNm: '과제2' }) }, del: {} }, aliases: { P1: 'SSCB' } });
   const r = await Y.run(deps(store, me));
-  assert.deepStrictEqual([r.state.ok, r.state.scanned, Object.keys(r.state.pages).sort()], [true, 2, ['P1', 'P2']], '동료 base 의 폴더 둘을 훑음(기타 폴더는 shared 가 아니라 무시)');
+  assert.deepStrictEqual([r.state.ok, r.state.scanned, Object.keys(r.state.pages).sort()], [true, 3, ['P1', 'P2']], '동료 base 의 폴더 둘 + 기타 폴더를 훑음');
+  assert.deepStrictEqual(Object.keys(r.state.skip).sort(), [`${YOU}/Documents/기타`, `${YOUR_BASE}/ZZ`].map((p) => p.toLowerCase()).sort(), '내 과제 폴더가 아닌 것(연차 파일 없음 · 남의 과제)은 skip');
   assert.deepStrictEqual([r.state.pages.P2.folder, r.state.pages.P2.owner, r.state.pages.P2.folderUrl, r.state.pages.P2.pushed, r.state.pages.P2.pulled, r.state.pages.P2.webUrl], ['MW', '동료', cfgOf(`${YOUR_BASE}/MW`).viewUrl, true, false, `${ORIGIN}${YOUR_BASE}/MW/1차년도.json`]);
   assert.deepStrictEqual(docOf(store, `${YOUR_BASE}/MW`, '1차년도.json').staff.plans[0].people[0].name, '문창재', '내 계획(9000)이 동료 폴더의 파일에 올라감');
   assert.deepStrictEqual([r.state.pages.P1.folder, r.state.pages.P1.owner], ['SSCB', '']);
@@ -240,6 +241,41 @@ await test('나와 공유: 동료 base(…/shared)와 과제 폴더(…/shared/<
   const store2 = fakeStore(clone(tree), { shared: [{ path: YOUR_BASE, ownerName: '동료' }], denied: [siteOf(YOUR_BASE)] });
   const r4 = await Y.run(deps(store2, memLocal({ aliases: { P1: 'SSCB' } }), { index: r.state.index }));
   assert.deepStrictEqual([r4.state.ok, r4.state.pages.P1.error, r4.state.pages.P1.pushed, r4.state.pages.P2.kind, r4.state.pages.P2.folder, r4.state.kind, /권한/.test(r4.state.discoverError)], [false, undefined, false, 'auth', 'MW', 'auth', true]);
+});
+
+await test('나와 공유 (2026-10-25): 동료의 밑폴더가 shared 가 아니어도 과제 폴더를 연차 파일로 찾음 · 같은 과제 폴더가 여럿이면 누가 돌려도 같은 것(책임자 폴더 → 경로 차례) · skip 은 이레 동안 다시 훑지 않음(그사이 그 과제 참여인력이 되면 다시)', async () => {
+  const KIM = '/personal/kim', LEE = '/personal/lee';
+  const KIM_DIR = `${KIM}/Documents/연구/공유/MW`, LEE_DIR = `${LEE}/Documents/RnD/MW`, JUNK = `${LEE}/Documents/잡동사니`;
+  const y = () => ({ '1차년도.json': D.serialize(D.emptyYear({ prjNo: 'P2', prjNm: '과제2', rspr: '동료' }, 1)) });
+  const tree = { [BASE]: {}, [`${KIM}/Documents/연구/공유`]: {}, [KIM_DIR]: y(), [`${LEE}/Documents/RnD`]: {}, [LEE_DIR]: y(), [JUNK]: { 'a.txt': 'x' } };
+  const shared = [{ path: LEE_DIR, ownerName: '이' }, { path: KIM_DIR, ownerName: '김' }, { path: JUNK, ownerName: '이' }];
+  // 나(참여자) — 김·이 둘 다 책임자가 아니면 경로가 앞선 김의 폴더, 목록 차례를 뒤집어도 같음
+  for (const list of [shared, shared.slice().reverse()]) {
+    const r = await Y.run(deps(fakeStore(clone(tree), { shared: list }), memLocal({}), { leadPrjNos: [] }));
+    assert.deepStrictEqual([r.state.ok, r.state.pages.P2.owner, r.state.index.P2.path], [true, '김', KIM_DIR]);
+  }
+  // 김(참여자 — 자기 base 가 연구/공유)도 이(자기 base 가 RnD)도 같은 김의 폴더를 고른다 — 서로 상대 폴더를 골라 갈라지지 않음
+  const kim = await Y.run(deps(fakeStore(clone(tree), { shared: [{ path: LEE_DIR, ownerName: '이' }] }), memLocal({}), { base: cfgOf(`${KIM}/Documents/연구/공유`), leadPrjNos: [] }));
+  const lee = await Y.run(deps(fakeStore(clone(tree), { shared: [{ path: KIM_DIR, ownerName: '김' }] }), memLocal({}), { base: cfgOf(`${LEE}/Documents/RnD`), leadPrjNos: [] }));
+  assert.deepStrictEqual([kim.state.index.P2.path, kim.state.index.P2.owner, lee.state.index.P2.path, lee.state.index.P2.owner], [KIM_DIR, '', KIM_DIR, '김']);
+  // 책임자('동료' — rsprs.P2)의 폴더가 있으면 경로와 상관없이 그것
+  const t2 = Object.assign(clone(tree), { [`${YOUR_BASE}/MW`]: y() });
+  const r3 = await Y.run(deps(fakeStore(t2, { shared: shared.concat([{ path: `${YOUR_BASE}/MW`, ownerName: '동 료' }]) }), memLocal({}), { leadPrjNos: [] }));
+  assert.deepStrictEqual([r3.state.index.P2.path, r3.state.index.P2.owner], [`${YOUR_BASE}/MW`, '동 료'], '주인 이름은 공백 무시');
+  // skip — 연차 파일 없는 폴더는 이레 동안 다시 훑지 않고, 이레가 지나면 다시
+  const r4 = await Y.run(deps(fakeStore(clone(tree), { shared }), memLocal({}), { leadPrjNos: [] }));
+  assert.deepStrictEqual(r4.state.skip[JUNK.toLowerCase()], { at: 100000, prj: '' });
+  const s5 = fakeStore(clone(tree), { shared });
+  await Y.run(deps(s5, memLocal({}), { leadPrjNos: [], skip: r4.state.skip, now: 100000 + 6 * 86400000 }));
+  assert.ok(!s5.calls.includes(`list:${JUNK}`), '이레 안 — 안 훑음');
+  const s6 = fakeStore(clone(tree), { shared });
+  await Y.run(deps(s6, memLocal({}), { leadPrjNos: [], skip: r4.state.skip, now: 100000 + 7 * 86400000 }));
+  assert.ok(s6.calls.includes(`list:${JUNK}`), '이레 지남 — 다시 훑음');
+  // 남의 과제(P2 — 내 참여 과제가 아님) 폴더는 skip 에 과제번호와 함께 → 그 과제 참여인력이 되면 이레를 기다리지 않고 다시 훑어 연결
+  const r7 = await Y.run(deps(fakeStore(clone(tree), { shared }), memLocal({}), { leadPrjNos: [], myPrjNos: ['P1'] }));
+  assert.deepStrictEqual([r7.state.skip[KIM_DIR.toLowerCase()], 'P2' in r7.state.pages], [{ at: 100000, prj: 'P2' }, false]);
+  const r8 = await Y.run(deps(fakeStore(clone(tree), { shared }), memLocal({}), { leadPrjNos: [], skip: r7.state.skip, now: 200000 }));
+  assert.deepStrictEqual([r8.state.index.P2.path, KIM_DIR.toLowerCase() in r8.state.skip], [KIM_DIR, false]);
 });
 
 await test('색인(index): 경로가 맞으면 훑지 않고(scanned 0) 첫 읽기에서 과제번호로 검증 · 폴더가 없어진 색인은 버리고 다시 훑는다 · 색인의 폴더가 실제로 다른 과제 것이면 그 과제에 돌리고 이 과제는 새로 고른다', async () => {
@@ -290,8 +326,9 @@ await test('남이 체크아웃(locked): 그 파일만 실패하고 같은 과�
 });
 
 await test('로그인 필요(auth)·작업 탭 실패(tab)는 전체 실패로 — 던지지 않고 state.kind 로, 나머지 과제는 멈춤 · 나와 공유 목록의 http 오류는 discoverError 로만', async () => {
-  const r = await Y.run(deps(fakeStore({ [BASE]: {} }, { authList: true }), memLocal({})));
-  assert.deepStrictEqual([r.state.ok, r.state.kind, r.state.count, r.state.pages, r.state.index], [false, 'auth', 0, {}, {}]);
+  const idx = { P1: { base: BASE, folder: 'SSCB', site: siteOf(BASE), path: `${BASE}/SSCB`, url: furl(`${BASE}/SSCB`), owner: '', at: 1 } };
+  const r = await Y.run(deps(fakeStore({ [BASE]: {} }, { authList: true }), memLocal({}), { index: idx }));
+  assert.deepStrictEqual([r.state.ok, r.state.kind, r.state.count, r.state.pages, r.state.index], [false, 'auth', 0, {}, idx], '로그인 만료로 멈추면 지난 색인은 그대로');
   assert.ok(/로그인/.test(r.state.error));
   const store = fakeStore({ [BASE]: {} }, { openFail: 'tab' });
   const me = memLocal({ aliases: { P1: 'A', P2: 'B' }, plan: { plans: { P1: { K: [item('a', 1)] }, P2: { K: [item('b', 1)] } }, del: {} } });

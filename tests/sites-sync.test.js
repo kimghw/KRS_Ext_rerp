@@ -168,24 +168,26 @@ const synced = (local, now) => { const r = merge({ local, meta: null, mine: null
     assert.deepStrictEqual([st2.ok, st2.pushed, st2.created], [true, false, false]);
     assert.ok(!store.calls.some((c) => c.startsWith('open:')), '바뀐 것이 없으면 작업 창을 열지 않음: ' + store.calls);
   });
-  await test('나와 공유: …/shared/common · …/shared(밑폴더) 를 읽어 합치고, 과제 폴더·내 폴더·파일 없는 동료는 건너뜀, 받은 것은 로컬에 저장하고 내 파일에도 올림', async () => {
+  await test('나와 공유: …/shared/common · …/shared(밑폴더) · 밑폴더 이름이 shared 가 아닌 동료의 …/common 을 읽어 합치고, 과제 폴더·내 폴더·파일 없는 동료는 건너뜀, 받은 것은 로컬에 저장하고 내 파일에도 올림', async () => {
     const theirs = (id, extra, at, by) => JSON.stringify({ v: 1, kind: 'fetchSites', sites: [Object.assign({ id }, SITES.sharedOf(Object.assign(inflearn(id), extra || {})), { at, by })], del: {} });
     const tree = {
       [BASE]: {}, [`${BASE}/common`]: {},
       '/personal/kim/Documents/업무/shared/common': { '가맹점.json': theirs('k1', { howto: '김의 경로' }, 500, '김') },
       '/personal/lee/Documents/업무/shared': {}, '/personal/lee/Documents/업무/shared/common': { '가맹점.json': theirs('l1', { howto: '이의 경로' }, 700, '이') },
       '/personal/park/Documents/업무/shared/common': {},
+      '/personal/choi/Documents/RnD공유/common': { '가맹점.json': theirs('c1', { howto: '최의 경로' }, 300, '최') },   // 최의 밑폴더는 shared 가 아님(2026-10-25)
     };
     const store = fakeStore(tree, { shared: [
       { path: '/personal/kim/Documents/업무/shared/common', owner: '김' },
       { path: '/personal/lee/Documents/업무/shared', owner: '이' },
       { path: '/personal/lee/Documents/업무/shared/SSCB', owner: '이' },   // 과제 폴더 — 가맹점과 무관
       { path: '/personal/park/Documents/업무/shared/common', owner: '박' },   // 아직 파일 없음
+      { path: '/personal/choi/Documents/RnD공유/common', owner: '최' },
       { path: `${BASE}/common`, owner: '나' },   // 내 것이 되돌아온 것
     ] });
     const box = localOf([claude('a')]);
     const st = await runWith(store, box);
-    assert.deepStrictEqual(st.others.map((o) => [o.owner, o.n]), [['김', 1], ['이', 1]]);
+    assert.deepStrictEqual(st.others.map((o) => [o.owner, o.n]), [['김', 1], ['이', 1], ['최', 1]]);
     assert.deepStrictEqual([st.ok, st.added, st.pulled, st.pushed, st.count], [true, 1, true, true, 2]);
     assert.strictEqual(box.sites.find((x) => x.match === '인프랩').howto, '이의 경로', '같은 가맹점의 두 동료 값 가운데 나중 것(이 700)');
     assert.ok(!store.calls.some((c) => c.includes('/SSCB/')), '과제 폴더는 읽지 않음');

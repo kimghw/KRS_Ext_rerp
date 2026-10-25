@@ -1106,7 +1106,7 @@ async function shareSync(reason, opts) {
     let state, baseCfg = null, ctx = null, sharedMemo = null;
     const runStore = Object.assign(Object.create(shareStore), { sharedWithMe: (io, o) => (sharedMemo = sharedMemo || shareStore.sharedWithMe(io, o)) });   // 나와 공유 목록은 한 번 받아 과제·가맹점이 같이
     try {
-      const l = await chrome.storage.local.get(['projectList', 'rndUser', 'projectAliases', SHARE_INDEX_KEY]);
+      const l = await chrome.storage.local.get(['projectList', 'rndUser', 'projectAliases', SHARE_INDEX_KEY, 'shareSkip']);
       const cache = await getCache();
       const mine = (l.projectList && l.projectList.projects) || [];
       const projects = mine.concat((cache && cache.projects) || []);
@@ -1119,7 +1119,7 @@ async function shareSync(reason, opts) {
       const cfg = await shareCfg(p, false);   // 못 풀면(auth · badurl · offline) 아래 catch 가 kind 그대로 상태에 남겨 팝업·설정이 안내한다
       baseCfg = cfg; ctx = { cache, who, myPrjNos };
       const r = !projOn ? { state: {} } : await KRX_PRJDOC_SYNC.run({
-        store: runStore, io: spIo(), base: cfg, cfg, driveHost: shareDriveHost(p), names, rsprs, myPrjNos, leadPrjNos, aliases: shareObj(l.projectAliases), index, discover: p.discover !== false,
+        store: runStore, io: spIo(), base: cfg, cfg, driveHost: shareDriveHost(p), names, rsprs, myPrjNos, leadPrjNos, aliases: shareObj(l.projectAliases), index, skip: shareObj(l.shareSkip), discover: p.discover !== false,
         only: opts.prjNo || '', allow: pick, want, who, loadLocal: shareLoadLocal, saveLocal: (part, prj, data) => shareSaveLocal(part, prj, data, names), now: t0
       });
       const rs = (r && r.state) || {};
@@ -1128,7 +1128,8 @@ async function shareSync(reason, opts) {
       state.folder = state.folder && state.folder.path ? state.folder : state.base;   // 호환(팝업·옛 설정 페이지가 folder 를 읽음)
       const newIndex = rs.index && typeof rs.index === 'object' && !Array.isArray(rs.index) ? rs.index : index;   // run 이 돌려준 새 캐시(비어 있어도 그것) — 없으면 지난 것
       if (newIndex !== index) await chrome.storage.local.set({ [SHARE_INDEX_KEY]: newIndex });
-      delete state.index;   // 캐시는 shareIndex 에 — 상태에는 두지 않는다
+      if (rs.skip) await chrome.storage.local.set({ shareSkip: rs.skip });   // 나와 공유에서 훑어 내 과제 폴더가 아니었던 폴더(이레 동안 다시 훑지 않음)
+      delete state.index; delete state.skip;   // 캐시는 shareIndex · shareSkip 에 — 상태에는 두지 않는다
       await shareDecoratePages(state, p, newIndex);
       if (p.shareWith !== 'none') await shareAutoPeople(state, p, newIndex, settings, who, cache);
       if (projOn) await shareAutoRename(state, shareObj(l.projectAliases), newIndex, pick);   // 번호로 만든 내 과제 폴더 → 약칭이 생겼으면 약칭으로
@@ -1148,7 +1149,7 @@ async function shareSync(reason, opts) {
 }
 function queueShareSync(reason) { clearTimeout(shareTimer); shareTimer = setTimeout(() => { shareSync(reason || 'edit').catch(() => {}); }, 4000); }   // 그때 동기화가 진행 중이면 shareSync 가 끝난 뒤 한 번 더 돌게 잡아 둔다
 /* 설정 페이지 [연결 확인] — base 를 다시 풀고(msg.folder 가 있으면 저장 전 칸 값으로) 과제 폴더 목록과 "나와 공유" 의 폴더를 받아 본다
- *   → { ok, folder:{ path, viewUrl, url }, folders:[{ name, path, itemCount, modified }], count(과제 폴더 수), exists(밑폴더 있음), mine(내 OneDrive 인지), shared(나와 공유의 폴더 가운데 shared 밑 — 연차 파일은 여기서 읽지 않음), sharedFolders:[{ name, webUrl, ownerName }], sharedKnown(shareIndex 에 주인이 적힌 과제 수 — 지난 동기화가 찾은 것), message }
+ *   → { ok, folder:{ path, viewUrl, url }, folders:[{ name, path, itemCount, modified }], count(과제 폴더 수), exists(밑폴더 있음), mine(내 OneDrive 인지), shared(나와 공유의 폴더 수 — 경로와 상관없이. 과제 폴더인지는 동기화가 연차 파일로 알아봄), sharedFolders:[{ name, webUrl, ownerName }], sharedKnown(shareIndex 에 주인이 적힌 과제 수 — 지난 동기화가 찾은 것), message }
  *   실패 → { ok:false, kind, message, error } — 'auth' 면 이 브라우저에서 SharePoint(OneDrive) 로그인 필요(설정 페이지가 OneDrive 열기 링크로 안내), 'badurl' 이면 주소 모양(공유 링크 대신 폴더를 연 뒤 주소창의 주소) */
 async function shareProbe(msg) {
   const p = Object.assign({}, (await KRX_SETTINGS.load()).plus || {});
@@ -1162,8 +1163,7 @@ async function shareProbe(msg) {
     let shared = null;
     if (p.discover !== false) {
       try {
-        const dec = (u) => { try { return decodeURIComponent(String(u || '')); } catch (e) { return String(u || ''); } };
-        shared = ((await shareStore.sharedWithMe({}, { driveHost: shareDriveHost(p) })) || []).filter((f) => f && f.folder && /\/shared(\/[^/]*)?\/?$/i.test(dec(f.webUrl))).map((f) => ({ name: String(f.name || ''), webUrl: String(f.webUrl || ''), ownerName: String(f.ownerName || '') }));
+        shared = ((await shareStore.sharedWithMe({}, { driveHost: shareDriveHost(p) })) || []).filter((f) => f && f.folder).map((f) => ({ name: String(f.name || ''), webUrl: String(f.webUrl || ''), ownerName: String(f.ownerName || '') }));
       } catch (e) { shared = null; }
     }
     const index = shareObj((await chrome.storage.local.get(SHARE_INDEX_KEY))[SHARE_INDEX_KEY]);
