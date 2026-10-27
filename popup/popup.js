@@ -50,6 +50,7 @@
     const act = btn.dataset.act;
     if (act === 'refresh') { ev.preventDefault(); load(true); }
     else if (act === 'settings') { ev.preventDefault(); chrome.runtime.openOptionsPage(); }
+    else if (act === 'plus') { ev.preventDefault(); togglePlus(); }   // 제목 줄 구름 — 공유 (Plus) 켜기/끄기 (아래 togglePlus, 2026-10-26)
     else if (act === 'git') { ev.preventDefault(); const m = self.KRX_GIT && KRX_GIT.act(state); if (m) chrome.runtime.sendMessage(m).catch(() => {}); }   // 제목 줄 업데이트 단추(lib/gitsync.js): 새 커밋이면 받기(gitPull) · 받은 뒤 ↻ 면 확장 다시 불러오기(gitReload) · 그 밖에는 다시 확인(gitCheck) (2026-10-23)
     else if (act === 'llm-prompt') { ev.preventDefault(); KRX_RENDER.copyLlmPrompt(btn, state, window.KRX_TAB ? '브라우저 탭 제목 줄' : window.KRX_SIDE ? '사이드 패널 제목 줄' : '툴바 팝업 제목 줄').catch(() => {}); }   // 제목 줄 B(브릿지) 아이콘(Help 서버가 없을 때만) → 연결 지침(lib/help-setup.js 의 설정 프롬프트)을 클립보드에, 잠깐 ✓ (2026-10-23 사용자 "B를 클릭하면 연결 지침을 복사하게 해줘")
     else if (act === 'prj') { ev.preventDefault(); const k = btn.dataset.prj; if (state.expanded.has(k)) state.expanded.delete(k); else state.expanded.add(k); draw(); }
@@ -71,31 +72,36 @@
       window.close();
     } catch (e) { state.fatal = `사이드 패널을 열지 못했습니다: ${String((e && e.message) || e)}`; draw(); }
   }
-  document.getElementById('btnOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
-  // RCMS 열기(패널 아래 바 · 툴바): 백그라운드가 탭을 열고 그 탭에 자동 로그인을 건다 (background.js openRcms). 안 되면 링크 주소를 그대로 연다
+  // RCMS 열기(패널 아래 바 — 아래 툴바는 2026-10-26 사용자 "중복이니깐 사이드패널 하단에 있는거 빼줘" 로 뺌): 백그라운드가 탭을 열고 그 탭에 자동 로그인을 건다 (background.js openRcms). 안 되면 링크 주소를 그대로 연다
   function openRcms(href) {
     const open = () => chrome.tabs.create({ url: href });
     chrome.runtime.sendMessage({ type: 'openRcms' }).then((r) => { if (!r || !r.ok) open(); }, open);
   }
-  document.getElementById('rcmsLink').addEventListener('click', (ev) => { ev.preventDefault(); openRcms(ev.currentTarget.href); });
 
   /* ---------- 공유 (Plus) 켜기/끄기 (설정 KRX_SETTINGS plus.enabled — 설정 페이지 › 공유 (Plus) 탭의 같은 항목과 같은 값) ----------
    * 2026-10-18 사용자 지정("아니 mcp 없이 grph api 하지 않고 브라우저 토큰으로 하라고" → 저녁 "onedrive 에 업무/shared 안에 과제별로 .. 약칭으로 없으면 jobid 없으면 임시번호 … 년차별로 1개 파일이고 1개 파일에서 변경사항이랑 다 관리" · "참여연구원들에게 공유할 수 있게 설정까지"):
    * 과제마다 SharePoint(OneDrive) 폴더 하나(밑폴더 plus.folder, 비면 내 OneDrive 의 문서/업무/shared 아래 <약칭 → Job Id → 과제번호>/)에 연차별 <n>차년도.json 과 예상비용.json 을 두는 방식 — 켜면 백그라운드가 바로 맞춘다(background.js shareSync, 메시지 'planSync' manual).
    * 상태 줄은 storage.local.shareState 의 마지막 결과를 "공유: 과제 n개 · HH:MM" 한 줄로(씀/받음·공유받은 폴더 수는 title), 오류면 그 까닭, 로그인이 필요하면(kind 'auth') OneDrive 를 여는 링크. 밑폴더 주소·연결 확인·참여연구원 공유·과제별 표는 설정 페이지 */
-  const plusOn = document.getElementById('plusOn'), plusStatus = document.getElementById('plusStatus');
+  const plusBar = document.querySelector('.plusbar'), plusStatus = document.getElementById('plusStatus');
+  state.plus = { on: false, err: false, title: '' };   // 제목 줄 구름 단추(lib/render.js plusBtn, data-act="plus" → togglePlus — 누를 때마다 켜고 끔; 2026-10-26 사용자 "클릭으로 활성화/비활성화 … 구름 모양 아이콘으로" → "M 이랑 갱신 버튼 있는데")
+  const plusIs = () => !!state.plus.on;
+  const plusSet = (on) => { state.plus.on = !!on; };
   const SHARE_KIND = { auth: '로그인 필요 — 이 브라우저에서 SharePoint(OneDrive)에 로그인하세요', offline: '네트워크에 연결할 수 없음', badurl: '폴더 주소를 읽을 수 없음 — 설정 › 공유 (Plus)', nofolder: '폴더 없음 — 설정 › 공유 (Plus) 의 연결 확인', locked: '다른 사람이 파일을 편집 중 — 다음에 다시', parse: '읽을 수 없는 파일 — 건너뜀', http: 'SharePoint 오류', tab: 'SharePoint 작업 탭을 열지 못함' };
   const shareErr = (s) => (s && (s.error || s.message)) || (s && SHARE_KIND[s.kind]) || (s && s.kind) || '';
-  const setPlusStatus = (t, err, link, title) => {   // link: 로그인 필요 때 "OneDrive 열기" · title: 마우스를 올리면 보이는 자세한 수
-    plusStatus.textContent = t || ''; plusStatus.classList.toggle('err', !!err); plusStatus.title = title || t || '';
-    if (link) { const a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'OneDrive 열기'; plusStatus.append(' · ', a); }
+  const setPlusStatus = (t, err, link, title) => {   // 결과는 구름 단추 툴팁에, 실패·오류면 아래 한 줄(plusbar)에도 — link: 로그인 필요 때 "OneDrive 열기" · title: 자세한 수
+    const on = plusIs();
+    state.plus = { on, err: !!err, title: `공유 (Plus) ${on ? '켜짐 — 누르면 끕니다' : '꺼짐 — 누르면 켜고 바로 한 번 맞춥니다'}${t ? `\n${t}` : ''}${title && title !== t ? `\n${title}` : ''}` };
+    plusBar.hidden = !err;
+    plusStatus.textContent = err ? t : ''; plusStatus.classList.toggle('err', !!err); plusStatus.title = title || t || '';
+    draw();
+    if (err && link) { const a = document.createElement('a'); a.href = link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'OneDrive 열기'; plusStatus.append(' · ', a); }
   };
   let plusSettings = null;
   const driveHost = () => String((KRX_SETTINGS.DEFAULTS.plus && KRX_SETTINGS.DEFAULTS.plus.driveHost) || 'https://krclass-my.sharepoint.com');
   const hhmm = (ts) => { const d = new Date(ts); return `${KRX_FMT.pad2(d.getHours())}:${KRX_FMT.pad2(d.getMinutes())}`; };
   /* shareState (v2) { at, ok, base|folder:{ path, viewUrl }, count(과제), files, written, pulled, errors, error?, kind?, pages:{ [prjNo]: { …, owner?, noFolder? } } } → "공유: 과제 n개 · HH:MM" / "공유 실패 HH:MM: 까닭" */
   function renderShareState(s) {
-    if (!plusOn.checked) { setPlusStatus(''); return; }
+    if (!plusIs()) { setPlusStatus(''); return; }
     if (!s || !s.at) { setPlusStatus('공유: 아직 동기화 전 — 패널을 열면 시작됩니다'); return; }
     const pages = Object.values((s.pages && typeof s.pages === 'object') ? s.pages : {}).filter((p) => p && typeof p === 'object');
     const n = KRX_FMT.num(s.count) || pages.length;
@@ -108,8 +114,8 @@
   }
   async function loadPlus() {
     try { plusSettings = await KRX_SETTINGS.load(); } catch (e) { return; }
-    plusOn.checked = !!(plusSettings.plus && plusSettings.plus.enabled);
-    if (!plusOn.checked) { setPlusStatus(''); return; }
+    plusSet(!!(plusSettings.plus && plusSettings.plus.enabled));
+    if (!plusIs()) { setPlusStatus(''); return; }
     let s = null; try { s = (await chrome.storage.local.get('shareState')).shareState || null; } catch (e) {}
     renderShareState(s);
   }
@@ -119,31 +125,28 @@
     plusSettings = s;
     await KRX_SETTINGS.save(s);
   }
-  plusOn.addEventListener('change', async () => {
-    await savePlus({ enabled: plusOn.checked });
-    if (!plusOn.checked) { setPlusStatus(''); return; }
+  async function togglePlus() {
+    const on = !plusIs();
+    plusSet(on);
+    await savePlus({ enabled: on });
+    if (!on) { setPlusStatus(''); return; }
     setPlusStatus('공유 폴더의 과제 파일과 맞추는 중…');
     let s = null;
     try { s = await chrome.runtime.sendMessage({ type: 'planSync', reason: 'manual' }); } catch (e) { s = null; }
     if (!s) { setPlusStatus('응답 없음 — 확장을 다시 올린 뒤 다시 켜 보세요', true); return; }
     if (s.skipped) { loadPlus(); return; }   // 백그라운드가 건너뜀(설정이 아직 안 읽힘 등) — 저장된 상태로
     renderShareState(s.at ? s : Object.assign({ at: Date.now() }, s));
-  });
-  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.shareState && plusOn.checked) renderShareState(ch.shareState.newValue || null); }); } catch (e) {}   // 백그라운드의 자동 동기화 결과도 반영
+  }
+  try { chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.shareState && plusIs()) renderShareState(ch.shareState.newValue || null); }); } catch (e) {}   // 백그라운드의 자동 동기화 결과도 반영
   loadPlus();
 
   async function load(force) {
     state.loading = true; state.fatal = null; draw();
     try {
       const res = await chrome.runtime.sendMessage({ type: 'getData', force: !!force, full: !!force });   // ↻: 참여인력(계상률) 캐시(2시간)도 건너뛰고 다시 조회
-      if (res && !res.error) state.data = res; else state.fatal = (res && res.error) || '응답 없음';
+      if (res && (res.ts || !res.error)) state.data = res; else state.fatal = (res && res.error) || '응답 없음';   // ts 가 있으면 조회 결과(조회 오류는 그 안의 error 로 한 번만 보임 — 예전엔 같은 글이 두 줄로, 2026-10-27)
     } catch (e) { state.fatal = String((e && e.message) || e); }
     state.loading = false; draw();
-    if (state.data && state.data.settings && state.data.settings.rndUrl) document.getElementById('rndLink').href = state.data.settings.rndUrl;
-    const hr = state.data && state.data.settings && state.data.settings.hr;
-    if (hr && hr.url) document.getElementById('hrLink').href = hr.url;
-    const rcms = state.data && state.data.settings && state.data.settings.rcms;
-    if (rcms && rcms.url) document.getElementById('rcmsLink').href = rcms.url;
   }
   // 백그라운드가 캐시를 바꾸면(급여·연구수당 보기 클릭 → HR 수집 결과 등) 바로 반영 (content/eclass.js 와 같은 방식)
   try {

@@ -3,7 +3,6 @@
   box-sizing: border-box; background: #fff; color: #222; border: 1px solid #d5dbe3; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.14);
   font: 13px/1.45 -apple-system, "Segoe UI", "Malgun Gothic", "맑은 고딕", Roboto, sans-serif; text-align: left; }
 .krext-panel.krext-popup { position: static; width: 460px; max-height: 560px; /* 실제 높이는 popup.html 의 flex 배치가 정함(max-height: none 으로 덮어씀) */ border: 0; border-radius: 0; box-shadow: none; }
-.krext-panel.krext-popup .krext-chips { order: 1; flex: 0 0 100%; }   /* 좁은 팝업·사이드 패널: 제목·시각·버튼(↻ 설정 사이드 패널)을 한 줄에 두고 칩은 그 아래 한 줄로 — 아니면 버튼 하나가 셋째 줄로 밀린다 (0.8.4) */
 .krext-panel.krext-collapsed { width: auto; overflow: hidden; }
 /* 본문 삽입 모드: 카드처럼 페이지 흐름에 배치, 두 구역을 가로로 */
 .krext-panel.krext-inline { position: static; width: auto; max-height: none; overflow: visible; margin: 0 0 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); border-top: 3px solid #1f4e9c; }
@@ -1682,4 +1681,8 @@ html.krext-only .plusbar { padding: 8px 32px; background: #f3f6fa; border-top-co
 .krext-btn-git.krext-git-reload:hover { background: #ffc85c; }
 .krext-panel.krext-inline .krext-btn-git.krext-git-new { background: #e3edfb; border-color: #b7cdf0; color: #1a5fb4; }
 .krext-panel.krext-inline .krext-btn-git.krext-git-reload { background: #f4b740; border-color: #e0a528; color: #1f2d3d; }
+/* 제목 줄 구름(공유 (Plus) 켜기/끄기 — lib/render.js plusBtn, 2026-10-26): 켜짐은 krext-on, 꺼짐은 흐림, 마지막 동기화 실패면 귀퉁이 빨간 점 */
+.krext-btn-plus { position: relative; overflow: visible; }
+.krext-btn-plus:not(.krext-on) { opacity: .6; }
+.krext-btn-plus.krext-plus-err::after { content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: #ff5a6e; box-shadow: 0 0 0 1.5px #fff; }
 .krext-git-count { position: absolute; top: -6px; right: -7px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: #a8323f; color: #fff; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; box-sizing: border-box; }

@@ -3,14 +3,33 @@
  * 팝업은 다른 곳을 누르면 닫히므로 작업은 서버에서 계속 돌고, 마지막 요청은 storage.local.helpChat = { id, text, at, state(running|done|error|canceled), summary, error, files, checks, endedAt, applied } 에 남겨 다시 열 때 이어서 본다(쓰던 글은 helpDraft).
  * 끝나면 "적용" = chrome.runtime.reload() (바뀐 파일이 있고 서버의 문법 검사가 통과했을 때만 보임). "새 대화"는 다음 요청을 이전 대화와 잇지 않는다(helpChat = { fresh: true }).
  * 보내기가 서버 연결 실패로 끝나면 그 옆에 "설정 프롬프트 복사": 서버가 없어 이 줄로는 물을 수 없는 새 PC 에서, 준비물 확인·서버 실행을 시키는 글(lib/help-setup.js — 없으면 아래 짧은 글)을 복사해 저장소 폴더의 대화형 Claude Code 에 붙여 넣게 한다.
- * 설정 help = { enabled, url } (lib/settings.js) — 주소는 이 PC(localhost · 127.0.0.1)만 */
+ * 설정 help = { enabled, url } (lib/settings.js) — 주소는 이 PC(localhost · 127.0.0.1)만
+ * 입력칸에 붙여 넣은 그림(화면 캡처 — Win+Shift+S 뒤 Ctrl+V)은 입력칸 앞의 수 칩(#helpPics — 누르면 빼기)으로 서서 다음 요청의 images 로 가고, 서버가 help-server/shots/ 에 두어
+ * Claude 가 Read 로 본다(help-server/shots.js — 2026-10-27 사용자 지정: "krer 처럼 캡쳐해서 붙여 넣을 수 있는 기능 추가 해줘", kr_ext_workspace helpchat.js 의 그림 붙여 넣기를 옮김) */
 (() => {
   const DEFAULT_URL = 'http://127.0.0.1:8106', KEY = 'helpChat', DRAFT = 'helpDraft';
   const $ = (id) => document.getElementById(id);
   const bar = $('helpbar'), form = $('helpForm'), input = $('helpText'), btnSend = $('helpSend'), row = $('helpRow'), statusEl = $('helpStatus'), linesEl = $('helpLines'),
-    btnApply = $('helpApply'), btnStop = $('helpStop'), btnNew = $('helpNew'), btnSetup = $('helpSetup');
+    btnApply = $('helpApply'), btnStop = $('helpStop'), btnNew = $('helpNew'), btnSetup = $('helpSetup'), btnPics = $('helpPics');
   if (!bar || !form) return;
   let base = DEFAULT_URL, cur = null, lines = [], next = 0, detail = '', timer = 0, tick = 0, note = null /* { text, err } 서버 연결 안내 등 일시 문구 */, open = false;
+  let pics = [];   // 붙여 넣은 그림 [{ type, dataUrl }] — 보내면 비움 (팝업을 닫으면 사라짐 — 저장하지 않음)
+  const PIC_MAX = 4, PIC_BYTES = 5 * 1024 * 1024;   // help-server/shots.js 의 MAX · BYTES 와 같게
+
+  /** 붙여 넣은 그림을 읽어 pics 에 더한다. 못 넣은 까닭은 note 로 */
+  async function addPics(files) {
+    const skip = [];
+    for (const f of files) {
+      if (pics.length >= PIC_MAX) { skip.push(`그림은 ${PIC_MAX}장까지입니다`); break; }
+      if (f.size > PIC_BYTES) { skip.push(`그림이 너무 큽니다(${Math.round(f.size / 1048576)}MB — 5MB 까지)`); continue; }
+      try {
+        const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(r.error); r.readAsDataURL(f); });
+        pics.push({ type: f.type || 'image/png', dataUrl });
+      } catch (e) { skip.push(`그림을 읽지 못했습니다(${(e && e.message) || e})`); }
+    }
+    note = skip.length ? { text: skip.join(' · '), err: true } : (note && note.err ? null : note);
+    render();
+  }
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const mmss = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -63,8 +82,14 @@
     btnApply.hidden = !(has && cur.state === 'done' && !cur.applied && needsReload(cur.files) && !needsReload((cur.checks || []).map((c) => c.file)));
     btnNew.hidden = running || !has;
     if (btnSetup) btnSetup.hidden = !(note && note.setup);   // 서버에 연결하지 못했을 때만 (note.setup = 그때 본 연결 상태 한 줄)
+    if (btnPics) {   // 붙인 그림 수만 — 무엇인지는 툴팁 (kr_ext_workspace 와 같게)
+      btnPics.hidden = !pics.length;
+      btnPics.textContent = pics.length ? `🖼 ${pics.length}` : '';
+      btnPics.title = pics.length ? `붙인 그림 ${pics.length}장 — 보낼 때 함께 갑니다 (누르면 빼기)` : '';
+    }
+    if (has && cur.dropped && !note) { statusEl.textContent = `${text} · ⚠ 그림은 빠짐 — Help 서버가 이전 버전입니다(서버를 다시 띄우면 그림도 갑니다)`; statusEl.className = 'help-status err'; }
     btnSend.disabled = running; input.disabled = running;
-    input.placeholder = running ? '처리 중… (이 창을 닫아도 계속됩니다)' : 'Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter';
+    input.placeholder = running ? '처리 중… (이 창을 닫아도 계속됩니다)' : 'Help Chat — 고칠 점이나 이상한 결과를 한 줄로 적고 Enter · 화면 캡처는 Ctrl+V';
     linesEl.hidden = !open || !has;
     if (!linesEl.hidden) {
       const stick = linesEl.scrollTop + linesEl.clientHeight >= linesEl.scrollHeight - 8;
@@ -104,20 +129,36 @@
 
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const text = input.value.trim();
+    const sent = pics;
+    const text = input.value.trim() || (sent.length ? '붙인 그림을 봐 주세요' : '');
     if (!text || (cur && cur.state === 'running')) return;
     btnSend.disabled = true;
-    note = { text: '요청을 보내는 중…' }; render();
+    note = { text: sent.length ? `요청과 그림 ${sent.length}장을 보내는 중…` : '요청을 보내는 중…' }; render();
     const fresh = !!(cur && cur.fresh);
-    const r = await api('/ask', { text, context: await context(), fresh });
+    const r = await api('/ask', Object.assign({ text, context: await context(), fresh }, sent.length ? { images: sent.map((p) => ({ type: p.type, dataUrl: p.dataUrl })) } : {}));
     if (r.ok || (r.kind === 'busy' && r.id)) {   // busy: 앞선 요청(다른 창에서 보냈거나 저장이 안 된 것)을 이어서 본다 — 쓴 글은 그대로 둠
       cur = { id: r.id, text: r.ok ? text : '', at: Date.now(), state: 'running' };
+      if (r.ok && sent.length && typeof r.shots !== 'number') cur.dropped = true;   // 이전 서버는 images 를 모르고 shots 도 안 돌려준다
       lines = []; next = 0; detail = ''; note = null;
-      if (r.ok) { input.value = ''; try { chrome.storage.local.remove(DRAFT); } catch (e) {} }
+      if (r.ok) { input.value = ''; if (pics === sent) pics = []; try { chrome.storage.local.remove(DRAFT); } catch (e) {} }
       await save();
       watch();
-    } else { note = { text: r.error || '요청을 보내지 못했습니다', err: true, setup: r.kind === 'offline' ? r.error || '연결할 수 없습니다' : '' }; render(); btnSend.disabled = false; }
+    } else {
+      // 이전 서버는 본문 64KB 를 넘으면 연결을 끊어 "연결할 수 없습니다" 로 보인다 — 그림을 붙였으면 그 까닭일 수 있다고 덧붙임
+      const why = r.error || '요청을 보내지 못했습니다';
+      note = { text: sent.length && r.kind === 'offline' ? `${why} (그림을 붙였다면 Help 서버가 이전 버전일 수 있습니다 — 서버를 다시 띄우세요)` : why, err: true, setup: r.kind === 'offline' ? r.error || '연결할 수 없습니다' : '' };
+      render(); btnSend.disabled = false;
+    }
   });
+  // 그림 붙여 넣기 — 클립보드에 그림이 있으면 받고(패널의 다른 붙여넣기로 가지 않게 여기서 멈춤), 글이면 여느 붙여넣기
+  input.addEventListener('paste', (ev) => {
+    const files = Array.from((ev.clipboardData && ev.clipboardData.files) || []).filter((f) => /^image\//.test(f.type));
+    if (!files.length) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    addPics(files);
+  });
+  if (btnPics) btnPics.addEventListener('click', () => { pics = []; render(); input.focus(); });
   input.addEventListener('input', () => { try { chrome.storage.local.set({ [DRAFT]: input.value }); } catch (e) {} if (note && (note.err || note.setup)) { note = null; render(); } });   // 글을 고치면 오류·설정 프롬프트 안내는 치움
   statusEl.addEventListener('click', () => { if (cur && cur.id) { open = !open; render(); if (open) linesEl.scrollTop = linesEl.scrollHeight; } });
   btnStop.addEventListener('click', async () => { btnStop.disabled = true; await api('/cancel', {}); btnStop.disabled = false; clearTimeout(timer); poll(); });

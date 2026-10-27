@@ -1,6 +1,8 @@
 # Help Chat 서버가 만드는 것 (작업 기록 · 고정된 확장 출처/대화 세션)
 help-server/logs/
 help-server/.state.json
+# Help Chat 에 붙여 넣은 그림 (help-server/shots.js — 7일 지나면 지움)
+help-server/shots/
 
 # 개인 설정 (Stop 훅: tests/cdp/reload.mjs --if-changed — 이 PC 의 CDP 크롬에 기대므로 git 에 올리지 않음)
 .claude/settings.local.json

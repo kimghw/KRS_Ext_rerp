@@ -208,7 +208,7 @@
     state.loading = true; state.fatal = null; draw();
     try {
       const res = await chrome.runtime.sendMessage({ type: 'getData', force: !!force, full: !!force });   // ↻: 참여인력(계상률) 캐시(2시간)도 건너뛰고 다시 조회
-      if (res && !res.error) state.data = res; else state.fatal = (res && res.error) || '응답 없음';
+      if (res && (res.ts || !res.error)) state.data = res; else state.fatal = (res && res.error) || '응답 없음';   // ts 가 있으면 조회 결과(조회 오류는 그 안의 error 로 한 번만 — popup.js 와 같음)
     } catch (e) {
       const msg = String((e && e.message) || e);
       state.fatal = /context invalidated/i.test(msg) ? null : msg;

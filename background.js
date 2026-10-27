@@ -91,6 +91,7 @@ async function refresh(force, opts) {
         if (sso.ok) { data = await KRX_API.collect(settings, { freshMembership: full }); data.autoLogin = { ok: true, ts: sso.ts, ms: sso.ms }; }
         else { data.eclassLogin = sso.kind === 'eclass-login'; data.autoLogin = { ok: false, ts: sso.ts, kind: sso.kind, error: sso.error }; }
       }
+      data = KRX_API.keepOnDown(data, cache);   // R&D ERP 서버가 내려가(404·5xx) 빈 결과면 마지막 정상 결과를 남기고 오류 한 줄만 얹음 — 오류가 있으니 다음 열기·알람에 다시 조회 (2026-10-27 전 경로 404)
       full = false;   // 참여인력은 방금 다시 조회했으므로 이 뒤의 재조회(설정 변경·사번 감지)는 캐시로
       if (gen !== settingsGen) { force = true; continue; }   // 조회 중 설정이 바뀜(예: 과제 제외) → 이 결과는 캐시하지 않고 다시 조회
       if (data.memberFilter === 'no-id' && !data.loginRequired) {
