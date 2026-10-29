@@ -50,13 +50,14 @@ eClass 홈 한 곳에서 R&D ERP 와 HR System 의 현황(미승인내역, 카�
 
 ### 2.1 플랫폼·권한
 
-- `CMN-01` Chrome 확장 Manifest V3. 권한: `storage`, `alarms`, `scripting`, `declarativeNetRequestWithHostAccess`, `offscreen`, `clipboardWrite`, `sidePanel`(0.8.4). 선택 호스트 권한 `<all_urls>`(0.8.5, 화면 캡처 첨부를 처음 쓸 때 요청 — `PRP-15`). 호스트 권한: `rnd.krs.co.kr`, `eclass.krs.co.kr`, `hr.krs.co.kr`, `localhost`·`127.0.0.1`(Help 서버), `api.anthropic.com`(0.8.6, Claude API 로 직접 하는 자동 분류 — `PRP-17`), `*.sharepoint.com`(0.8.7, 공유 (Plus) 의 SharePoint(OneDrive) 폴더 읽기·쓰기 — 3.9). 0.8.7 개발 중 더했던 `identity` 권한과 `graph.microsoft.com`·`login.microsoftonline.com` 호스트는 2026-10-18 에 뺐다.
+- `CMN-01` Chrome 확장 Manifest V3. 권한: `storage`, `alarms`, `scripting`, `declarativeNetRequestWithHostAccess`, `offscreen`, `clipboardWrite`, `sidePanel`(0.8.4). 선택 호스트 권한 `<all_urls>`(0.8.5, 화면 캡처 첨부를 처음 쓸 때 요청 — `PRP-15`). 호스트 권한: `rnd.krs.co.kr`, `eclass.krs.co.kr`, `hr.krs.co.kr`, `localhost`·`127.0.0.1`(Help 서버), `api.anthropic.com`(0.8.6, Claude API 로 직접 하는 자동 분류 — `PRP-17`), `*.sharepoint.com`(0.8.7, 공유 (Plus) 의 SharePoint(OneDrive) 폴더 읽기·쓰기 — 3.9; 2026-10-28 부터 OneDrive·Teams 첨부 받기에도), `mail.google.com`·`*.googleusercontent.com`·Outlook 웹(`outlook.cloud.microsoft`·`outlook.office.com`·`outlook.office365.com`·`outlook.live.com`)·Teams 웹(`teams.microsoft.com`·`teams.cloud.microsoft`·`teams.live.com`)·`*.asm.skype.com`(2026-10-28, 첨부 끌어 놓기 — `PRP-19`). 0.8.7 개발 중 더했던 `identity` 권한과 `graph.microsoft.com`·`login.microsoftonline.com` 호스트는 2026-10-18 에 뺐다.
 - `CMN-02` 콘텐츠 스크립트 주입 범위
   - eClass 홈(`/eClassVer4/Home/Index*`, `/eClassVer4/Home`, `/eClassVer4/`): 패널.
   - `rnd.krs.co.kr` 모든 프레임: MAIN world 훅(`document_start`) + 격리 world 도우미(`document_idle`).
   - `hr.krs.co.kr` 최상위 프레임: 급여명세서 수집 대체 경로.
   - `www.rcms.go.kr` 최상위 프레임: 로그인 화면 자동 입력(`PAN-11`). 호스트 권한은 따로 두지 않는다(백그라운드는 RCMS 에 요청하지 않음).
-- `CMN-03` 확장을 재로드하면 열려 있는 R&D ERP 탭에도 스크립트를 다시 넣는다(`scripting`). 다시 주입된 스크립트는 이전 스크립트를 멈추고 넣었던 요소를 걷어낸 뒤 새로 붙인다.
+  - Gmail·Outlook 웹·Teams 웹·`*.sharepoint.com` 최상위 프레임(`document_start`): 첨부 끌기 표시(`content/mail-drag.js`, `PRP-19`).
+- `CMN-03` 확장을 재로드하면 열려 있는 R&D ERP 탭에도 스크립트를 다시 넣는다(`scripting`). 다시 주입된 스크립트는 이전 스크립트를 멈추고 넣었던 요소를 걷어낸 뒤 새로 붙인다. 열려 있는 Gmail·Outlook·Teams·SharePoint 탭에는 `content/mail-drag.js` 를 다시 넣는다(이전 리스너는 스스로 뗀다).
 
 ### 2.2 데이터·개인정보
 
@@ -384,6 +385,12 @@ R&D ERP 청구서(카드) 화면(`rexpe_0083_01`)에서 미청구 카드 행을 
   - 영역 선택: 반투명 막에서 끌어서 고른 사각형을 한 장씩 저장하고 막을 다시 씌워 이어서 고르게 한다. Esc · 막의 끝내기 · 패널의 끝내기로 마친다.
   - 파일 이름 `capture_<사이트>_<YYYYMMDD-HHMMSS>[_n]`. PNG 가 500KB 를 넘으면 JPEG(품질 0.92→0.65)로 맞추고, 끝내 넘으면 0.85 로 두고 “500KB 이하 규칙 과제에서는 빠질 수 있음”을 알린다.
   - 권한: `optional_host_permissions` `<all_urls>` 를 첫 클릭 때 `chrome.permissions.request` 로 묻는다(클릭 안에서 맨 먼저). Chrome 화면·확장 페이지·웹 스토어는 찍지 않는다.
+- `PRP-19` **메일·Teams·OneDrive 첨부 끌어 놓기(2026-10-28, 사이드 패널·eClass 패널)**: Gmail·Outlook 웹 메일의 첨부 카드, Teams 웹 채팅의 파일 카드·메시지 그림, OneDrive(회사 SharePoint) 파일 목록의 줄을 거래 행이나 준비 줄에 끌어다 놓으면 원본을 받아 `PRP-14` 와 같은 저장·거르기(첨부할 수 없는 종류·15MB·빈 파일)·자동 분류(`PRP-17`)로 넣는다(`lib/mail-drop.js` · `content/mail-drag.js`).
+  - 끌기 시작 쪽: `content/mail-drag.js`(그 사이트 최상위 프레임, 격리 world, `document_start`)가 사람이 시작한 dragstart(isTrusted)에서만 첨부를 알아보고 `application/x-krx-mail` = `{ site, items: [{ name, mime?, url?, src?, root?, id?, size? }] }` 를 덧붙이고 `window.__krxMailDrag = { at, site, items }` 에 남긴다. 첨부가 아닌 끌기는 건드리지 않는다. Gmail = `[download_url]`("형식:이름:주소") 또는 카드 안 `a[href*="attid="]`; Outlook = `[role=listbox] [role=option]` 카드의 이름, Outlook 이 채운 `attachment` JSON(첨부 ID·이름·크기)으로 바꿈; Teams = 파일 이름(확장자 있는 글자)과 단추가 있는 가장 가까운 조상(그 안 SharePoint 링크가 있으면 url), 아니면 48×32 이상이고 아바타가 아닌 그림의 src; OneDrive = `[role=row]` 등 줄(선택된 줄 모두, 10개까지)의 이름 + 주소의 `id=`(미리보기면 `parent=`) · `/personal/<u>/_layouts/` → `/personal/<u>/Documents` · `…/Forms/` 앞 폴더, 폴더를 모르면 `root`(사이트).
+  - 놓는 쪽(`lib/prep.js`): 파일(Files)이 아닌 끌기는 거래 행·준비 줄 위에서만 받고 dropEffect 는 건드리지 않는다(보내는 쪽 effectAllowed 그대로). drop 안에서 곧바로 `parseDrop`(`application/x-krx-mail` → Outlook `attachment` → `downloadurl` → `text/uri-list`)을 읽어 `prepMailDrop { key, meta, drop }` 을 보낸다. 받는 동안 그 줄에 `<사이트> 첨부 받는 중…`, 끝나면 `<사이트> 첨부 N개 저장됨 · 못 받음: 이름 (이유)`.
+  - 받는 쪽(백그라운드 `KRX_MAIL_DROP.take`): drop 이 없으면 Gmail·Outlook·Teams·SharePoint 탭(놓은 창의 앞 탭 먼저, 최근 본 차례로 8개까지)의 `__krxMailDrag` 중 2분 안의 가장 새 것을 쓰고 지운다. 항목마다 src → 그 탭 MAIN world `tabGrab`(fetch, 안 되면 같은 주소 `<img>` 를 캔버스 PNG로; https 면 백그라운드 fetch 한 번 더) · url → 백그라운드 `fetch(credentials:include)` (SharePoint 파일 경로는 `<웹>/_api/web/GetFileByServerRelativePath(decodedurl=…)/$value`, 공유 링크 `/:x:/…` 는 `download=1`) · root → `GetMyProperties` 의 `PersonalUrl` + `/Documents/이름` · 그 밖(Outlook·Teams 카드) → 그 탭 MAIN world `mailFetch`: 카드(Outlook 은 첨부 ID → 이름, Teams 는 이름 칸에서 위로 메뉴 단추가 있는 조상)의 메뉴 단추 → 메뉴 `다운로드|Download` 를 누르고 `URL.createObjectURL` · `a.click` · `dispatchEvent` · `window.open` 을 잠깐 감싸 blob(또는 `download.aspx`·`tempauth`·`download=1` 주소 → 백그라운드가 받음)을 가로챈 뒤 반드시 되돌린다(20초, 메뉴가 남으면 Escape). `window.__krsMailFetch` 표시는 kr_ext_workspace 와 같이 써서 두 확장이 한꺼번에 감싸지 않는다.
+  - 이름: 받은 이름 → `Content-Disposition` → 주소 끝, 확장자가 없으면 받은 형식(pdf·png·jpg·gif·webp·bmp)으로 붙인다. 형식은 확장자로 아는 것 우선(Outlook 의 `application/octet-stream` 바로잡기). 웹페이지(`text/html`)가 오면 로그인 풀림으로 보고 못 받음. 출처 링크(url·title) = 그 메일·대화 탭 주소(OneDrive 는 그 파일), `Gmail 메일 첨부` · `Outlook 메일 첨부` · `Teams 첨부` · `OneDrive 첨부`.
+  - 실측 상태(2026-10-28): Outlook `attachment` JSON·메뉴 다운로드 가로채기는 kr_ext_workspace 실측, SharePoint 확장 출처 GET 은 `3.9` 실측. 탭 → 확장 패널로 무엇이 건너오는지와 Gmail·Teams·OneDrive 화면 짜임, Teams 다운로드 방식은 실측 전.
 - `PRP-15` 과제 행의 건수 옆에 `준비 N`, 구역 제목에 `청구 준비 N건` 을 표시한다.
 
 ### 6.3 저장·보존

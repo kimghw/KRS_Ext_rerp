@@ -1,5 +1,6 @@
 /* 서비스워커: 데이터 수집/캐시, 배지, 캡처 로그 저장, 주기 갱신 */
 importScripts('lib/format.js', 'lib/settings.js', 'lib/rnd-api.js', 'lib/hr-api.js', 'lib/llm.js', 'lib/gitsync.js', 'lib/mcp-client.js', 'lib/teams-mcp.js', 'lib/prep-store.js', 'lib/classify-core.js', 'lib/claude-api.js', 'lib/prep-ai.js', 'lib/fetch-sites.js', 'lib/prep-fetch.js', 'lib/rcms.js',   // llm: Help 서버(LLM) 연결 상태 → storage.local.llmStatus · classify-core·claude-api: 자동 분류를 Claude API 로 직접 (0.8.6) · prep-fetch: 청구 준비의 증빙 찾아오기 (Help 서버 → site-fetch/)
+  'lib/mail-drop.js',   // 첨부 끌어 놓기: Gmail·Outlook 메일 첨부 · Teams 파일·그림 · OneDrive 파일을 청구 준비 줄에 놓으면 원본을 받아 첨부로 (2026-10-28)
   'lib/plan.js', 'lib/plan-sync.js',   // 공유 (Plus) 의 예상 비용 몫: plan.js 는 저장소 키·월간 구독 계산용, plan-sync.js 는 병합 규칙(merge)
   'lib/research.js', 'lib/research-sync.js',   // 연구개발계획서(연구내용) 참조 · 공유 (Plus) 의 연구내용 병합 규칙(merge)
   'lib/staff.js', 'lib/staff-sync.js', 'lib/collect.js',   // 사업비(참여연구원 참여율·지급액 계획, 0.8.7) · 공유 (Plus) 의 사업비 병합 규칙(merge) · 참여연구원 자료 요청(SharePoint 응답 목록 · 팀즈 딥 링크 · 응답 취합, 0.8.9 — 배선은 아래 collect*)
@@ -357,6 +358,14 @@ async function injectHrIntoOpenTabs() {
   await Promise.all((tabs || []).map((t) =>
     chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['lib/format.js', 'lib/settings.js', 'lib/hr-api.js', 'content/hr-pay.js'] }).catch(() => {})));
 }
+/* 이미 열려 있는 Gmail·Outlook·Teams·OneDrive 웹 탭(최상위 프레임)에 첨부 끌기 표시(content/mail-drag.js)를 넣는다 — 설치/재로드 뒤 그 탭을 새로고침하지 않아도 첨부를 끌어 놓을 수 있게. 다시 넣으면 이전 리스너는 스스로 뗀다 */
+async function injectMailDragIntoOpenTabs() {
+  let tabs = [];
+  const M = KRX_MAIL_DROP;
+  try { tabs = await chrome.tabs.query({ url: [].concat(M.GMAIL_URLS, M.OUTLOOK_URLS, M.TEAMS_URLS, M.ONEDRIVE_URLS) }); } catch (e) { return; }
+  await Promise.all((tabs || []).map((t) =>
+    chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content/mail-drag.js'] }).catch(() => {})));
+}
 /* 열려 있는 HR System 탭에 급여명세서 수집(hrCollect)을 요청한다 (백그라운드 직접 호출이 안 될 때의 대체 경로).
  * 수집 결과는 탭이 hrPay 메시지로 따로 보내온다. 첫 탭이 성공하면 나머지는 건너뜀. 반환: { ok, via:'tab', tabs, … 탭의 응답 } */
 async function requestHrCollect(force, all) {
@@ -548,6 +557,7 @@ chrome.runtime.onInstalled.addListener(() => {   // 설치/업데이트/재로�
     .then(injectBridgeIntoOpenErpTabs)
     .then(injectClaimHelperIntoOpenErpTabs)
     .then(injectHrIntoOpenTabs)
+    .then(injectMailDragIntoOpenTabs)
     .then(() => { scheduleAlarm(); refresh(true).catch(() => {}); });
   // 열려 있는 eClass 홈 탭은 옛 콘텐츠 스크립트가 남아 통신이 끊기므로 새로고침
   try {
@@ -1565,6 +1575,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'prepMeetingInfo': return await meetingInfo(String(msg.prjNo || '').trim(), String(msg.date || ''), !!msg.force);   // 회의록 카드: 과제 참여인력 목록 + 회의록 규칙 + 회의사전신청 목록 + 휴일 여부 (1시간 캐시)
       case 'prepPersonSearch': try { return { ok: true, list: await KRX_API.searchPerson(msg.name) }; } catch (e) { const d = KRX_API.describe(e); return { ok: false, error: d.kind === 'login' ? 'R&D ERP 로그인이 필요합니다' : d.message }; }   // 내부참석자 검색
       case 'prepAddFiles': return { ok: true, entry: await KRX_PREP_STORE.addFiles(String(msg.key || ''), msg.meta || {}, msg.files || []) };
+      case 'prepMailDrop': return await KRX_MAIL_DROP.take(msg, sender);   // 청구 준비 줄에 끌어 놓은 Gmail·Outlook 메일 첨부 · Teams 파일·그림 · OneDrive 파일 → 원본을 받아 첨부로 (lib/mail-drop.js) → { ok, entry, added, failed, site }
       case 'prepAuto': return await KRX_PREP_AI.run(String(msg.key || ''), msg.meta || {}, msg.force ? { force: true } : null);   // Claude 자동 분류 (Help 서버 연결 시): 청구종류 · 첨부 파일 종류 (lib/prep-ai.js). force = 청구내역 옆 [AI] 단추(꼭 다시 씀)
       case 'prepFile': { const f = await KRX_PREP_STORE.fileB64(String(msg.id || '')); return f ? Object.assign({ ok: true }, f) : { ok: false, error: '파일이 없습니다 (지워졌거나 다른 브라우저에 저장됨)' }; }   // popup/file.html 이 보여 줄 파일 하나
       case 'prepFileOpen': await chrome.tabs.create({ url: chrome.runtime.getURL(`popup/file.html#${encodeURIComponent(String(msg.id || ''))}`) }); return { ok: true };   // 파일 칩 이름 클릭 → 새 탭에서 보기 (eClass 패널·사이드 패널·팝업 모두 여기로)

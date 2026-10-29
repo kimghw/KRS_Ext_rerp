@@ -5,7 +5,7 @@
   "description": "eClass 홈 화면에 R&D ERP(rnd.krs.co.kr)의 미승인내역, 과제별 카드미청구 내역(거래별 청구종류·첨부 파일 미리 지정), 과제집행비율(비목별 예산잔액, 예상 비용 계획), 과제 참여율(예비 참여율·기간 계획)과 HR System(hr.krs.co.kr) 급여명세서의 기본연봉·올해 연구수당(직급별 한도·잔여)을 표시하고, ERP 청구서(카드) 화면의 입력(예산·RCMS 기본값, 세목 빠른 선택, 첨부 드래그 앤 드롭, 패널에서 준비한 청구종류·첨부·회의록 참석자 자동 적용, 백그라운드 탭에서 내역 추가·결의서 신청)을 돕고, 과제 화면의 과제책임자/과제명 칸에 내 참여 과제 드롭다운(고르면 팝업 없이 바로 적용)을 넣습니다. 공유 (Plus, 선택): 예상 비용·연구내용·사업비(예산 줄·참여연구원 계획)·변경이력·과제 별칭을 SharePoint(OneDrive) 의 과제별 폴더(기본 내 OneDrive 의 문서/업무/shared/<약칭>, 연차마다 n차년도.json + 예상비용.json)에 두고 브라우저의 로그인만으로 같은 과제 사람들과 맞춥니다 — 폴더를 만들 때 참여연구원에게 자동 공유하고, 공유받은 폴더는 저절로 찾습니다. Help Chat(선택): 툴바 팝업에 한 줄로 요청하면 이 PC 의 Help 서버(help-server)가 Claude Code CLI 로 확장 코드를 고칩니다. Claude API(선택): 설정에 Anthropic API 키를 넣으면 Help 서버 없이도 청구 준비 자동 분류·청구내역 작성을 Claude API 로 직접 합니다.",
   "permissions": ["storage", "alarms", "scripting", "declarativeNetRequestWithHostAccess", "offscreen", "clipboardWrite", "sidePanel"],
   "optional_host_permissions": ["<all_urls>"],
-  "host_permissions": ["https://rnd.krs.co.kr/*", "https://eclass.krs.co.kr/*", "https://hr.krs.co.kr/*", "http://localhost/*", "http://127.0.0.1/*", "https://api.anthropic.com/*", "https://*.sharepoint.com/*"],
+  "host_permissions": ["https://rnd.krs.co.kr/*", "https://eclass.krs.co.kr/*", "https://hr.krs.co.kr/*", "http://localhost/*", "http://127.0.0.1/*", "https://api.anthropic.com/*", "https://*.sharepoint.com/*", "https://mail.google.com/*", "https://*.googleusercontent.com/*", "https://outlook.cloud.microsoft/*", "https://outlook.office.com/*", "https://outlook.office365.com/*", "https://outlook.live.com/*", "https://teams.microsoft.com/*", "https://teams.cloud.microsoft/*", "https://teams.live.com/*", "https://*.asm.skype.com/*"],
   "background": { "service_worker": "background.js" },
   "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
   "action": {
@@ -23,7 +23,7 @@
         "https://eclass.krs.co.kr/eClassVer4/",
         "https://eclass.krs.co.kr/eClassVer4"
       ],
-      "js": ["lib/format.js", "lib/settings.js", "lib/plan.js", "lib/pay.js", "lib/part.js", "lib/fetch-sites.js", "lib/prep.js", "lib/research.js", "lib/staff.js", "lib/collect.js", "lib/staff-ui.js", "lib/help-setup.js", "lib/gitsync.js", "lib/render.js", "content/eclass.js"],
+      "js": ["lib/format.js", "lib/settings.js", "lib/plan.js", "lib/pay.js", "lib/part.js", "lib/fetch-sites.js", "lib/mail-drop.js", "lib/prep.js", "lib/research.js", "lib/staff.js", "lib/collect.js", "lib/staff-ui.js", "lib/help-setup.js", "lib/gitsync.js", "lib/render.js", "content/eclass.js"],
       "css": ["lib/panel.css"],
       "run_at": "document_idle"
     },
@@ -49,6 +49,11 @@
       "matches": ["https://hr.krs.co.kr/*"],
       "js": ["lib/format.js", "lib/settings.js", "lib/hr-api.js", "content/hr-pay.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://mail.google.com/*", "https://outlook.cloud.microsoft/*", "https://outlook.office.com/*", "https://outlook.office365.com/*", "https://outlook.live.com/*", "https://teams.microsoft.com/*", "https://teams.cloud.microsoft/*", "https://teams.live.com/*", "https://*.sharepoint.com/*"],
+      "js": ["content/mail-drag.js"],
+      "run_at": "document_start"
     },
     {
       "matches": ["https://www.rcms.go.kr/*"],
